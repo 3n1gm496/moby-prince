@@ -52,7 +52,6 @@ app.post("/api/ask", async (req, res) => {
         modelSpec: {
           modelVersion: "stable",
         },
-        includeGroundingSupports: true,
         promptSpec: {
           preamble:
             "Sei un assistente storico specializzato nel disastro del Moby Prince (10 aprile 1991). " +
