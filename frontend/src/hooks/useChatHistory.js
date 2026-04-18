@@ -89,13 +89,14 @@ export function useChatHistory() {
     });
   }, []);
 
-  const appendMessage = useCallback((message) => {
+  const appendMessage = useCallback((message, targetId) => {
     setState((prev) => {
+      const id = targetId ?? prev.activeConversationId;
       const now = new Date().toISOString();
       return {
         ...prev,
         conversations: prev.conversations.map((c) => {
-          if (c.id !== prev.activeConversationId) return c;
+          if (c.id !== id) return c;
           const isFirstUser =
             message.role === "user" &&
             c.messages.filter((m) => m.role === "user").length === 0;
@@ -110,13 +111,16 @@ export function useChatHistory() {
     });
   }, []);
 
-  const updateSessionId = useCallback((sessionId) => {
-    setState((prev) => ({
-      ...prev,
-      conversations: prev.conversations.map((c) =>
-        c.id === prev.activeConversationId ? { ...c, sessionId } : c
-      ),
-    }));
+  const updateSessionId = useCallback((sessionId, targetId) => {
+    setState((prev) => {
+      const id = targetId ?? prev.activeConversationId;
+      return {
+        ...prev,
+        conversations: prev.conversations.map((c) =>
+          c.id === id ? { ...c, sessionId } : c
+        ),
+      };
+    });
   }, []);
 
   const ensureActiveConversation = useCallback(() => {

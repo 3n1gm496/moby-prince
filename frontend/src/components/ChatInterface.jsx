@@ -29,9 +29,10 @@ function LoadingBubble() {
 
 export default function ChatInterface() {
   const history = useChatHistory();
-  const { messages, isLoading, sendMessage } = useChat({
+  const { messages, isLoading, loadingConvId, sendMessage } = useChat({
     externalMessages: history.activeConversation?.messages ?? [],
     externalSessionId: history.activeConversation?.sessionId ?? null,
+    activeConversationId: history.activeConversationId,
     onAppend: history.appendMessage,
     onSessionUpdate: history.updateSessionId,
   });
@@ -42,15 +43,22 @@ export default function ChatInterface() {
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
+  // Scroll to latest message as new content arrives
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
+  // Snap to bottom instantly when switching conversations
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+  }, [history.activeConversationId]);
+
   const handleSubmit = (e) => {
     e?.preventDefault();
     if (!input.trim() || isLoading) return;
-    history.ensureActiveConversation();
-    sendMessage(input);
+    // Capture the target conversation ID before any async state updates
+    const convId = history.ensureActiveConversation();
+    sendMessage(input, convId);
     setInput("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -69,9 +77,11 @@ export default function ChatInterface() {
     history.createConversation();
     setInput("");
     setSidebarOpen(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
   };
 
   const isEmpty = messages.length === 0;
+  const showLoadingBubble = loadingConvId === history.activeConversationId;
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface">
@@ -147,7 +157,7 @@ export default function ChatInterface() {
                     onFollowUp={(q) => { setInput(q); textareaRef.current?.focus(); }}
                   />
                 ))}
-                {isLoading && <LoadingBubble />}
+                {showLoadingBubble && <LoadingBubble />}
                 <div ref={messagesEndRef} />
               </div>
             </div>

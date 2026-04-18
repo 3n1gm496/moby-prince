@@ -1,48 +1,62 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 
-/**
- * Accepts optional external state controllers from useChatHistory.
- * Falls back to internal state when not provided (standalone mode).
- */
-export function useChat({ externalMessages, externalSessionId, onAppend, onSessionUpdate } = {}) {
+export function useChat({
+  externalMessages,
+  externalSessionId,
+  activeConversationId,
+  onAppend,
+  onSessionUpdate,
+} = {}) {
   const [internalMessages, setInternalMessages] = useState([]);
   const [internalSessionId, setInternalSessionId] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [loadingConvId, setLoadingConvId] = useState(null);
+  const abortRef = useRef(null);
 
   const messages = externalMessages !== undefined ? externalMessages : internalMessages;
   const sessionId = externalSessionId !== undefined ? externalSessionId : internalSessionId;
+  const isLoading = loadingConvId !== null;
 
-  const addMessage = useCallback((msg) => {
+  const addMessage = useCallback((msg, targetId) => {
     if (onAppend) {
-      onAppend(msg);
+      onAppend(msg, targetId);
     } else {
       setInternalMessages((prev) => [...prev, msg]);
     }
   }, [onAppend]);
 
-  const setSession = useCallback((id) => {
+  const setSession = useCallback((id, targetId) => {
     if (onSessionUpdate) {
-      onSessionUpdate(id);
+      onSessionUpdate(id, targetId);
     } else {
       setInternalSessionId(id);
     }
   }, [onSessionUpdate]);
 
+  // explicitConvId lets the caller force a target conversation,
+  // needed when a new conversation was just created (state not yet committed).
   const sendMessage = useCallback(
-    async (queryText) => {
+    async (queryText, explicitConvId) => {
       if (!queryText.trim() || isLoading) return;
 
-      const userMessage = { id: Date.now(), role: "user", text: queryText.trim() };
-      addMessage(userMessage);
-      setIsLoading(true);
-      setError(null);
+      // Cancel any previous in-flight request
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      // Timeout after 60 s
+      const timeoutId = setTimeout(() => controller.abort(), 60_000);
+
+      const targetConvId = explicitConvId ?? activeConversationId;
+
+      addMessage({ id: Date.now(), role: "user", text: queryText.trim() }, targetConvId);
+      setLoadingConvId(targetConvId);
 
       try {
         const res = await fetch("/api/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: queryText.trim(), sessionId }),
+          signal: controller.signal,
         });
 
         if (!res.ok) {
@@ -54,31 +68,37 @@ export function useChat({ externalMessages, externalSessionId, onAppend, onSessi
 
         if (data.session?.name) {
           const parts = data.session.name.split("/sessions/");
-          if (parts[1]) setSession(parts[1]);
+          if (parts[1]) setSession(parts[1], targetConvId);
         }
 
         const answer = data.answer || {};
-        const citations = buildCitations(answer);
-
-        addMessage({
-          id: Date.now() + 1,
-          role: "assistant",
-          text: answer.answerText || "Nessuna risposta disponibile.",
-          citations,
-          relatedQuestions: data.answer?.relatedQuestions || [],
-          steps: answer.steps || [],
-        });
+        addMessage(
+          {
+            id: Date.now() + 1,
+            role: "assistant",
+            text: answer.answerText || "Nessuna risposta disponibile.",
+            citations: buildCitations(answer),
+            relatedQuestions: data.answer?.relatedQuestions || [],
+            steps: answer.steps || [],
+          },
+          targetConvId
+        );
       } catch (err) {
-        setError(err.message);
-        addMessage({ id: Date.now() + 1, role: "error", text: `Errore: ${err.message}` });
+        if (err.name === "AbortError") return; // cancelled — do not show error
+        addMessage(
+          { id: Date.now() + 1, role: "error", text: `Errore: ${err.message}` },
+          targetConvId
+        );
       } finally {
-        setIsLoading(false);
+        clearTimeout(timeoutId);
+        setLoadingConvId(null);
+        abortRef.current = null;
       }
     },
-    [isLoading, sessionId, addMessage, setSession]
+    [isLoading, sessionId, addMessage, setSession, activeConversationId]
   );
 
-  return { messages, isLoading, error, sendMessage };
+  return { messages, isLoading, loadingConvId, sendMessage };
 }
 
 function buildCitations(answer) {
