@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - GOOGLE_CLOUD_PROJECT=project-fae202f2-19be-4d87-8cd
+      - GCP_LOCATION=eu
+      - ENGINE_ID=moby-prince_1776531159279
+      - DATA_STORE_ID=moby-prince_1776442794309
+      - FRONTEND_ORIGIN=http://localhost:5173
+    volumes:
+      # Mount ADC credentials from host (gcloud auth application-default login)
+      - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

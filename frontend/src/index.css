@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-navy-950 text-slate-200;
+    font-family: "Inter", system-ui, sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-navy-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-navy-600 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-brand-600;
+  }
+}
+
+@layer components {
+  .citation-badge {
+    @apply inline-flex items-center justify-center w-5 h-5 text-xs font-mono font-semibold
+           bg-brand-600/30 text-brand-400 border border-brand-600/50 rounded
+           cursor-pointer hover:bg-brand-600/50 transition-colors duration-150 align-super;
+  }
+
+  .prose-answer {
+    @apply text-slate-200 leading-relaxed;
+  }
+
+  .prose-answer p {
+    @apply mb-3;
+  }
+
+  .prose-answer strong {
+    @apply text-white font-semibold;
+  }
+
+  .prose-answer ul {
+    @apply list-disc list-inside mb-3 space-y-1;
+  }
+
+  .prose-answer ol {
+    @apply list-decimal list-inside mb-3 space-y-1;
+  }
+
+  .prose-answer h3 {
+    @apply text-white font-semibold text-base mt-4 mb-2;
+  }
+}
