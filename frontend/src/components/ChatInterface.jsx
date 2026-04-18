@@ -119,12 +119,20 @@ export default function ChatInterface() {
           </div>
         </header>
 
-        {/* Messages area */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-4 py-6">
-            {isEmpty ? (
-              <WelcomeScreen />
-            ) : (
+        {/* Empty state — fixed, non-scrolling */}
+        {isEmpty && (
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <WelcomeScreen />
+            <div className="w-full max-w-2xl px-4">
+              <QuickSuggestions onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }} disabled={isLoading} />
+            </div>
+          </div>
+        )}
+
+        {/* Messages area — only when chat has content */}
+        {!isEmpty && (
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-2xl mx-auto px-4 py-6">
               <div className="space-y-6">
                 {messages.map((msg) => (
                   <MessageBubble
@@ -137,14 +145,7 @@ export default function ChatInterface() {
                 {isLoading && <LoadingBubble />}
                 <div ref={messagesEndRef} />
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Quick suggestions — only on empty state */}
-        {isEmpty && (
-          <div className="flex-shrink-0 max-w-2xl w-full mx-auto">
-            <QuickSuggestions onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }} disabled={isLoading} />
+            </div>
           </div>
         )}
 
