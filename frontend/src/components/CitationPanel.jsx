@@ -79,7 +79,7 @@ export default function CitationPanel({ citation, onClose }) {
         </div>
 
         <div className="p-4 border-t border-border">
-          <p className="text-xs text-text-muted">Archivio Digitale Moby Prince · Vertex AI Search</p>
+          <p className="text-xs text-text-muted">Archivio Documentale · Commissione Parlamentare d&apos;Inchiesta · Camera dei Deputati</p>
         </div>
       </aside>
     </>

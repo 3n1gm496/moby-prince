@@ -1,10 +1,12 @@
 const SUGGESTIONS = [
-  "Quali sono le conclusioni della commissione parlamentare d'inchiesta?",
-  "Quante vittime ci furono nel disastro del Moby Prince?",
-  "Quali erano le condizioni meteorologiche la notte del 10 aprile 1991?",
-  "Come avvenne la collisione tra il Moby Prince e l'Agip Abruzzo?",
-  "Chi era il comandante del Moby Prince?",
-  "Quali irregolarità emersero nelle indagini successive?",
+  "Quali sono le conclusioni della Commissione parlamentare d'inchiesta sul naufragio?",
+  "Qual è il numero ufficiale delle vittime accertate e la loro identità?",
+  "Quali erano le condizioni meteomarine nel porto di Livorno nella notte del 10 aprile 1991?",
+  "Come si sviluppò la dinamica della collisione tra il Moby Prince e la petroliera Agip Abruzzo?",
+  "Quali responsabilità penali sono state accertate nei procedimenti giudiziari?",
+  "Quali omissioni nei soccorsi sono emerse dagli atti istruttori?",
+  "Quale ruolo ebbe la nebbia e la visibilità ridotta nelle cause del sinistro?",
+  "Quali perizie tecniche sono state acquisite dalla Commissione?",
 ];
 
 export default function QuickSuggestions({ onSelect, disabled }) {

@@ -130,7 +130,7 @@ export default function Sidebar({
         {/* Footer */}
         <div className="px-4 py-3 border-t border-border">
           <p className="text-xs text-text-muted">
-            Vertex AI Search · Regione EU
+            Camera dei Deputati · Uso riservato
           </p>
         </div>
       </aside>

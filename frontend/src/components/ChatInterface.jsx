@@ -19,7 +19,7 @@ function LoadingBubble() {
             <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce [animation-delay:300ms]" />
           </div>
           <span className="text-xs text-text-secondary italic">
-            L&apos;AI sta analizzando i documenti storici…
+            Analisi in corso dei documenti acquisiti dalla Commissione…
           </span>
         </div>
       </div>
@@ -106,7 +106,7 @@ export default function ChatInterface() {
                   {history.activeConversation?.title || "Archivio Moby Prince"}
                 </h1>
                 <p className="text-xs text-text-muted hidden sm:block">
-                  Centro di Documentazione Storica · 10 aprile 1991
+                  Commissione Parlamentare d&apos;Inchiesta · Naufragio Moby Prince
                 </p>
               </div>
             </div>
@@ -161,7 +161,7 @@ export default function ChatInterface() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Poni una domanda sull'incidente del Moby Prince…"
+                placeholder="Formulare un quesito relativo agli atti del procedimento d'inchiesta…"
                 rows={1}
                 disabled={isLoading}
                 className="w-full resize-none bg-transparent px-4 py-3 pr-14 text-sm
@@ -216,23 +216,31 @@ function WelcomeScreen() {
             d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
         </svg>
       </div>
-      <h2 className="font-serif text-2xl font-semibold text-text-primary mb-3">
-        Centro di Documentazione Storica
+      <p className="text-xs font-semibold tracking-widest uppercase text-text-muted mb-3">
+        Camera dei Deputati · Commissione Parlamentare d&apos;Inchiesta
+      </p>
+      <h2 className="font-serif text-2xl font-semibold text-text-primary mb-4">
+        Sistema di Consultazione dell&apos;Archivio Documentale
       </h2>
-      <p className="text-text-secondary text-sm max-w-md leading-relaxed mb-2">
-        Interroga l&apos;archivio documentale relativo al disastro del traghetto{" "}
-        <strong className="text-text-primary">Moby Prince</strong>, avvenuto nel porto di
-        Livorno il <strong className="text-text-primary">10 aprile 1991</strong>.
+      <p className="text-text-secondary text-sm max-w-lg leading-relaxed mb-2">
+        Strumento di analisi e ricerca sui documenti acquisiti dalla Commissione in merito
+        al naufragio del traghetto{" "}
+        <strong className="text-text-primary">Moby Prince</strong> avvenuto nel porto di
+        Livorno nella notte del{" "}
+        <strong className="text-text-primary">10 aprile 1991</strong>,
+        con la perdita di 140 vite umane.
       </p>
-      <p className="text-text-muted text-xs max-w-sm">
-        Risposte generate dall&apos;AI sulla base di atti parlamentari, perizie tecniche,
-        sentenze e rapporti d&apos;inchiesta.
+      <p className="text-text-muted text-xs max-w-md leading-relaxed">
+        Il sistema elabora le interrogazioni mediante intelligenza artificiale, restituendo
+        risposte documentate e riferimenti puntuali alle fonti: atti parlamentari, relazioni
+        peritali, sentenze giudiziarie, verbali e rapporti d&apos;inchiesta.
       </p>
-      <div className="mt-8 flex items-center gap-6 text-xs text-text-muted">
+      <div className="mt-8 flex flex-wrap justify-center gap-5 text-xs text-text-muted">
         {[
-          ["M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z", "Citazioni verificabili"],
-          ["M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z", "Backend sicuro"],
-          ["M13 10V3L4 14h7v7l9-11h-7z", "Vertex AI Search"],
+          ["M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z", "Riferimenti verificabili"],
+          ["M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2", "Fonti documentali originali"],
+          ["M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z", "Accesso riservato"],
+          ["M13 10V3L4 14h7v7l9-11h-7z", "Vertex AI Search · Regione EU"],
         ].map(([d, label]) => (
           <span key={label} className="flex items-center gap-1.5">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
