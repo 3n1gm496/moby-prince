@@ -1,22 +1,40 @@
 import { useState, useCallback } from "react";
 
-export function useChat() {
-  const [messages, setMessages] = useState([]);
+/**
+ * Accepts optional external state controllers from useChatHistory.
+ * Falls back to internal state when not provided (standalone mode).
+ */
+export function useChat({ externalMessages, externalSessionId, onAppend, onSessionUpdate } = {}) {
+  const [internalMessages, setInternalMessages] = useState([]);
+  const [internalSessionId, setInternalSessionId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState(null);
   const [error, setError] = useState(null);
+
+  const messages = externalMessages !== undefined ? externalMessages : internalMessages;
+  const sessionId = externalSessionId !== undefined ? externalSessionId : internalSessionId;
+
+  const addMessage = useCallback((msg) => {
+    if (onAppend) {
+      onAppend(msg);
+    } else {
+      setInternalMessages((prev) => [...prev, msg]);
+    }
+  }, [onAppend]);
+
+  const setSession = useCallback((id) => {
+    if (onSessionUpdate) {
+      onSessionUpdate(id);
+    } else {
+      setInternalSessionId(id);
+    }
+  }, [onSessionUpdate]);
 
   const sendMessage = useCallback(
     async (queryText) => {
       if (!queryText.trim() || isLoading) return;
 
-      const userMessage = {
-        id: Date.now(),
-        role: "user",
-        text: queryText.trim(),
-      };
-
-      setMessages((prev) => [...prev, userMessage]);
+      const userMessage = { id: Date.now(), role: "user", text: queryText.trim() };
+      addMessage(userMessage);
       setIsLoading(true);
       setError(null);
 
@@ -34,81 +52,61 @@ export function useChat() {
 
         const data = await res.json();
 
-        // Extract session ID for multi-turn conversation continuity
         if (data.session?.name) {
           const parts = data.session.name.split("/sessions/");
-          if (parts[1]) setSessionId(parts[1]);
+          if (parts[1]) setSession(parts[1]);
         }
 
         const answer = data.answer || {};
-        const answerText =
-          answer.answerText || "Nessuna risposta disponibile.";
         const citations = buildCitations(answer);
-        const relatedQuestions = data.answer?.relatedQuestions || [];
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now() + 1,
-            role: "assistant",
-            text: answerText,
-            citations,
-            relatedQuestions,
-            steps: answer.steps || [],
-          },
-        ]);
+        addMessage({
+          id: Date.now() + 1,
+          role: "assistant",
+          text: answer.answerText || "Nessuna risposta disponibile.",
+          citations,
+          relatedQuestions: data.answer?.relatedQuestions || [],
+          steps: answer.steps || [],
+        });
       } catch (err) {
         setError(err.message);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now() + 1,
-            role: "error",
-            text: `Errore: ${err.message}`,
-          },
-        ]);
+        addMessage({ id: Date.now() + 1, role: "error", text: `Errore: ${err.message}` });
       } finally {
         setIsLoading(false);
       }
     },
-    [isLoading, sessionId]
+    [isLoading, sessionId, addMessage, setSession]
   );
 
-  const clearChat = useCallback(() => {
-    setMessages([]);
-    setSessionId(null);
-    setError(null);
-  }, []);
-
-  return { messages, isLoading, error, sendMessage, clearChat };
+  return { messages, isLoading, error, sendMessage };
 }
 
 function buildCitations(answer) {
   if (!answer.citations || !answer.references) return [];
 
   return answer.citations.map((citation, idx) => {
-    const sources = (citation.sources || []).map((src) => {
-      const ref = answer.references?.[parseInt(src.referenceIndex, 10)];
-      return ref
-        ? {
-            title:
-              ref.unstructuredDocumentInfo?.title ||
-              ref.chunkInfo?.documentMetadata?.title ||
-              `Documento ${src.referenceIndex}`,
-            uri:
-              ref.unstructuredDocumentInfo?.uri ||
-              ref.chunkInfo?.documentMetadata?.uri ||
-              null,
-            snippet:
-              ref.unstructuredDocumentInfo?.chunkContents?.[0]?.content ||
-              ref.chunkInfo?.content ||
-              null,
-            pageIdentifier:
-              ref.unstructuredDocumentInfo?.chunkContents?.[0]
-                ?.pageIdentifier || null,
-          }
-        : null;
-    }).filter(Boolean);
+    const sources = (citation.sources || [])
+      .map((src) => {
+        const ref = answer.references?.[parseInt(src.referenceIndex, 10)];
+        if (!ref) return null;
+        return {
+          title:
+            ref.unstructuredDocumentInfo?.title ||
+            ref.chunkInfo?.documentMetadata?.title ||
+            `Documento ${src.referenceIndex}`,
+          uri:
+            ref.unstructuredDocumentInfo?.uri ||
+            ref.chunkInfo?.documentMetadata?.uri ||
+            null,
+          snippet:
+            ref.unstructuredDocumentInfo?.chunkContents?.[0]?.content ||
+            ref.chunkInfo?.content ||
+            null,
+          pageIdentifier:
+            ref.unstructuredDocumentInfo?.chunkContents?.[0]?.pageIdentifier || null,
+        };
+      })
+      .filter(Boolean);
 
     return {
       id: idx + 1,

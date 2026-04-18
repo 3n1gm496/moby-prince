@@ -10,7 +10,7 @@ const SUGGESTIONS = [
 export default function QuickSuggestions({ onSelect, disabled }) {
   return (
     <div className="px-4 pb-4">
-      <p className="text-xs font-medium text-slate-500 uppercase tracking-widest mb-3">
+      <p className="text-xs font-medium text-text-muted uppercase tracking-widest mb-3">
         Domande frequenti
       </p>
       <div className="flex flex-wrap gap-2">
@@ -19,10 +19,9 @@ export default function QuickSuggestions({ onSelect, disabled }) {
             key={i}
             onClick={() => onSelect(s)}
             disabled={disabled}
-            className="text-xs px-3 py-1.5 rounded-full border border-navy-600 bg-navy-800/60
-                       text-slate-300 hover:border-brand-500 hover:text-brand-400 hover:bg-navy-700
-                       transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed
-                       text-left"
+            className="text-xs px-3 py-1.5 rounded-full border border-border bg-surface-raised
+                       text-text-secondary hover:border-accent hover:text-accent hover:bg-surface-overlay
+                       transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed text-left"
           >
             {s}
           </button>

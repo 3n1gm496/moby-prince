@@ -4,21 +4,33 @@ export default {
   theme: {
     extend: {
       colors: {
-        navy: {
-          950: "#030712",
-          900: "#0a0f1e",
-          800: "#0d1529",
-          700: "#111d3c",
-          600: "#162550",
+        surface: {
+          DEFAULT: "#212121",
+          raised: "#2f2f2f",
+          sidebar: "#171717",
+          overlay: "#2a2a2a",
         },
-        brand: {
-          400: "#60a5fa",
-          500: "#3b82f6",
-          600: "#2563eb",
+        border: {
+          DEFAULT: "#3f3f3f",
+          subtle: "#2a2a2a",
         },
-        gold: {
-          400: "#fbbf24",
-          500: "#f59e0b",
+        text: {
+          primary: "#ececec",
+          secondary: "#9ca3af",
+          muted: "#6b7280",
+        },
+        accent: {
+          DEFAULT: "#c9a84c",
+          hover: "#d4b86a",
+          dim: "rgba(201,168,76,0.15)",
+        },
+        error: {
+          bg: "rgba(127,29,29,0.3)",
+          border: "rgba(185,28,28,0.4)",
+          text: "#fca5a5",
+        },
+        success: {
+          dot: "#10b981",
         },
       },
       fontFamily: {
@@ -29,7 +41,7 @@ export default {
       animation: {
         "fade-in": "fadeIn 0.3s ease-out",
         "slide-up": "slideUp 0.3s ease-out",
-        pulse2: "pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "slide-in": "slideIn 0.3s ease-out",
       },
       keyframes: {
         fadeIn: {
@@ -39,6 +51,10 @@ export default {
         slideUp: {
           "0%": { opacity: "0", transform: "translateY(12px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        slideIn: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(0)" },
         },
       },
     },

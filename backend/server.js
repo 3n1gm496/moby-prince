@@ -62,6 +62,16 @@ app.post("/api/ask", async (req, res) => {
       relatedQuestionsSpec: {
         enable: true,
       },
+      contentSearchSpec: {
+        snippetSpec: {
+          returnSnippet: true,
+          maxSnippetCount: 3,
+        },
+        extractiveContentSpec: {
+          maxExtractiveAnswerCount: 1,
+          maxExtractiveSegmentCount: 1,
+        },
+      },
     };
 
     const response = await fetch(ANSWER_ENDPOINT, {
