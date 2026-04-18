@@ -52,7 +52,10 @@ export default function ChatInterface() {
     history.ensureActiveConversation();
     sendMessage(input);
     setInput("");
-    textareaRef.current?.focus();
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.focus();
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -103,7 +106,9 @@ export default function ChatInterface() {
               </button>
               <div>
                 <h1 className="font-serif text-sm font-semibold text-text-primary leading-tight">
-                  {history.activeConversation?.title || "Archivio Moby Prince"}
+                  {history.activeConversation?.messages?.length > 0
+                    ? history.activeConversation.title
+                    : "Archivio Moby Prince"}
                 </h1>
                 <p className="text-xs text-text-muted hidden sm:block">
                   Commissione Parlamentare d&apos;Inchiesta · Naufragio Moby Prince
@@ -208,7 +213,7 @@ export default function ChatInterface() {
 
 function WelcomeScreen() {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+    <div className="flex flex-col items-center justify-center text-center px-4 pb-6">
       <div className="w-14 h-14 rounded-2xl bg-surface-raised border border-border
                       flex items-center justify-center mb-6">
         <svg className="w-7 h-7 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">

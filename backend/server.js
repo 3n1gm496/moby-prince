@@ -21,11 +21,11 @@ const auth = new GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/cloud-platform"],
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "32kb" }));
 app.use(
   cors({
     origin: process.env.FRONTEND_ORIGIN || "http://localhost:5173",
-    methods: ["POST"],
+    methods: ["GET", "POST"],
   })
 );
 
@@ -34,6 +34,9 @@ app.post("/api/ask", async (req, res) => {
 
   if (!query || typeof query !== "string" || query.trim().length === 0) {
     return res.status(400).json({ error: "Query non valida." });
+  }
+  if (query.trim().length > 2000) {
+    return res.status(400).json({ error: "La query supera il limite massimo di 2000 caratteri." });
   }
 
   try {

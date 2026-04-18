@@ -1,4 +1,3 @@
-import { useState } from "react";
 import AnchorAvatar from "./AnchorAvatar";
 
 const GROUP_LABELS = {
@@ -9,10 +8,9 @@ const GROUP_LABELS = {
 };
 
 function ConversationItem({ conv, isActive, onSelect, onDelete }) {
-  const [hovered, setHovered] = useState(false);
-
   return (
     <div
+      title={conv.title}
       className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm
                   cursor-pointer transition-colors select-none
                   ${isActive
@@ -20,25 +18,23 @@ function ConversationItem({ conv, isActive, onSelect, onDelete }) {
                     : "text-text-secondary hover:bg-surface-raised hover:text-text-primary"
                   }`}
       onClick={() => onSelect(conv.id)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       <span className="flex-1 truncate">{conv.title}</span>
-      {hovered && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(conv.id);
-          }}
-          aria-label="Elimina conversazione"
-          className="flex-shrink-0 p-0.5 rounded text-text-muted hover:text-error-text transition-colors"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
-      )}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(conv.id);
+        }}
+        aria-label="Elimina conversazione"
+        className="flex-shrink-0 p-0.5 rounded text-text-muted
+                   opacity-0 group-hover:opacity-100 focus:opacity-100
+                   hover:text-red-400 transition-all duration-150"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
     </div>
   );
 }

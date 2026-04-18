@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
 const STORAGE_KEY = "moby-prince-history";
 
@@ -51,11 +51,15 @@ export function useChatHistory() {
     } catch {}
   }, [state]);
 
-  const activeConversation = state.conversations.find(
-    (c) => c.id === state.activeConversationId
-  ) || null;
+  const activeConversation = useMemo(
+    () => state.conversations.find((c) => c.id === state.activeConversationId) || null,
+    [state.conversations, state.activeConversationId]
+  );
 
-  const groupedConversations = groupByDate(state.conversations);
+  const groupedConversations = useMemo(
+    () => groupByDate(state.conversations),
+    [state.conversations]
+  );
 
   const createConversation = useCallback(() => {
     const id = makeId();

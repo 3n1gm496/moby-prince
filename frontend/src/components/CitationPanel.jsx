@@ -15,7 +15,11 @@ export default function CitationPanel({ citation, onClose }) {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />
+      {/* Backdrop — visible on mobile, transparent click-catcher on desktop */}
+      <div
+        className="fixed inset-0 bg-black/50 z-40 lg:bg-transparent"
+        onClick={onClose}
+      />
       <aside
         ref={panelRef}
         tabIndex={-1}
