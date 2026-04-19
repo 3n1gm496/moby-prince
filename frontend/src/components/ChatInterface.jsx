@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useChat } from "../hooks/useChat";
 import { useChatHistory } from "../hooks/useChatHistory";
+import { useToast } from "../hooks/useToast";
 import MessageBubble from "./MessageBubble";
 import CitationPanel from "./CitationPanel";
 import QuickSuggestions from "./QuickSuggestions";
 import Sidebar from "./Sidebar";
 import AnchorAvatar from "./AnchorAvatar";
+import Toast from "./Toast";
 
 function LoadingBubble() {
   return (
@@ -29,13 +31,14 @@ function LoadingBubble() {
 
 export default function ChatInterface() {
   const history = useChatHistory();
-  const { messages, isLoading, loadingConvId, sendMessage } = useChat({
+  const { messages, isLoading, loadingConvId, sendMessage, streamingMessage } = useChat({
     externalMessages: history.activeConversation?.messages ?? [],
     externalSessionId: history.activeConversation?.sessionId ?? null,
     activeConversationId: history.activeConversationId,
     onAppend: history.appendMessage,
     onSessionUpdate: history.updateSessionId,
   });
+  const { toasts, showToast, dismissToast } = useToast();
 
   const [input, setInput] = useState("");
   const [activeCitation, setActiveCitation] = useState(null);
@@ -46,17 +49,78 @@ export default function ChatInterface() {
   // Scroll to latest message as new content arrives
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, streamingMessage?.text]);
 
   // Snap to bottom instantly when switching conversations
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
   }, [history.activeConversationId]);
 
+  const handleNewChat = useCallback(() => {
+    history.createConversation();
+    setInput("");
+    setSidebarOpen(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, [history]);
+
+  // Global keyboard shortcuts: Ctrl/Cmd+N = new chat, Ctrl/Cmd+/ = focus input
+  useEffect(() => {
+    const onKey = (e) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key === "n") { e.preventDefault(); handleNewChat(); }
+      if (mod && e.key === "/") { e.preventDefault(); textareaRef.current?.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [handleNewChat]);
+
+  const handleDeleteConversation = useCallback((id) => {
+    const conv = history.conversations.find((c) => c.id === id);
+    if (!conv) return;
+    history.deleteConversation(id);
+    showToast({
+      message: `"${conv.title}" eliminata`,
+      action: { label: "Annulla", onClick: () => history.restoreConversation(conv) },
+      duration: 5000,
+    });
+  }, [history, showToast]);
+
+  const handleExport = useCallback(() => {
+    const conv = history.activeConversation;
+    if (!conv || conv.messages.length === 0) return;
+    const lines = [
+      `# ${conv.title}\n`,
+      `_Esportato il ${new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}_\n`,
+      `_Archivio Documentale · Commissione Parlamentare d'Inchiesta · Camera dei Deputati_\n\n---\n`,
+    ];
+    conv.messages.forEach((msg) => {
+      if (msg.role === "user") {
+        lines.push(`\n**Domanda**\n\n${msg.text}\n`);
+      } else if (msg.role === "assistant") {
+        lines.push(`\n**Risposta**\n\n${msg.text}\n`);
+        if (msg.citations?.length > 0) {
+          const titles = msg.citations
+            .flatMap((c) => c.sources.slice(0, 1).map((s) => s.title))
+            .filter(Boolean)
+            .join(" · ");
+          if (titles) lines.push(`\n_Fonti: ${titles}_\n`);
+        }
+      }
+    });
+    const blob = new Blob([lines.join("")], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `moby-prince_${conv.title.replace(/[^a-z0-9àèéìòùÀÈÉÌÒÙ]/gi, "_").slice(0, 50)}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [history.activeConversation]);
+
   const handleSubmit = (e) => {
     e?.preventDefault();
-    if (!input.trim() || isLoading) return;
-    // Capture the target conversation ID before any async state updates
+    if (!input.trim() || showLoadingBubble) return;
     const convId = history.ensureActiveConversation();
     sendMessage(input, convId);
     setInput("");
@@ -73,17 +137,17 @@ export default function ChatInterface() {
     }
   };
 
-  const handleNewChat = () => {
-    history.createConversation();
-    setInput("");
-    setSidebarOpen(false);
-    setTimeout(() => textareaRef.current?.focus(), 0);
-  };
+  const handleRetry = useCallback((query) => {
+    const convId = history.activeConversationId;
+    if (!convId || isLoading) return;
+    sendMessage(query, convId, { silent: true });
+  }, [history.activeConversationId, isLoading, sendMessage]);
 
   const isEmpty = messages.length === 0;
-  // Guard against null === null when no conversation is active and nothing is loading
   const showLoadingBubble =
-    loadingConvId !== null && loadingConvId === history.activeConversationId;
+    loadingConvId !== null &&
+    loadingConvId === history.activeConversationId &&
+    !streamingMessage;
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface">
@@ -93,18 +157,19 @@ export default function ChatInterface() {
         activeConversationId={history.activeConversationId}
         onNewChat={handleNewChat}
         onSelectConversation={history.selectConversation}
-        onDeleteConversation={history.deleteConversation}
+        onDeleteConversation={handleDeleteConversation}
+        onRenameConversation={history.renameConversation}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
 
       {/* Main column */}
       <div className="flex flex-col flex-1 min-w-0">
-        {/* Header (mobile only shows hamburger + title) */}
+        {/* Header */}
         <header className="flex-shrink-0 border-b border-border bg-surface/80 backdrop-blur px-4 py-3">
           <div className="max-w-2xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {/* Hamburger — visible only on mobile */}
+              {/* Hamburger — mobile only */}
               <button
                 className="lg:hidden p-1.5 rounded-lg text-text-secondary hover:text-text-primary
                            hover:bg-surface-raised transition-colors"
@@ -128,6 +193,21 @@ export default function ChatInterface() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Export button — shown only when there are messages */}
+              {!isEmpty && (
+                <button
+                  onClick={handleExport}
+                  title="Esporta conversazione in Markdown"
+                  aria-label="Esporta conversazione"
+                  className="p-1.5 rounded-lg text-text-muted hover:text-text-secondary
+                             hover:bg-surface-raised transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                </button>
+              )}
               <span className="hidden sm:flex items-center gap-1.5 text-xs text-text-muted">
                 <span className="w-1.5 h-1.5 rounded-full bg-success-dot animate-pulse" />
                 Vertex AI Search
@@ -141,7 +221,10 @@ export default function ChatInterface() {
           <div className="flex-1 flex flex-col items-center justify-center">
             <WelcomeScreen />
             <div className="w-full max-w-2xl px-4">
-              <QuickSuggestions onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }} disabled={isLoading} />
+              <QuickSuggestions
+                onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }}
+                disabled={isLoading}
+              />
             </div>
           </div>
         )}
@@ -157,9 +240,19 @@ export default function ChatInterface() {
                     message={msg}
                     onCitationClick={setActiveCitation}
                     onFollowUp={(q) => { setInput(q); textareaRef.current?.focus(); }}
+                    onRetry={handleRetry}
                   />
                 ))}
                 {showLoadingBubble && <LoadingBubble />}
+                {streamingMessage && (
+                  <MessageBubble
+                    key="streaming"
+                    message={streamingMessage}
+                    onCitationClick={() => {}}
+                    onFollowUp={() => {}}
+                    onRetry={() => {}}
+                  />
+                )}
                 <div ref={messagesEndRef} />
               </div>
             </div>
@@ -206,7 +299,7 @@ export default function ChatInterface() {
               </button>
             </form>
             <p className="text-xs text-text-muted text-center mt-2">
-              Enter per inviare · Shift+Enter per andare a capo
+              Enter per inviare · Shift+Enter per andare a capo · ⌘N nuova chat · ⌘/ focus
             </p>
           </div>
         </div>
@@ -219,6 +312,9 @@ export default function ChatInterface() {
           onClose={() => setActiveCitation(null)}
         />
       )}
+
+      {/* Toast notifications */}
+      <Toast toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

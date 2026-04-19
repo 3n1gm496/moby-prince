@@ -90,6 +90,28 @@ export function useChatHistory() {
     });
   }, []);
 
+  // Restore a previously deleted conversation (used by undo-delete toast)
+  const restoreConversation = useCallback((conv) => {
+    setState((prev) => {
+      if (prev.conversations.find((c) => c.id === conv.id)) return prev;
+      const restored = [...prev.conversations, conv].sort(
+        (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
+      );
+      return { conversations: restored, activeConversationId: conv.id };
+    });
+  }, []);
+
+  const renameConversation = useCallback((id, title) => {
+    const t = title.trim();
+    if (!t) return;
+    setState((prev) => ({
+      ...prev,
+      conversations: prev.conversations.map((c) =>
+        c.id === id ? { ...c, title: t.length <= 60 ? t : t.slice(0, 60) + "…" } : c
+      ),
+    }));
+  }, []);
+
   const appendMessage = useCallback((message, targetId) => {
     setState((prev) => {
       const id = targetId ?? prev.activeConversationId;
@@ -139,6 +161,8 @@ export function useChatHistory() {
     createConversation,
     selectConversation,
     deleteConversation,
+    restoreConversation,
+    renameConversation,
     appendMessage,
     updateSessionId,
     ensureActiveConversation,
