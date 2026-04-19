@@ -114,15 +114,17 @@ export function useChat({
           setSession(data.session.id, targetConvId);
         }
 
-        // Citations are already normalised by the server — no client-side transform
+        // Citations and evidence are already normalised by the server
         const answer = data.answer || {};
         const msgData = {
           id:               Date.now() + 1,
           role:             "assistant",
           text:             answer.text || "Nessuna risposta disponibile.",
           citations:        Array.isArray(answer.citations)        ? answer.citations        : [],
+          evidence:         Array.isArray(answer.evidence)         ? answer.evidence         : [],
           relatedQuestions: Array.isArray(answer.relatedQuestions) ? answer.relatedQuestions : [],
           steps:            Array.isArray(answer.steps)            ? answer.steps            : [],
+          meta:             data.meta || {},
         };
 
         setStreamingMessage({

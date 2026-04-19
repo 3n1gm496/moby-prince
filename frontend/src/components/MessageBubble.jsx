@@ -2,6 +2,7 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AnchorAvatar from "./AnchorAvatar";
+import EvidenceSection from "./EvidenceSection";
 
 const COLLAPSE_THRESHOLD = 1500;
 
@@ -222,6 +223,16 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
         {/* Inline citation popover */}
         {inlineCit && !isStreaming && (
           <InlineCitationCard citation={inlineCit} onClose={() => setInlineCit(null)} onOpenPanel={handleOpenPanel} />
+        )}
+
+        {/* Evidence drawer */}
+        {!isStreaming && (
+          <EvidenceSection
+            evidence={message.evidence}
+            citations={message.citations}
+            activeCitationId={inlineCit?.id}
+            onCitationClick={(cit) => { onCitationClick(cit); setInlineCit(null); }}
+          />
         )}
 
         {/* Metadata + actions bar — hover only */}
