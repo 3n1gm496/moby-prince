@@ -1,6 +1,9 @@
 'use strict';
 
 const { DiscoveryEngineError } = require('../services/discoveryEngine');
+const { createLogger }         = require('../logger');
+
+const log = createLogger('error-handler');
 
 /**
  * Central Express error handler.
@@ -11,14 +14,16 @@ const { DiscoveryEngineError } = require('../services/discoveryEngine');
  */
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
-  if (res.headersSent) return; // can't do anything useful
+  if (res.headersSent) return;
 
-  const ts     = new Date().toISOString();
-  const method = req.method;
-  const path   = req.path;
+  const requestId = req.requestId;
+  const traceId   = req.traceId;
+  const method    = req.method;
+  const path      = req.path;
 
   if (err instanceof DiscoveryEngineError) {
-    console.error(`[${ts}] DiscoveryEngineError on ${method} ${path}: ${err.message}`);
+    log.warn({ requestId, traceId, method, path, statusCode: err.statusCode, msg: err.message },
+      'DiscoveryEngineError');
 
     if (err.isTimeout) {
       return res.status(504).json({
@@ -40,8 +45,8 @@ function errorHandler(err, req, res, next) {
     return res.status(502).json({ error: 'Il servizio di ricerca ha restituito un errore.' });
   }
 
-  // Generic fallback
-  console.error(`[${ts}] Unhandled error on ${method} ${path}:`, err);
+  log.error({ requestId, traceId, method, path, err: err.message, stack: err.stack },
+    'Unhandled error');
   res.status(500).json({ error: 'Errore interno del server.' });
 }
 

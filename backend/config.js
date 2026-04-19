@@ -15,9 +15,12 @@ function optional(name, fallback = null) {
   return v && v.trim() ? v.trim() : fallback;
 }
 
-const projectId  = required('GOOGLE_CLOUD_PROJECT');
-const location   = optional('GCP_LOCATION', 'eu');
-const engineId   = required('ENGINE_ID');
+const nodeEnv   = optional('NODE_ENV', 'development');
+const isProd    = nodeEnv === 'production';
+
+const projectId   = required('GOOGLE_CLOUD_PROJECT');
+const location    = optional('GCP_LOCATION', 'eu');
+const engineId    = required('ENGINE_ID');
 const dataStoreId = optional('DATA_STORE_ID');
 
 const apiBase        = `https://${location}-discoveryengine.googleapis.com`;
@@ -25,12 +28,21 @@ const collectionBase = `${apiBase}/v1/projects/${projectId}/locations/${location
 const engineBase     = `${collectionBase}/engines/${engineId}`;
 
 const config = {
+  nodeEnv,
+  isProd,
   port:           parseInt(optional('PORT', '3001'), 10),
+  logLevel:       optional('LOG_LEVEL', isProd ? 'info' : 'debug'),
   projectId,
   location,
   engineId,
   dataStoreId,
   frontendOrigin: optional('FRONTEND_ORIGIN', 'http://localhost:5173'),
+
+  // BigQuery evidence layer (Phase 5 — not yet wired)
+  bigquery: {
+    projectId: optional('BQ_PROJECT_ID', projectId),
+    datasetId: optional('BQ_DATASET_ID', 'evidence'),
+  },
 
   // Endpoint URLs
   // v1alpha is intentional for :answer — the v1 answer API lags behind on features
@@ -51,6 +63,28 @@ const config = {
     "Sei un assistente storico specializzato nel disastro del Moby Prince (10 aprile 1991). " +
     "Rispondi in italiano, in modo preciso e documentato, citando le fonti disponibili. " +
     "Se l'informazione non è presente nei documenti, dichiaralo esplicitamente.",
+};
+
+/**
+ * Log the active configuration at startup.
+ * Call after the logger is ready: config.printStartup(log)
+ */
+config.printStartup = function printStartup(log) {
+  log.info({
+    nodeEnv:        config.nodeEnv,
+    port:           config.port,
+    logLevel:       config.logLevel,
+    projectId:      config.projectId,
+    location:       config.location,
+    engineId:       config.engineId,
+    dataStoreId:    config.dataStoreId ?? '(not set)',
+    frontendOrigin: config.frontendOrigin,
+    bqDataset:      `${config.bigquery.projectId}.${config.bigquery.datasetId}`,
+  }, 'Server configuration loaded');
+
+  if (!config.dataStoreId) {
+    log.warn({}, 'DATA_STORE_ID is not set — chunk/document lookup endpoints will be disabled');
+  }
 };
 
 module.exports = config;

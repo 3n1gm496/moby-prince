@@ -1,5 +1,16 @@
 node_modules/
 dist/
+
+# Local environment files — never commit
 .env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+
+# GCP service account keys
+*.json.key
+service-account*.json
+
 *.local
 .DS_Store

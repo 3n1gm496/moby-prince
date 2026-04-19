@@ -6,8 +6,11 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 
-const config       = require('./config');
-const errorHandler = require('./middleware/errorHandler');
+const config        = require('./config');
+const { logger }    = require('./logger');
+const requestId     = require('./middleware/requestId');
+const requestLogger = require('./middleware/requestLogger');
+const errorHandler  = require('./middleware/errorHandler');
 
 const answerRouter   = require('./routes/answer');
 const searchRouter   = require('./routes/search');
@@ -18,6 +21,8 @@ const app = express();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 
+app.use(requestId);
+app.use(requestLogger);
 app.use(express.json({ limit: '32kb' }));
 app.use(cors({
   origin:  config.frontendOrigin,
@@ -42,12 +47,26 @@ app.use(errorHandler);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
-app.listen(config.port, () => {
-  console.log(`Moby Prince backend  →  http://localhost:${config.port}`);
-  console.log(`Project: ${config.projectId}  |  Location: ${config.location}  |  Engine: ${config.engineId}`);
-  if (config.dataStoreId) {
-    console.log(`DataStore: ${config.dataStoreId}`);
-  } else {
-    console.log('DataStore: not configured (chunk lookup disabled)');
-  }
+config.printStartup(logger);
+
+const server = app.listen(config.port, () => {
+  logger.info({ port: config.port }, `Server listening on port ${config.port}`);
 });
+
+// ── Graceful shutdown (Cloud Run sends SIGTERM before container stop) ─────────
+
+function shutdown(signal) {
+  logger.info({ signal }, 'Shutdown signal received — draining connections');
+  server.close(() => {
+    logger.info({}, 'All connections closed — exiting');
+    process.exit(0);
+  });
+  // Force exit if connections don't drain within 10 s
+  setTimeout(() => {
+    logger.error({}, 'Graceful shutdown timed out — forcing exit');
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));

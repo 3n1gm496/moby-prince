@@ -7,19 +7,22 @@
  * Safe to expose in non-public environments; does not return secrets.
  */
 
-const { Router } = require('express');
-const config = require('../config');
+const { Router }       = require('express');
+const config           = require('../config');
+const { createLogger } = require('../logger');
 const { getAccessToken } = require('../services/auth');
 
+const log    = createLogger('health');
 const router = Router();
+const START  = Date.now();
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   let authStatus = 'ok';
   try {
     await getAccessToken();
   } catch (err) {
     authStatus = 'error';
-    console.error('[health] GCP auth check failed:', err.message);
+    log.warn({ requestId: req.requestId, msg: err.message }, 'GCP auth check failed');
   }
 
   res.status(authStatus === 'ok' ? 200 : 503).json({
@@ -29,6 +32,7 @@ router.get('/', async (_req, res) => {
     engine:    config.engineId,
     dataStore: config.dataStoreId ?? 'not configured',
     auth:      authStatus,
+    uptimeMs:  Date.now() - START,
     timestamp: new Date().toISOString(),
   });
 });
