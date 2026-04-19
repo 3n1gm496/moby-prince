@@ -81,7 +81,9 @@ export default function ChatInterface() {
   };
 
   const isEmpty = messages.length === 0;
-  const showLoadingBubble = loadingConvId === history.activeConversationId;
+  // Guard against null === null when no conversation is active and nothing is loading
+  const showLoadingBubble =
+    loadingConvId !== null && loadingConvId === history.activeConversationId;
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface">
@@ -178,7 +180,7 @@ export default function ChatInterface() {
                 onKeyDown={handleKeyDown}
                 placeholder="Formulare un quesito relativo agli atti del procedimento d'inchiesta…"
                 rows={1}
-                disabled={isLoading}
+                disabled={showLoadingBubble}
                 className="w-full resize-none bg-transparent px-4 py-3 pr-14 text-sm
                            text-text-primary placeholder-text-muted
                            focus:outline-none disabled:opacity-50 leading-relaxed"
@@ -190,7 +192,7 @@ export default function ChatInterface() {
               />
               <button
                 type="submit"
-                disabled={!input.trim() || isLoading}
+                disabled={!input.trim() || showLoadingBubble}
                 className="absolute right-3 bottom-3 w-8 h-8 rounded-lg bg-accent
                            flex items-center justify-center
                            hover:bg-accent-hover disabled:opacity-30 disabled:cursor-not-allowed

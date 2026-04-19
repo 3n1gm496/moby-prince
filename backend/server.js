@@ -38,6 +38,9 @@ app.post("/api/ask", async (req, res) => {
   if (query.trim().length > 2000) {
     return res.status(400).json({ error: "La query supera il limite massimo di 2000 caratteri." });
   }
+  if (sessionId !== undefined && (typeof sessionId !== "string" || sessionId.trim().length === 0)) {
+    return res.status(400).json({ error: "sessionId non valido." });
+  }
 
   try {
     const client = await auth.getClient();

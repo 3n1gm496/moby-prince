@@ -20,19 +20,19 @@ function AnnotatedAnswer({ text, citations, onCitationClick }) {
   const segments = [];
   let cursor = 0;
   annotations.forEach((ann) => {
-    if (ann.start > cursor) segments.push({ type: "text", content: text.slice(cursor, ann.start) });
-    segments.push({ type: "text", content: text.slice(ann.start, ann.end) });
-    segments.push({ type: "citation", citation: ann });
+    if (ann.start > cursor) segments.push({ type: "text", key: `t${cursor}`, content: text.slice(cursor, ann.start) });
+    segments.push({ type: "text", key: `t${ann.start}`, content: text.slice(ann.start, ann.end) });
+    segments.push({ type: "citation", key: `c${ann.id}`, citation: ann });
     cursor = ann.end;
   });
-  if (cursor < text.length) segments.push({ type: "text", content: text.slice(cursor) });
+  if (cursor < text.length) segments.push({ type: "text", key: `t${cursor}`, content: text.slice(cursor) });
 
   return (
     <div className="prose-answer">
-      {segments.map((seg, i) =>
+      {segments.map((seg) =>
         seg.type === "citation" ? (
           <button
-            key={i}
+            key={seg.key}
             onClick={() => onCitationClick(seg.citation)}
             className="citation-badge mx-0.5"
             title={`Vedi fonte ${seg.citation.id}`}
@@ -40,7 +40,7 @@ function AnnotatedAnswer({ text, citations, onCitationClick }) {
             {seg.citation.id}
           </button>
         ) : (
-          <ReactMarkdown key={i} remarkPlugins={[remarkGfm]} components={{ p: "span" }}>
+          <ReactMarkdown key={seg.key} remarkPlugins={[remarkGfm]}>
             {seg.content}
           </ReactMarkdown>
         )

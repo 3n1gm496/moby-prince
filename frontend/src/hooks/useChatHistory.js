@@ -83,7 +83,8 @@ export function useChatHistory() {
       const remaining = prev.conversations.filter((c) => c.id !== id);
       let nextActive = prev.activeConversationId;
       if (nextActive === id) {
-        nextActive = remaining.length > 0 ? remaining[0].id : null;
+        const sorted = [...remaining].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        nextActive = sorted.length > 0 ? sorted[0].id : null;
       }
       return { conversations: remaining, activeConversationId: nextActive };
     });
