@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import AnchorAvatar from "./AnchorAvatar";
 
 const GROUP_LABELS = {
@@ -8,16 +8,19 @@ const GROUP_LABELS = {
   older: "Precedenti",
 };
 
-function ConversationItem({ conv, isActive, onSelect, onDelete, onRename }) {
+function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogglePin, focused }) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(conv.title);
   const inputRef = useRef(null);
+  const itemRef = useRef(null);
 
   useEffect(() => {
-    if (renaming) {
-      inputRef.current?.select();
-    }
+    if (renaming) inputRef.current?.select();
   }, [renaming]);
+
+  useEffect(() => {
+    if (focused) itemRef.current?.focus();
+  }, [focused]);
 
   const startRename = (e) => {
     e.stopPropagation();
@@ -27,9 +30,7 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename }) {
 
   const commitRename = () => {
     setRenaming(false);
-    if (draft.trim() && draft.trim() !== conv.title) {
-      onRename(conv.id, draft.trim());
-    }
+    if (draft.trim() && draft.trim() !== conv.title) onRename(conv.id, draft.trim());
   };
 
   const handleRenameKey = (e) => {
@@ -41,14 +42,22 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename }) {
 
   return (
     <div
+      ref={itemRef}
+      tabIndex={0}
+      data-conv-item
       title={renaming ? undefined : conv.title}
       className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm
-                  cursor-pointer transition-colors select-none
+                  cursor-pointer transition-colors select-none outline-none
+                  focus-visible:ring-1 focus-visible:ring-accent/60
                   ${isActive
                     ? "bg-surface-raised text-text-primary border-l-2 border-accent pl-[10px]"
                     : "text-text-secondary hover:bg-surface-raised hover:text-text-primary"
                   }`}
       onClick={() => !renaming && onSelect(conv.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !renaming) onSelect(conv.id);
+        if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); onDelete(conv.id); }
+      }}
     >
       {renaming ? (
         <input
@@ -64,19 +73,37 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename }) {
         />
       ) : (
         <>
-          <span className="flex-1 truncate" onDoubleClick={startRename}>{conv.title}</span>
+          <span className="flex-1 truncate">{conv.title}</span>
 
-          {/* Citation count badge */}
+          {/* Citation count */}
           {citationCount > 0 && (
             <span className="flex-shrink-0 text-[10px] font-mono text-text-muted
-                             opacity-0 group-hover:opacity-100 transition-opacity">
+                             opacity-0 group-hover:opacity-60 transition-opacity leading-none">
               {citationCount}
             </span>
           )}
 
-          {/* Action buttons — rename + delete */}
+          {/* Pinned indicator */}
+          {conv.pinned && (
+            <svg className="w-3 h-3 text-accent flex-shrink-0 opacity-60" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
+            </svg>
+          )}
+
+          {/* Action buttons */}
           <span className="flex-shrink-0 flex items-center gap-0.5
                            opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            <button
+              onClick={(e) => { e.stopPropagation(); onTogglePin(conv.id); }}
+              aria-label={conv.pinned ? "Sblocca conversazione" : "Fissa conversazione"}
+              title={conv.pinned ? "Sblocca" : "Fissa in cima"}
+              className={`p-0.5 rounded transition-colors ${conv.pinned ? "text-accent" : "text-text-muted hover:text-text-secondary"}`}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+            </button>
             <button
               onClick={startRename}
               aria-label="Rinomina conversazione"
@@ -106,35 +133,70 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename }) {
 
 export default function Sidebar({
   groupedConversations,
+  pinnedConversations,
   activeConversationId,
   onNewChat,
   onSelectConversation,
   onDeleteConversation,
   onRenameConversation,
+  onTogglePin,
   isOpen,
   onClose,
 }) {
   const [search, setSearch] = useState("");
+  const [focusedIdx, setFocusedIdx] = useState(-1);
   const searchRef = useRef(null);
+  const navRef = useRef(null);
 
-  // Flatten all conversations for search
-  const allConversations = Object.values(groupedConversations).flat();
+  const allConversations = [
+    ...(pinnedConversations || []),
+    ...Object.values(groupedConversations).flat(),
+  ];
+
   const isSearching = search.trim().length > 0;
   const filtered = isSearching
-    ? allConversations.filter((c) =>
-        c.title.toLowerCase().includes(search.toLowerCase()) ||
-        c.messages.some((m) => m.text?.toLowerCase().includes(search.toLowerCase()))
+    ? allConversations.filter(
+        (c) =>
+          c.title.toLowerCase().includes(search.toLowerCase()) ||
+          c.messages.some((m) => m.text?.toLowerCase().includes(search.toLowerCase()))
       )
     : null;
+
+  // Keyboard navigation ↑↓ through conversation items
+  const handleNavKeyDown = useCallback((e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const items = navRef.current?.querySelectorAll("[data-conv-item]");
+      if (!items?.length) return;
+      const arr = Array.from(items);
+      const current = document.activeElement;
+      const idx = arr.indexOf(current);
+      if (e.key === "ArrowDown") {
+        arr[Math.min(idx + 1, arr.length - 1)]?.focus();
+      } else {
+        if (idx <= 0) { searchRef.current?.focus(); return; }
+        arr[Math.max(idx - 1, 0)]?.focus();
+      }
+    }
+  }, []);
+
+  const renderItem = (conv) => (
+    <ConversationItem
+      key={conv.id}
+      conv={conv}
+      isActive={conv.id === activeConversationId}
+      onSelect={(id) => { onSelectConversation(id); onClose(); setSearch(""); }}
+      onDelete={onDeleteConversation}
+      onRename={onRenameConversation}
+      onTogglePin={onTogglePin}
+    />
+  );
 
   return (
     <>
       {/* Mobile backdrop */}
       {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 z-30 lg:hidden"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={onClose} />
       )}
 
       <aside
@@ -144,7 +206,7 @@ export default function Sidebar({
           bg-surface-sidebar border-r border-border
           transform transition-transform duration-300 ease-in-out
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0
+          lg:translate-x-0 print:hidden
         `}
       >
         {/* Header */}
@@ -155,7 +217,7 @@ export default function Sidebar({
           </span>
         </div>
 
-        {/* New chat button */}
+        {/* New chat */}
         <div className="px-3 pt-3 pb-2">
           <button
             onClick={() => { onNewChat(); onClose(); }}
@@ -183,6 +245,12 @@ export default function Sidebar({
               ref={searchRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  navRef.current?.querySelector("[data-conv-item]")?.focus();
+                }
+              }}
               placeholder="Cerca conversazioni…"
               className="w-full bg-surface border border-border rounded-lg pl-8 pr-3 py-1.5
                          text-xs text-text-primary placeholder-text-muted
@@ -202,7 +270,7 @@ export default function Sidebar({
         </div>
 
         {/* Conversation list */}
-        <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-4">
+        <nav ref={navRef} onKeyDown={handleNavKeyDown} className="flex-1 overflow-y-auto px-3 pb-4 space-y-4">
           {isSearching ? (
             <section>
               <h3 className="px-3 py-1 text-xs font-medium text-text-muted uppercase tracking-wider">
@@ -212,41 +280,38 @@ export default function Sidebar({
                 {filtered.length === 0 ? (
                   <p className="px-3 py-4 text-xs text-text-muted text-center">Nessun risultato.</p>
                 ) : (
-                  filtered.map((conv) => (
-                    <ConversationItem
-                      key={conv.id}
-                      conv={conv}
-                      isActive={conv.id === activeConversationId}
-                      onSelect={(id) => { onSelectConversation(id); onClose(); setSearch(""); }}
-                      onDelete={onDeleteConversation}
-                      onRename={onRenameConversation}
-                    />
-                  ))
+                  filtered.map(renderItem)
                 )}
               </div>
             </section>
           ) : (
             <>
+              {/* Pinned */}
+              {pinnedConversations?.length > 0 && (
+                <section>
+                  <h3 className="px-3 py-1 text-xs font-medium text-text-muted uppercase tracking-wider flex items-center gap-1.5">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                    In evidenza
+                  </h3>
+                  <div className="space-y-0.5">
+                    {pinnedConversations.map(renderItem)}
+                  </div>
+                </section>
+              )}
+
+              {/* Date groups */}
               {Object.entries(GROUP_LABELS).map(([key, label]) => {
                 const group = groupedConversations[key];
-                if (!group || group.length === 0) return null;
+                if (!group?.length) return null;
                 return (
                   <section key={key}>
                     <h3 className="px-3 py-1 text-xs font-medium text-text-muted uppercase tracking-wider">
                       {label}
                     </h3>
-                    <div className="space-y-0.5">
-                      {group.map((conv) => (
-                        <ConversationItem
-                          key={conv.id}
-                          conv={conv}
-                          isActive={conv.id === activeConversationId}
-                          onSelect={(id) => { onSelectConversation(id); onClose(); }}
-                          onDelete={onDeleteConversation}
-                          onRename={onRenameConversation}
-                        />
-                      ))}
-                    </div>
+                    <div className="space-y-0.5">{group.map(renderItem)}</div>
                   </section>
                 );
               })}

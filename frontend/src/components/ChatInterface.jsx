@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useChat } from "../hooks/useChat";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { useToast } from "../hooks/useToast";
@@ -31,7 +31,7 @@ function LoadingBubble() {
 
 export default function ChatInterface() {
   const history = useChatHistory();
-  const { messages, isLoading, loadingConvId, sendMessage, streamingMessage } = useChat({
+  const { messages, isLoading, loadingConvId, sendMessage, streamingMessage, stopStreaming } = useChat({
     externalMessages: history.activeConversation?.messages ?? [],
     externalSessionId: history.activeConversation?.sessionId ?? null,
     activeConversationId: history.activeConversationId,
@@ -43,18 +43,51 @@ export default function ChatInterface() {
   const [input, setInput] = useState("");
   const [activeCitation, setActiveCitation] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const textareaRef = useRef(null);
+  const autoScrollRef = useRef(true); // ref avoids stale closures in scroll effect
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
-  // Scroll to latest message as new content arrives
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading, streamingMessage?.text]);
+  // ── Derived flags ────────────────────────────────────────────────────────────
+  const showLoadingBubble =
+    loadingConvId !== null &&
+    loadingConvId === history.activeConversationId &&
+    !streamingMessage;
 
-  // Snap to bottom instantly when switching conversations
+  // Block input and send while this conversation is actively loading or streaming
+  const isBlocked = showLoadingBubble || !!streamingMessage;
+
+  // ── Scroll management ────────────────────────────────────────────────────────
+
+  const handleContainerScroll = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+    autoScrollRef.current = nearBottom;
+    setShowScrollButton(!nearBottom);
+  }, []);
+
+  const scrollToBottom = useCallback((behavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  }, []);
+
+  // Auto-scroll when new content arrives — only if the user hasn't scrolled up
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
-  }, [history.activeConversationId]);
+    if (autoScrollRef.current) scrollToBottom("smooth");
+    // NOTE: intentionally not including autoScrollRef in deps — it's a ref
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, isLoading, !!streamingMessage]);
+
+  // Snap to bottom + re-enable auto-scroll when switching conversations
+  useEffect(() => {
+    autoScrollRef.current = true;
+    setShowScrollButton(false);
+    scrollToBottom("instant");
+  }, [history.activeConversationId, scrollToBottom]);
+
+  // ── Callbacks ────────────────────────────────────────────────────────────────
 
   const handleNewChat = useCallback(() => {
     history.createConversation();
@@ -63,12 +96,13 @@ export default function ChatInterface() {
     setTimeout(() => textareaRef.current?.focus(), 0);
   }, [history]);
 
-  // Global keyboard shortcuts: Ctrl/Cmd+N = new chat, Ctrl/Cmd+/ = focus input
+  // Global keyboard shortcuts
   useEffect(() => {
     const onKey = (e) => {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key === "n") { e.preventDefault(); handleNewChat(); }
       if (mod && e.key === "/") { e.preventDefault(); textareaRef.current?.focus(); }
+      if (mod && e.key === "p") { e.preventDefault(); handlePrint(); }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -88,10 +122,12 @@ export default function ChatInterface() {
   const handleExport = useCallback(() => {
     const conv = history.activeConversation;
     if (!conv || conv.messages.length === 0) return;
+    const date = new Date().toLocaleDateString("it-IT", {
+      day: "2-digit", month: "long", year: "numeric",
+    });
     const lines = [
       `# ${conv.title}\n`,
-      `_Esportato il ${new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}_\n`,
-      `_Archivio Documentale · Commissione Parlamentare d'Inchiesta · Camera dei Deputati_\n\n---\n`,
+      `_Esportato il ${date} · Archivio Documentale · Commissione Parlamentare d'Inchiesta_\n\n---\n`,
     ];
     conv.messages.forEach((msg) => {
       if (msg.role === "user") {
@@ -99,11 +135,11 @@ export default function ChatInterface() {
       } else if (msg.role === "assistant") {
         lines.push(`\n**Risposta**\n\n${msg.text}\n`);
         if (msg.citations?.length > 0) {
+          const seen = new Set();
           const titles = msg.citations
-            .flatMap((c) => c.sources.slice(0, 1).map((s) => s.title))
-            .filter(Boolean)
-            .join(" · ");
-          if (titles) lines.push(`\n_Fonti: ${titles}_\n`);
+            .flatMap((c) => c.sources.map((s) => s.title))
+            .filter((t) => t && !seen.has(t) && seen.add(t));
+          if (titles.length) lines.push(`\n_Fonti: ${titles.join(" · ")}_\n`);
         }
       }
     });
@@ -118,9 +154,13 @@ export default function ChatInterface() {
     URL.revokeObjectURL(url);
   }, [history.activeConversation]);
 
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
+
   const handleSubmit = (e) => {
     e?.preventDefault();
-    if (!input.trim() || showLoadingBubble) return;
+    if (!input.trim() || isBlocked) return;
     const convId = history.ensureActiveConversation();
     sendMessage(input, convId);
     setInput("");
@@ -138,27 +178,38 @@ export default function ChatInterface() {
   };
 
   const handleRetry = useCallback((query) => {
-    const convId = history.activeConversationId;
-    if (!convId || isLoading) return;
-    sendMessage(query, convId, { silent: true });
-  }, [history.activeConversationId, isLoading, sendMessage]);
+    if (isBlocked || !history.activeConversationId) return;
+    sendMessage(query, history.activeConversationId, { silent: true });
+  }, [isBlocked, history.activeConversationId, sendMessage]);
+
+  const handleFeedback = useCallback((msgId, sentiment) => {
+    if (!history.activeConversationId) return;
+    history.updateMessageFeedback(history.activeConversationId, msgId, sentiment);
+  }, [history]);
 
   const isEmpty = messages.length === 0;
-  const showLoadingBubble =
-    loadingConvId !== null &&
-    loadingConvId === history.activeConversationId &&
-    !streamingMessage;
+
+  // Last 3 conversations with content — shown on empty state
+  const recentConversations = useMemo(() =>
+    [...history.conversations]
+      .filter((c) => c.messages.length > 0)
+      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+      .slice(0, 3),
+    [history.conversations]
+  );
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface">
       {/* Sidebar */}
       <Sidebar
         groupedConversations={history.groupedConversations}
+        pinnedConversations={history.pinnedConversations}
         activeConversationId={history.activeConversationId}
         onNewChat={handleNewChat}
         onSelectConversation={history.selectConversation}
         onDeleteConversation={handleDeleteConversation}
         onRenameConversation={history.renameConversation}
+        onTogglePin={history.togglePin}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -166,10 +217,9 @@ export default function ChatInterface() {
       {/* Main column */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* Header */}
-        <header className="flex-shrink-0 border-b border-border bg-surface/80 backdrop-blur px-4 py-3">
+        <header className="flex-shrink-0 border-b border-border bg-surface/80 backdrop-blur px-4 py-3 print:hidden">
           <div className="max-w-2xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {/* Hamburger — mobile only */}
               <button
                 className="lg:hidden p-1.5 rounded-lg text-text-secondary hover:text-text-primary
                            hover:bg-surface-raised transition-colors"
@@ -192,23 +242,36 @@ export default function ChatInterface() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {/* Export button — shown only when there are messages */}
+            <div className="flex items-center gap-1">
               {!isEmpty && (
-                <button
-                  onClick={handleExport}
-                  title="Esporta conversazione in Markdown"
-                  aria-label="Esporta conversazione"
-                  className="p-1.5 rounded-lg text-text-muted hover:text-text-secondary
-                             hover:bg-surface-raised transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                </button>
+                <>
+                  <button
+                    onClick={handlePrint}
+                    title="Stampa conversazione (⌘P)"
+                    aria-label="Stampa"
+                    className="p-1.5 rounded-lg text-text-muted hover:text-text-secondary
+                               hover:bg-surface-raised transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={handleExport}
+                    title="Esporta in Markdown"
+                    aria-label="Esporta conversazione"
+                    className="p-1.5 rounded-lg text-text-muted hover:text-text-secondary
+                               hover:bg-surface-raised transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </button>
+                </>
               )}
-              <span className="hidden sm:flex items-center gap-1.5 text-xs text-text-muted">
+              <span className="hidden sm:flex items-center gap-1.5 text-xs text-text-muted ml-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-success-dot animate-pulse" />
                 Vertex AI Search
               </span>
@@ -216,23 +279,44 @@ export default function ChatInterface() {
           </div>
         </header>
 
-        {/* Empty state — fixed, non-scrolling */}
+        {/* Empty state */}
         {isEmpty && (
-          <div className="flex-1 flex flex-col items-center justify-center">
+          <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto">
             <WelcomeScreen />
             <div className="w-full max-w-2xl px-4">
               <QuickSuggestions
                 onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }}
                 disabled={isLoading}
               />
+              {recentConversations.length > 0 && (
+                <RecentConversations
+                  conversations={recentConversations}
+                  onSelect={history.selectConversation}
+                />
+              )}
             </div>
           </div>
         )}
 
-        {/* Messages area — only when chat has content */}
+        {/* Messages */}
         {!isEmpty && (
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-2xl mx-auto px-4 py-6">
+          <div
+            ref={messagesContainerRef}
+            onScroll={handleContainerScroll}
+            className="flex-1 overflow-y-auto"
+          >
+            {/* Print header */}
+            <div className="hidden print:block px-8 py-4 border-b border-gray-200 mb-6">
+              <h1 className="text-xl font-bold">{history.activeConversation?.title}</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                Archivio Documentale · Commissione Parlamentare d&apos;Inchiesta · Camera dei Deputati
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Stampato il {new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}
+              </p>
+            </div>
+
+            <div className="max-w-2xl mx-auto px-4 py-6 print:max-w-none print:px-8 print:py-0">
               <div className="space-y-6">
                 {messages.map((msg) => (
                   <MessageBubble
@@ -241,6 +325,7 @@ export default function ChatInterface() {
                     onCitationClick={setActiveCitation}
                     onFollowUp={(q) => { setInput(q); textareaRef.current?.focus(); }}
                     onRetry={handleRetry}
+                    onFeedback={handleFeedback}
                   />
                 ))}
                 {showLoadingBubble && <LoadingBubble />}
@@ -259,9 +344,43 @@ export default function ChatInterface() {
           </div>
         )}
 
+        {/* Jump-to-bottom button */}
+        {showScrollButton && !isEmpty && (
+          <div className="absolute bottom-28 right-6 z-20 print:hidden">
+            <button
+              onClick={() => { autoScrollRef.current = true; setShowScrollButton(false); scrollToBottom("smooth"); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs
+                         bg-surface-raised border border-border shadow-lg
+                         text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+              Vai in fondo
+            </button>
+          </div>
+        )}
+
         {/* Input area */}
-        <div className="flex-shrink-0 px-4 pb-5 pt-3 bg-surface">
+        <div className="flex-shrink-0 px-4 pb-5 pt-3 bg-surface print:hidden">
           <div className="max-w-2xl mx-auto">
+            {/* Stop streaming button */}
+            {streamingMessage && (
+              <div className="flex justify-center mb-2">
+                <button
+                  onClick={stopStreaming}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs
+                             bg-surface-raised border border-border shadow
+                             text-text-secondary hover:text-text-primary hover:border-accent/50 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="6" width="12" height="12" rx="1" />
+                  </svg>
+                  Interrompi generazione
+                </button>
+              </div>
+            )}
+
             <form
               onSubmit={handleSubmit}
               className="relative bg-surface-raised border border-border rounded-2xl shadow-lg"
@@ -273,7 +392,7 @@ export default function ChatInterface() {
                 onKeyDown={handleKeyDown}
                 placeholder="Formulare un quesito relativo agli atti del procedimento d'inchiesta…"
                 rows={1}
-                disabled={showLoadingBubble}
+                disabled={isBlocked}
                 className="w-full resize-none bg-transparent px-4 py-3 pr-14 text-sm
                            text-text-primary placeholder-text-muted
                            focus:outline-none disabled:opacity-50 leading-relaxed"
@@ -285,7 +404,7 @@ export default function ChatInterface() {
               />
               <button
                 type="submit"
-                disabled={!input.trim() || showLoadingBubble}
+                disabled={!input.trim() || isBlocked}
                 className="absolute right-3 bottom-3 w-8 h-8 rounded-lg bg-accent
                            flex items-center justify-center
                            hover:bg-accent-hover disabled:opacity-30 disabled:cursor-not-allowed
@@ -318,6 +437,8 @@ export default function ChatInterface() {
     </div>
   );
 }
+
+// ─── WelcomeScreen ────────────────────────────────────────────────────────────
 
 function WelcomeScreen() {
   return (
@@ -362,6 +483,40 @@ function WelcomeScreen() {
             {label}
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── RecentConversations ──────────────────────────────────────────────────────
+
+function RecentConversations({ conversations, onSelect }) {
+  return (
+    <div className="mt-6 px-4 pb-4">
+      <p className="text-xs font-medium text-text-muted uppercase tracking-widest mb-3">
+        Conversazioni recenti
+      </p>
+      <div className="space-y-1.5">
+        {conversations.map((conv) => {
+          const lastMsg = conv.messages[conv.messages.length - 1];
+          const preview = lastMsg?.text?.slice(0, 100) || "";
+          return (
+            <button
+              key={conv.id}
+              onClick={() => onSelect(conv.id)}
+              className="w-full text-left px-3 py-2.5 rounded-xl border border-border
+                         bg-surface-raised hover:border-accent/40 hover:bg-surface-overlay
+                         transition-all duration-150 group"
+            >
+              <p className="text-xs font-medium text-text-primary truncate group-hover:text-accent transition-colors">
+                {conv.title}
+              </p>
+              {preview && (
+                <p className="text-[11px] text-text-muted truncate mt-0.5">{preview}</p>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

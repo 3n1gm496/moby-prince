@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
-const STREAM_CHUNK = 6;   // characters per tick
-const STREAM_TICK_MS = 14; // ~70 chars/s — fast enough to feel live, slow enough to read
+const STREAM_CHUNK = 6;    // characters revealed per tick
+const STREAM_TICK_MS = 14; // ~70 chars/s
 
 export function useChat({
   externalMessages,
@@ -14,8 +14,10 @@ export function useChat({
   const [internalSessionId, setInternalSessionId] = useState(null);
   const [loadingConvId, setLoadingConvId] = useState(null);
   const [streamingMessage, setStreamingMessage] = useState(null);
-  // streamingMessage: null | { convId, text (partial), target (full), msgData }
+  // { convId, text (partial), target (full), msgData }
+
   const abortRef = useRef(null);
+  const streamingMsgRef = useRef(null); // always in sync with streamingMessage state
 
   const messages = externalMessages !== undefined ? externalMessages : internalMessages;
   const sessionId = externalSessionId !== undefined ? externalSessionId : internalSessionId;
@@ -37,7 +39,12 @@ export function useChat({
     }
   }, [onSessionUpdate]);
 
-  // Progressive text reveal: tick forward until target is reached, then commit to history
+  // Keep ref in sync so callbacks can read current streaming state without stale closures
+  useEffect(() => {
+    streamingMsgRef.current = streamingMessage;
+  }, [streamingMessage]);
+
+  // Progressive text reveal
   useEffect(() => {
     if (!streamingMessage) return;
 
@@ -58,18 +65,31 @@ export function useChat({
     return () => clearTimeout(timerId);
   }, [streamingMessage, addMessage]);
 
-  // explicitConvId: caller forces a target conversation (needed for new-conversation race condition).
-  // silent: skip adding a user message (used by retry to avoid duplicates).
+  // Stop streaming immediately and commit the full (server) response to history
+  const stopStreaming = useCallback(() => {
+    const current = streamingMsgRef.current;
+    if (!current) return;
+    setStreamingMessage(null);
+    // Defer addMessage so it runs after the state clear
+    setTimeout(() => addMessage(current.msgData, current.convId), 0);
+  }, [addMessage]);
+
   const sendMessage = useCallback(
     async (queryText, explicitConvId, { silent = false } = {}) => {
       if (!queryText.trim() || isLoading) return;
+
+      // If a streaming animation is in progress, commit it immediately before starting anew
+      const currentStreaming = streamingMsgRef.current;
+      if (currentStreaming) {
+        setStreamingMessage(null);
+        addMessage(currentStreaming.msgData, currentStreaming.convId);
+      }
 
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
 
       const timeoutId = setTimeout(() => controller.abort(), 60_000);
-
       const targetConvId = explicitConvId ?? activeConversationId;
 
       if (!silent) {
@@ -107,7 +127,6 @@ export function useChat({
           steps: answer.steps || [],
         };
 
-        // Start streaming reveal instead of committing immediately
         setStreamingMessage({ convId: targetConvId, text: "", target: msgData.text, msgData });
       } catch (err) {
         if (err.name === "AbortError") return;
@@ -129,17 +148,16 @@ export function useChat({
     [isLoading, sessionId, addMessage, setSession, activeConversationId]
   );
 
-  // Expose the partial streaming message only for the currently visible conversation
   const activeStreamingMessage =
     streamingMessage?.convId === activeConversationId
       ? { ...streamingMessage.msgData, text: streamingMessage.text, streaming: true }
       : null;
 
-  return { messages, isLoading, loadingConvId, sendMessage, streamingMessage: activeStreamingMessage };
+  return { messages, isLoading, loadingConvId, sendMessage, streamingMessage: activeStreamingMessage, stopStreaming };
 }
 
 function buildCitations(answer) {
-  if (!answer.citations || !answer.references) return [];
+  if (!Array.isArray(answer.citations) || !Array.isArray(answer.references)) return [];
 
   return answer.citations.map((citation, idx) => {
     const sources = (citation.sources || [])
