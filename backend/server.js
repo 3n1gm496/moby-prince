@@ -13,10 +13,6 @@ const ENGINE_ID = process.env.ENGINE_ID;
 const DISCOVERY_ENGINE_BASE = `https://${LOCATION}-discoveryengine.googleapis.com/v1alpha`;
 const ANSWER_ENDPOINT = `${DISCOVERY_ENGINE_BASE}/projects/${PROJECT_ID}/locations/${LOCATION}/collections/default_collection/engines/${ENGINE_ID}/servingConfigs/default_serving_config:answer`;
 
-// google-auth-library automatically resolves credentials via:
-// 1. GOOGLE_APPLICATION_CREDENTIALS env var (service account key file)
-// 2. gcloud Application Default Credentials (~/.config/gcloud/application_default_credentials.json)
-// 3. Workload Identity (when running on GCP — Cloud Run, GKE, etc.)
 const auth = new GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/cloud-platform"],
 });
@@ -28,6 +24,64 @@ app.use(
     methods: ["GET", "POST"],
   })
 );
+
+// Call Discovery Engine with a single retry on transient failures
+async function callAnswerApi(accessToken, payload, attempt = 1) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 55_000);
+
+  try {
+    const response = await fetch(ANSWER_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-Goog-User-Project": PROJECT_ID,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`Discovery Engine error (attempt ${attempt}):`, response.status, errorBody);
+      const err = new Error(`HTTP ${response.status}`);
+      err.status = response.status;
+      err.detail = errorBody;
+      throw err;
+    }
+
+    const text = await response.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      // Some Discovery Engine responses use newline-delimited JSON — take first complete object
+      const firstLine = text.split("\n").find((l) => l.trim().startsWith("{"));
+      if (firstLine) return JSON.parse(firstLine);
+      throw new Error("Risposta non valida dal servizio di ricerca.");
+    }
+  } catch (err) {
+    clearTimeout(timeoutId);
+
+    if (err.name === "AbortError") {
+      throw Object.assign(new Error("timeout"), { isTimeout: true });
+    }
+
+    // Retry once on transient network errors (not 4xx client errors)
+    const isTransient = !err.status || err.status >= 500;
+    if (attempt === 1 && isTransient) {
+      console.warn("Transient error, retrying after 2s…", err.message);
+      await new Promise((r) => setTimeout(r, 2000));
+      const client = await auth.getClient();
+      const { token } = await client.getAccessToken();
+      return callAnswerApi(token, payload, 2);
+    }
+
+    throw err;
+  }
+}
 
 app.post("/api/ask", async (req, res) => {
   const { query, sessionId } = req.body;
@@ -48,16 +102,12 @@ app.post("/api/ask", async (req, res) => {
     const accessToken = tokenResponse.token;
 
     const payload = {
-      query: {
-        text: query.trim(),
-      },
+      query: { text: query.trim() },
       session: sessionId
         ? `projects/${PROJECT_ID}/locations/${LOCATION}/collections/default_collection/engines/${ENGINE_ID}/sessions/${sessionId}`
         : undefined,
       answerGenerationSpec: {
-        modelSpec: {
-          modelVersion: "stable",
-        },
+        modelSpec: { modelVersion: "stable" },
         promptSpec: {
           preamble:
             "Sei un assistente storico specializzato nel disastro del Moby Prince (10 aprile 1991). " +
@@ -65,9 +115,7 @@ app.post("/api/ask", async (req, res) => {
             "Se l'informazione non è presente nei documenti, dichiaralo esplicitamente.",
         },
       },
-      relatedQuestionsSpec: {
-        enable: true,
-      },
+      relatedQuestionsSpec: { enable: true },
       searchSpec: {
         searchParams: {
           searchResultMode: "CHUNKS",
@@ -76,27 +124,20 @@ app.post("/api/ask", async (req, res) => {
       },
     };
 
-    const response = await fetch(ANSWER_ENDPOINT, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "X-Goog-User-Project": PROJECT_ID,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error("Discovery Engine error:", response.status, errorBody);
-      return res
-        .status(response.status)
-        .json({ error: "Errore dal servizio di ricerca.", detail: errorBody });
-    }
-
-    const data = await response.json();
+    const data = await callAnswerApi(accessToken, payload);
     res.json(data);
   } catch (err) {
+    if (err.isTimeout) {
+      return res.status(504).json({
+        error: "Il servizio di ricerca non ha risposto in tempo. Riprova tra qualche secondo.",
+      });
+    }
+    if (err.status && err.status < 500) {
+      return res.status(err.status).json({
+        error: "Errore nella richiesta al servizio di ricerca.",
+        detail: err.detail,
+      });
+    }
     console.error("Internal server error:", err);
     res.status(500).json({ error: "Errore interno del server." });
   }

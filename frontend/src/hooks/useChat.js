@@ -89,7 +89,7 @@ export function useChat({
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const timeoutId = setTimeout(() => controller.abort(), 60_000);
+      const timeoutId = setTimeout(() => controller.abort("timeout"), 75_000);
       const targetConvId = explicitConvId ?? activeConversationId;
 
       if (!silent) {
@@ -129,12 +129,14 @@ export function useChat({
 
         setStreamingMessage({ convId: targetConvId, text: "", target: msgData.text, msgData });
       } catch (err) {
-        if (err.name === "AbortError") return;
+        if (err.name === "AbortError" && err.message !== "timeout") return; // user-cancelled
         addMessage(
           {
             id: Date.now() + 1,
             role: "error",
-            text: `Errore: ${err.message}`,
+            text: err.name === "AbortError"
+              ? "La richiesta ha impiegato troppo tempo. Riprova."
+              : `Errore: ${err.message}`,
             retryQuery: queryText.trim(),
           },
           targetConvId
