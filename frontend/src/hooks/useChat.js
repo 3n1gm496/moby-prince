@@ -1,4 +1,7 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+
+const STREAM_CHUNK = 6;    // characters revealed per tick
+const STREAM_TICK_MS = 14; // ~70 chars/s
 
 export function useChat({
   externalMessages,
@@ -10,7 +13,11 @@ export function useChat({
   const [internalMessages, setInternalMessages] = useState([]);
   const [internalSessionId, setInternalSessionId] = useState(null);
   const [loadingConvId, setLoadingConvId] = useState(null);
+  const [streamingMessage, setStreamingMessage] = useState(null);
+  // { convId, text (partial), target (full), msgData }
+
   const abortRef = useRef(null);
+  const streamingMsgRef = useRef(null); // always in sync with streamingMessage state
 
   const messages = externalMessages !== undefined ? externalMessages : internalMessages;
   const sessionId = externalSessionId !== undefined ? externalSessionId : internalSessionId;
@@ -32,23 +39,62 @@ export function useChat({
     }
   }, [onSessionUpdate]);
 
-  // explicitConvId lets the caller force a target conversation,
-  // needed when a new conversation was just created (state not yet committed).
+  // Keep ref in sync so callbacks can read current streaming state without stale closures
+  useEffect(() => {
+    streamingMsgRef.current = streamingMessage;
+  }, [streamingMessage]);
+
+  // Progressive text reveal
+  useEffect(() => {
+    if (!streamingMessage) return;
+
+    if (streamingMessage.text.length >= streamingMessage.target.length) {
+      addMessage(streamingMessage.msgData, streamingMessage.convId);
+      setStreamingMessage(null);
+      return;
+    }
+
+    const timerId = setTimeout(() => {
+      setStreamingMessage((prev) => {
+        if (!prev) return null;
+        const nextLen = Math.min(prev.text.length + STREAM_CHUNK, prev.target.length);
+        return { ...prev, text: prev.target.slice(0, nextLen) };
+      });
+    }, STREAM_TICK_MS);
+
+    return () => clearTimeout(timerId);
+  }, [streamingMessage, addMessage]);
+
+  // Stop streaming immediately and commit the full (server) response to history
+  const stopStreaming = useCallback(() => {
+    const current = streamingMsgRef.current;
+    if (!current) return;
+    setStreamingMessage(null);
+    // Defer addMessage so it runs after the state clear
+    setTimeout(() => addMessage(current.msgData, current.convId), 0);
+  }, [addMessage]);
+
   const sendMessage = useCallback(
-    async (queryText, explicitConvId) => {
+    async (queryText, explicitConvId, { silent = false } = {}) => {
       if (!queryText.trim() || isLoading) return;
 
-      // Cancel any previous in-flight request
+      // If a streaming animation is in progress, commit it immediately before starting anew
+      const currentStreaming = streamingMsgRef.current;
+      if (currentStreaming) {
+        setStreamingMessage(null);
+        addMessage(currentStreaming.msgData, currentStreaming.convId);
+      }
+
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
 
-      // Timeout after 60 s
-      const timeoutId = setTimeout(() => controller.abort(), 60_000);
-
+      const timeoutId = setTimeout(() => controller.abort("timeout"), 75_000);
       const targetConvId = explicitConvId ?? activeConversationId;
 
-      addMessage({ id: Date.now(), role: "user", text: queryText.trim() }, targetConvId);
+      if (!silent) {
+        addMessage({ id: Date.now(), role: "user", text: queryText.trim() }, targetConvId);
+      }
       setLoadingConvId(targetConvId);
 
       try {
@@ -72,21 +118,27 @@ export function useChat({
         }
 
         const answer = data.answer || {};
+        const msgData = {
+          id: Date.now() + 1,
+          role: "assistant",
+          text: answer.answerText || "Nessuna risposta disponibile.",
+          citations: buildCitations(answer),
+          relatedQuestions: data.answer?.relatedQuestions || [],
+          steps: answer.steps || [],
+        };
+
+        setStreamingMessage({ convId: targetConvId, text: "", target: msgData.text, msgData });
+      } catch (err) {
+        if (err.name === "AbortError" && err.message !== "timeout") return; // user-cancelled
         addMessage(
           {
             id: Date.now() + 1,
-            role: "assistant",
-            text: answer.answerText || "Nessuna risposta disponibile.",
-            citations: buildCitations(answer),
-            relatedQuestions: data.answer?.relatedQuestions || [],
-            steps: answer.steps || [],
+            role: "error",
+            text: err.name === "AbortError"
+              ? "La richiesta ha impiegato troppo tempo. Riprova."
+              : `Errore: ${err.message}`,
+            retryQuery: queryText.trim(),
           },
-          targetConvId
-        );
-      } catch (err) {
-        if (err.name === "AbortError") return; // cancelled — do not show error
-        addMessage(
-          { id: Date.now() + 1, role: "error", text: `Errore: ${err.message}` },
           targetConvId
         );
       } finally {
@@ -98,11 +150,16 @@ export function useChat({
     [isLoading, sessionId, addMessage, setSession, activeConversationId]
   );
 
-  return { messages, isLoading, loadingConvId, sendMessage };
+  const activeStreamingMessage =
+    streamingMessage?.convId === activeConversationId
+      ? { ...streamingMessage.msgData, text: streamingMessage.text, streaming: true }
+      : null;
+
+  return { messages, isLoading, loadingConvId, sendMessage, streamingMessage: activeStreamingMessage, stopStreaming };
 }
 
 function buildCitations(answer) {
-  if (!answer.citations || !answer.references) return [];
+  if (!Array.isArray(answer.citations) || !Array.isArray(answer.references)) return [];
 
   return answer.citations.map((citation, idx) => {
     const sources = (citation.sources || [])

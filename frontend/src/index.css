@@ -13,58 +13,88 @@
     font-family: "Inter", system-ui, sans-serif;
   }
 
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: #171717;
-  }
+  /* Minimal scrollbar */
+  ::-webkit-scrollbar       { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
-    background: #3f3f3f;
+    background: #2a2a2a;
     border-radius: 9999px;
   }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #c9a84c;
-  }
+  ::-webkit-scrollbar-thumb:hover { background: #c9a84c; }
 }
 
 @layer components {
+  /* Citation badge — small, restrained gold superscript */
   .citation-badge {
-    @apply inline-flex items-center justify-center w-5 h-5 text-xs font-mono font-semibold
-           rounded cursor-pointer transition-colors duration-150 align-super;
-    background: rgba(201, 168, 76, 0.15);
+    @apply inline-flex items-center justify-center text-[10px] font-mono font-semibold
+           rounded cursor-pointer transition-colors duration-100 align-super flex-shrink-0;
+    width: 16px;
+    height: 16px;
+    background: rgba(201, 168, 76, 0.08);
     color: #c9a84c;
-    border: 1px solid rgba(201, 168, 76, 0.4);
+    border: 1px solid rgba(201, 168, 76, 0.22);
   }
   .citation-badge:hover {
-    background: rgba(201, 168, 76, 0.28);
+    background: rgba(201, 168, 76, 0.18);
   }
 
-  .sidebar-item {
-    @apply flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary
-           hover:bg-surface-raised hover:text-text-primary transition-colors cursor-pointer;
-  }
-  .sidebar-item.active {
-    @apply bg-surface-raised text-text-primary border-l-2 border-accent;
-  }
-
+  /* Prose — clean, comfortable reading */
   .prose-answer {
-    @apply text-text-primary leading-relaxed;
+    @apply text-text-primary text-sm leading-[1.75];
   }
-  .prose-answer p {
-    @apply mb-3;
+  .prose-answer p           { @apply mb-3 last:mb-0; }
+  .prose-answer p:last-child { @apply mb-0; }
+  .prose-answer strong      { @apply text-text-primary font-semibold; }
+  .prose-answer em          { @apply italic; }
+  .prose-answer ul          { @apply list-disc list-outside pl-4 mb-3 space-y-1; }
+  .prose-answer ol          { @apply list-decimal list-outside pl-4 mb-3 space-y-1; }
+  .prose-answer li          { @apply text-text-primary; }
+  .prose-answer h2          { @apply text-text-primary font-semibold text-base mt-5 mb-2; }
+  .prose-answer h3          { @apply text-text-primary font-medium text-sm mt-4 mb-1.5; }
+  .prose-answer blockquote  {
+    @apply border-l-2 border-border pl-3 italic text-text-secondary my-3;
   }
-  .prose-answer strong {
-    @apply text-text-primary font-semibold;
+  .prose-answer code {
+    @apply font-mono text-[12px] bg-surface-raised px-1.5 py-0.5 rounded text-accent;
   }
-  .prose-answer ul {
-    @apply list-disc list-inside mb-3 space-y-1;
+  .prose-answer pre {
+    @apply font-mono text-[12px] bg-surface-raised p-3 rounded-lg overflow-x-auto my-3;
   }
-  .prose-answer ol {
-    @apply list-decimal list-inside mb-3 space-y-1;
+  .prose-answer hr { @apply border-border my-4; }
+}
+
+/* ── Print stylesheet ────────────────────────────────────────────────────── */
+@media print {
+  * { color-adjust: exact; -webkit-print-color-adjust: exact; }
+
+  body {
+    background: white !important;
+    color: #111 !important;
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 11pt;
+    line-height: 1.6;
   }
-  .prose-answer h3 {
-    @apply text-text-primary font-semibold text-base mt-4 mb-2;
+
+  .print\:hidden, aside, header { display: none !important; }
+
+  .flex.h-screen     { display: block !important; height: auto !important; }
+  .flex-1            { overflow: visible !important; height: auto !important; }
+  .max-w-2xl         { max-width: 100% !important; }
+  .space-y-6 > * + * { margin-top: 1.5rem !important; }
+
+  .prose-answer       { color: #111 !important; line-height: 1.65; }
+  .prose-answer p     { margin-bottom: 0.5rem !important; }
+  .prose-answer strong { color: #111 !important; }
+
+  .rounded-2xl { border-radius: 0 !important; box-shadow: none !important; }
+  .bg-surface-overlay, .bg-surface-raised { background: transparent !important; }
+
+  .flex.justify-end > div {
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 0.4rem;
+    font-weight: 600;
+    color: #222 !important;
   }
+
+  @page { margin: 2cm; size: A4; }
 }
