@@ -1,31 +1,35 @@
 const SUGGESTIONS = [
-  "Quali sono le conclusioni della Commissione parlamentare d'inchiesta sul naufragio?",
-  "Qual è il numero ufficiale delle vittime accertate e la loro identità?",
-  "Quali erano le condizioni meteomarine nel porto di Livorno nella notte del 10 aprile 1991?",
-  "Come si sviluppò la dinamica della collisione tra il Moby Prince e la petroliera Agip Abruzzo?",
+  "Quali sono le conclusioni della Commissione parlamentare d'inchiesta?",
+  "Qual è il numero ufficiale delle vittime accertate?",
+  "Come si sviluppò la dinamica della collisione con la petroliera Agip Abruzzo?",
   "Quali responsabilità penali sono state accertate nei procedimenti giudiziari?",
   "Quali omissioni nei soccorsi sono emerse dagli atti istruttori?",
-  "Quale ruolo ebbe la nebbia e la visibilità ridotta nelle cause del sinistro?",
+  "Quale ruolo ebbe la nebbia nelle cause del sinistro?",
   "Quali perizie tecniche sono state acquisite dalla Commissione?",
+  "Quali erano le condizioni meteomarine nel porto di Livorno quella notte?",
 ];
 
 export default function QuickSuggestions({ onSelect, disabled }) {
   return (
-    <div className="px-4 pb-4">
-      <p className="text-xs font-medium text-text-muted uppercase tracking-widest mb-3">
+    <div className="px-4 pb-2">
+      <p className="text-[11px] font-medium text-text-muted uppercase tracking-[0.12em] mb-3">
         Domande frequenti
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className="space-y-0.5">
         {SUGGESTIONS.map((s, i) => (
           <button
             key={i}
             onClick={() => onSelect(s)}
             disabled={disabled}
-            className="text-xs px-3 py-1.5 rounded-full border border-border bg-surface-raised
-                       text-text-secondary hover:border-accent hover:text-accent hover:bg-surface-overlay
-                       transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed text-left"
+            className="w-full text-left flex items-start gap-2.5 px-0 py-1.5 group
+                       disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {s}
+            <span className="text-text-muted group-hover:text-accent transition-colors
+                             mt-px text-xs leading-5 flex-shrink-0">→</span>
+            <span className="text-sm text-text-secondary group-hover:text-text-primary
+                             transition-colors leading-snug">
+              {s}
+            </span>
           </button>
         ))}
       </div>

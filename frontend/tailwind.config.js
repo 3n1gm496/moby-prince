@@ -5,55 +5,58 @@ export default {
     extend: {
       colors: {
         surface: {
-          DEFAULT: "#212121",
-          raised: "#2f2f2f",
-          sidebar: "#171717",
-          overlay: "#2a2a2a",
+          DEFAULT: "#141414",   // main canvas — near-black, premium
+          raised:  "#1c1c1c",   // cards, input, bubbles
+          sidebar: "#0c0c0c",   // sidebar panel
+          overlay: "#181818",   // subtle assistant bubble
         },
         border: {
-          DEFAULT: "#3f3f3f",
-          subtle: "#2a2a2a",
+          DEFAULT: "#252525",   // barely visible
+          subtle:  "#1c1c1c",
         },
         text: {
-          primary: "#ececec",
-          secondary: "#9ca3af",
-          muted: "#6b7280",
+          primary:   "#e2e2e2",
+          secondary: "#717171",  // neutral gray (not blue-gray)
+          muted:     "#424242",
         },
         accent: {
           DEFAULT: "#c9a84c",
-          hover: "#d4b86a",
-          dim: "rgba(201,168,76,0.15)",
+          hover:   "#d6b96a",
+          dim:     "rgba(201,168,76,0.10)",
         },
         error: {
-          bg: "rgba(127,29,29,0.3)",
-          border: "rgba(185,28,28,0.4)",
-          text: "#fca5a5",
+          bg:     "rgba(120,24,24,0.25)",
+          border: "rgba(180,28,28,0.35)",
+          text:   "#f87171",
         },
         success: {
-          dot: "#10b981",
+          dot: "#22c55e",
         },
       },
       fontFamily: {
         serif: ['"Playfair Display"', "Georgia", "serif"],
-        sans: ['"Inter"', "system-ui", "sans-serif"],
-        mono: ['"JetBrains Mono"', "monospace"],
+        sans:  ['"Inter"', "system-ui", "sans-serif"],
+        mono:  ['"JetBrains Mono"', "Menlo", "monospace"],
+      },
+      fontSize: {
+        "2xs": ["10px", "14px"],
       },
       animation: {
-        "fade-in": "fadeIn 0.3s ease-out",
-        "slide-up": "slideUp 0.3s ease-out",
-        "slide-in": "slideIn 0.3s ease-out",
+        "fade-in":  "fadeIn 0.15s ease-out",
+        "slide-up": "slideUp 0.18s ease-out",
+        "slide-in": "slideIn 0.25s ease-out",
       },
       keyframes: {
         fadeIn: {
-          "0%": { opacity: "0" },
+          "0%":   { opacity: "0" },
           "100%": { opacity: "1" },
         },
         slideUp: {
-          "0%": { opacity: "0", transform: "translateY(12px)" },
+          "0%":   { opacity: "0", transform: "translateY(8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
         slideIn: {
-          "0%": { transform: "translateX(-100%)" },
+          "0%":   { transform: "translateX(-100%)" },
           "100%": { transform: "translateX(0)" },
         },
       },

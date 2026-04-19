@@ -2,62 +2,51 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import AnchorAvatar from "./AnchorAvatar";
 
 const GROUP_LABELS = {
-  today: "Oggi",
-  yesterday: "Ieri",
+  today:    "Oggi",
+  yesterday:"Ieri",
   thisWeek: "Questa settimana",
-  older: "Precedenti",
+  older:    "Precedenti",
 };
 
-function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogglePin, focused }) {
+function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogglePin }) {
   const [renaming, setRenaming] = useState(false);
-  const [draft, setDraft] = useState(conv.title);
+  const [draft,    setDraft]    = useState(conv.title);
   const inputRef = useRef(null);
-  const itemRef = useRef(null);
 
-  useEffect(() => {
-    if (renaming) inputRef.current?.select();
-  }, [renaming]);
+  useEffect(() => { if (renaming) inputRef.current?.select(); }, [renaming]);
 
-  useEffect(() => {
-    if (focused) itemRef.current?.focus();
-  }, [focused]);
-
-  const startRename = (e) => {
-    e.stopPropagation();
-    setDraft(conv.title);
-    setRenaming(true);
-  };
-
+  const startRename = (e) => { e.stopPropagation(); setDraft(conv.title); setRenaming(true); };
   const commitRename = () => {
     setRenaming(false);
     if (draft.trim() && draft.trim() !== conv.title) onRename(conv.id, draft.trim());
+    else setDraft(conv.title);
   };
-
   const handleRenameKey = (e) => {
-    if (e.key === "Enter") { e.preventDefault(); commitRename(); }
+    if (e.key === "Enter")  { e.preventDefault(); commitRename(); }
     if (e.key === "Escape") { setRenaming(false); setDraft(conv.title); }
   };
 
-  const citationCount = conv.messages.reduce((sum, m) => sum + (m.citations?.length ?? 0), 0);
+  const citCount = conv.messages.reduce((s, m) => s + (m.citations?.length ?? 0), 0);
 
   return (
     <div
-      ref={itemRef}
       tabIndex={0}
       data-conv-item
       title={renaming ? undefined : conv.title}
-      className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm
-                  cursor-pointer transition-colors select-none outline-none
-                  focus-visible:ring-1 focus-visible:ring-accent/60
-                  ${isActive
-                    ? "bg-surface-raised text-text-primary border-l-2 border-accent pl-[10px]"
-                    : "text-text-secondary hover:bg-surface-raised hover:text-text-primary"
-                  }`}
       onClick={() => !renaming && onSelect(conv.id)}
       onKeyDown={(e) => {
-        if (e.key === "Enter" && !renaming) onSelect(conv.id);
-        if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); onDelete(conv.id); }
+        if (e.key === "Enter"  && !renaming) onSelect(conv.id);
+        if ((e.key === "Delete" || e.key === "Backspace") && !renaming) {
+          e.preventDefault(); onDelete(conv.id);
+        }
       }}
+      className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]
+                  cursor-pointer transition-colors duration-100 select-none outline-none
+                  focus-visible:ring-1 focus-visible:ring-accent/40
+                  ${isActive
+                    ? "text-text-primary font-medium border-l-[2px] border-accent pl-[10px]"
+                    : "text-text-secondary hover:text-text-primary"
+                  }`}
     >
       {renaming ? (
         <input
@@ -67,61 +56,54 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogg
           onBlur={commitRename}
           onKeyDown={handleRenameKey}
           onClick={(e) => e.stopPropagation()}
-          className="flex-1 bg-surface border border-accent/50 rounded px-1.5 py-0.5
-                     text-sm text-text-primary outline-none focus:border-accent"
+          className="flex-1 bg-surface-raised border border-accent/40 rounded px-1.5 py-0.5
+                     text-[13px] text-text-primary outline-none focus:border-accent transition-colors"
           maxLength={60}
         />
       ) : (
         <>
           <span className="flex-1 truncate">{conv.title}</span>
 
-          {/* Citation count */}
-          {citationCount > 0 && (
+          {/* Citation count — appears on hover */}
+          {citCount > 0 && (
             <span className="flex-shrink-0 text-[10px] font-mono text-text-muted
-                             opacity-0 group-hover:opacity-60 transition-opacity leading-none">
-              {citationCount}
+                             opacity-0 group-hover:opacity-50 transition-opacity">
+              {citCount}
             </span>
           )}
 
-          {/* Pinned indicator */}
+          {/* Pinned icon */}
           {conv.pinned && (
-            <svg className="w-3 h-3 text-accent flex-shrink-0 opacity-60" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-2.5 h-2.5 text-accent/50 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
               <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
             </svg>
           )}
 
-          {/* Action buttons */}
+          {/* Actions — only on hover */}
           <span className="flex-shrink-0 flex items-center gap-0.5
                            opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-            <button
-              onClick={(e) => { e.stopPropagation(); onTogglePin(conv.id); }}
-              aria-label={conv.pinned ? "Sblocca conversazione" : "Fissa conversazione"}
-              title={conv.pinned ? "Sblocca" : "Fissa in cima"}
-              className={`p-0.5 rounded transition-colors ${conv.pinned ? "text-accent" : "text-text-muted hover:text-text-secondary"}`}
-            >
+            <button onClick={(e) => { e.stopPropagation(); onTogglePin(conv.id); }}
+                    aria-label={conv.pinned ? "Sblocca" : "Fissa in cima"}
+                    className={`p-0.5 rounded transition-colors
+                                ${conv.pinned ? "text-accent" : "text-text-muted hover:text-text-secondary"}`}>
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                      d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
             </button>
-            <button
-              onClick={startRename}
-              aria-label="Rinomina conversazione"
-              className="p-0.5 rounded text-text-muted hover:text-text-secondary transition-colors"
-            >
+            <button onClick={startRename} aria-label="Rinomina"
+                    className="p-0.5 rounded text-text-muted hover:text-text-secondary transition-colors">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
               </svg>
             </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); onDelete(conv.id); }}
-              aria-label="Elimina conversazione"
-              className="p-0.5 rounded text-text-muted hover:text-red-400 transition-colors"
-            >
+            <button onClick={(e) => { e.stopPropagation(); onDelete(conv.id); }}
+                    aria-label="Elimina"
+                    className="p-0.5 rounded text-text-muted hover:text-error-text transition-colors">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
           </span>
@@ -132,58 +114,39 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogg
 }
 
 export default function Sidebar({
-  groupedConversations,
-  pinnedConversations,
+  groupedConversations, pinnedConversations,
   activeConversationId,
-  onNewChat,
-  onSelectConversation,
-  onDeleteConversation,
-  onRenameConversation,
-  onTogglePin,
-  isOpen,
-  onClose,
+  onNewChat, onSelectConversation, onDeleteConversation,
+  onRenameConversation, onTogglePin,
+  isOpen, onClose,
 }) {
   const [search, setSearch] = useState("");
-  const [focusedIdx, setFocusedIdx] = useState(-1);
   const searchRef = useRef(null);
-  const navRef = useRef(null);
+  const navRef    = useRef(null);
 
-  const allConversations = [
-    ...(pinnedConversations || []),
-    ...Object.values(groupedConversations).flat(),
-  ];
-
+  const allConvs = [...(pinnedConversations || []), ...Object.values(groupedConversations).flat()];
   const isSearching = search.trim().length > 0;
   const filtered = isSearching
-    ? allConversations.filter(
-        (c) =>
-          c.title.toLowerCase().includes(search.toLowerCase()) ||
-          c.messages.some((m) => m.text?.toLowerCase().includes(search.toLowerCase()))
+    ? allConvs.filter((c) =>
+        c.title.toLowerCase().includes(search.toLowerCase()) ||
+        c.messages.some((m) => m.text?.toLowerCase().includes(search.toLowerCase()))
       )
     : null;
 
-  // Keyboard navigation ↑↓ through conversation items
-  const handleNavKeyDown = useCallback((e) => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      const items = navRef.current?.querySelectorAll("[data-conv-item]");
-      if (!items?.length) return;
-      const arr = Array.from(items);
-      const current = document.activeElement;
-      const idx = arr.indexOf(current);
-      if (e.key === "ArrowDown") {
-        arr[Math.min(idx + 1, arr.length - 1)]?.focus();
-      } else {
-        if (idx <= 0) { searchRef.current?.focus(); return; }
-        arr[Math.max(idx - 1, 0)]?.focus();
-      }
-    }
+  const handleNavKey = useCallback((e) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const items = Array.from(navRef.current?.querySelectorAll("[data-conv-item]") ?? []);
+    if (!items.length) return;
+    const idx = items.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") items[Math.min(idx + 1, items.length - 1)]?.focus();
+    else if (idx <= 0)         searchRef.current?.focus();
+    else                       items[Math.max(idx - 1, 0)]?.focus();
   }, []);
 
   const renderItem = (conv) => (
     <ConversationItem
-      key={conv.id}
-      conv={conv}
+      key={conv.id} conv={conv}
       isActive={conv.id === activeConversationId}
       onSelect={(id) => { onSelectConversation(id); onClose(); setSearch(""); }}
       onDelete={onDeleteConversation}
@@ -194,52 +157,54 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Mobile backdrop */}
       {isOpen && (
-        <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/70 z-30 lg:hidden backdrop-blur-sm"
+             onClick={onClose} />
       )}
 
-      <aside
-        className={`
-          fixed lg:relative inset-y-0 left-0 z-40
-          w-64 flex-shrink-0 flex flex-col
-          bg-surface-sidebar border-r border-border
-          transform transition-transform duration-300 ease-in-out
-          ${isOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0 print:hidden
-        `}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-2 p-4 border-b border-border">
+      <aside className={`
+        fixed lg:relative inset-y-0 left-0 z-40
+        w-60 flex-shrink-0 flex flex-col
+        bg-surface-sidebar border-r border-border/50
+        transform transition-transform duration-250 ease-in-out
+        ${isOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 print:hidden
+      `}>
+
+        {/* Wordmark */}
+        <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border/30">
           <AnchorAvatar size="md" />
-          <span className="font-serif text-sm font-semibold text-text-primary leading-tight">
-            Archivio<br />Moby Prince
-          </span>
+          <div>
+            <span className="block font-serif text-[13px] font-semibold text-text-primary leading-tight">
+              Archivio Moby Prince
+            </span>
+            <span className="block text-[10px] text-text-muted leading-tight mt-0.5">
+              Commissione Parlamentare
+            </span>
+          </div>
         </div>
 
         {/* New chat */}
-        <div className="px-3 pt-3 pb-2">
+        <div className="px-3 pt-3 pb-1">
           <button
             onClick={() => { onNewChat(); onClose(); }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm
-                       text-text-secondary border border-border
-                       hover:bg-surface-raised hover:text-text-primary transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]
+                       text-text-secondary hover:text-text-primary transition-colors duration-100"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             Nuova chat
-            <span className="ml-auto text-[10px] text-text-muted font-mono opacity-60">⌘N</span>
+            <span className="ml-auto text-[10px] text-text-muted font-mono">⌘N</span>
           </button>
         </div>
 
         {/* Search */}
         <div className="px-3 pb-2">
           <div className="relative">
-            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none"
-              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-text-muted pointer-events-none"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
             </svg>
             <input
               ref={searchRef}
@@ -251,16 +216,15 @@ export default function Sidebar({
                   navRef.current?.querySelector("[data-conv-item]")?.focus();
                 }
               }}
-              placeholder="Cerca conversazioni…"
-              className="w-full bg-surface border border-border rounded-lg pl-8 pr-3 py-1.5
-                         text-xs text-text-primary placeholder-text-muted
-                         focus:outline-none focus:border-accent/50 transition-colors"
+              placeholder="Cerca…"
+              className="w-full bg-transparent border border-border/40 rounded-lg
+                         pl-7 pr-3 py-1.5 text-[12px] text-text-primary placeholder-text-muted
+                         focus:outline-none focus:border-accent/30 transition-colors"
             />
             {search && (
-              <button
-                onClick={() => { setSearch(""); searchRef.current?.focus(); }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
-              >
+              <button onClick={() => { setSearch(""); searchRef.current?.focus(); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2
+                                 text-text-muted hover:text-text-secondary transition-colors">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -269,19 +233,18 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* Conversation list */}
-        <nav ref={navRef} onKeyDown={handleNavKeyDown} className="flex-1 overflow-y-auto px-3 pb-4 space-y-4">
+        {/* Conversations */}
+        <nav ref={navRef} onKeyDown={handleNavKey} className="flex-1 overflow-y-auto px-3 pb-4 space-y-4">
           {isSearching ? (
             <section>
-              <h3 className="px-3 py-1 text-xs font-medium text-text-muted uppercase tracking-wider">
-                Risultati ({filtered.length})
+              <h3 className="px-3 pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
+                {filtered.length} risultati
               </h3>
               <div className="space-y-0.5">
-                {filtered.length === 0 ? (
-                  <p className="px-3 py-4 text-xs text-text-muted text-center">Nessun risultato.</p>
-                ) : (
-                  filtered.map(renderItem)
-                )}
+                {filtered.length === 0
+                  ? <p className="px-3 py-4 text-xs text-text-muted text-center">Nessun risultato.</p>
+                  : filtered.map(renderItem)
+                }
               </div>
             </section>
           ) : (
@@ -289,26 +252,19 @@ export default function Sidebar({
               {/* Pinned */}
               {pinnedConversations?.length > 0 && (
                 <section>
-                  <h3 className="px-3 py-1 text-xs font-medium text-text-muted uppercase tracking-wider flex items-center gap-1.5">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                    </svg>
+                  <h3 className="px-3 pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
                     In evidenza
                   </h3>
-                  <div className="space-y-0.5">
-                    {pinnedConversations.map(renderItem)}
-                  </div>
+                  <div className="space-y-0.5">{pinnedConversations.map(renderItem)}</div>
                 </section>
               )}
 
-              {/* Date groups */}
               {Object.entries(GROUP_LABELS).map(([key, label]) => {
                 const group = groupedConversations[key];
                 if (!group?.length) return null;
                 return (
                   <section key={key}>
-                    <h3 className="px-3 py-1 text-xs font-medium text-text-muted uppercase tracking-wider">
+                    <h3 className="px-3 pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
                       {label}
                     </h3>
                     <div className="space-y-0.5">{group.map(renderItem)}</div>
@@ -316,8 +272,8 @@ export default function Sidebar({
                 );
               })}
 
-              {allConversations.length === 0 && (
-                <p className="px-3 py-8 text-xs text-text-muted text-center">
+              {allConvs.length === 0 && (
+                <p className="px-3 py-10 text-xs text-text-muted text-center">
                   Nessuna conversazione salvata.
                 </p>
               )}
@@ -326,8 +282,8 @@ export default function Sidebar({
         </nav>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-border">
-          <p className="text-xs text-text-muted">Camera dei Deputati · Uso riservato</p>
+        <div className="px-4 py-3 border-t border-border/30">
+          <p className="text-[10px] text-text-muted">Camera dei Deputati · Uso riservato</p>
         </div>
       </aside>
     </>
