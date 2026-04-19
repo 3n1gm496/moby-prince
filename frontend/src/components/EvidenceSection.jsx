@@ -1,6 +1,10 @@
 import { useState } from "react";
+import { getFilterValueLabel } from "../filters/schema";
 
 const SNIPPET_LIMIT = 280;
+
+// Metadata badge keys shown on evidence items (in display order)
+const METADATA_BADGE_KEYS = ["documentType", "institution", "year", "legislature", "topic"];
 
 // ─── EvidenceItem ─────────────────────────────────────────────────────────────
 
@@ -36,6 +40,26 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
 
       {/* Title */}
       <p className="font-medium text-text-primary leading-snug mb-1">{item.title}</p>
+
+      {/* Struct metadata badges — visible only when corpus has metadata populated */}
+      {item.metadata && METADATA_BADGE_KEYS.some(k => item.metadata[k] != null) && (
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {METADATA_BADGE_KEYS.map(key => {
+            const val = item.metadata[key];
+            if (val == null) return null;
+            const isAccent = key === "documentType";
+            return (
+              <span key={key}
+                    className={`inline-flex items-center px-1.5 py-px rounded text-[9px] font-medium
+                                border ${isAccent
+                                  ? "bg-accent/10 text-accent border-accent/20"
+                                  : "bg-surface text-text-muted border-border"}`}>
+                {getFilterValueLabel(key, val)}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {/* Page identifier */}
       {item.pageIdentifier && (

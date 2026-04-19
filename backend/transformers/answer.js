@@ -16,10 +16,18 @@ const { buildCitations, _uriToDocId } = require('./citations');
  *     steps: object[],
  *   },
  *   session: { id: string|null, name: string|null },
- *   meta: { searchResultsCount: number, uniqueDocumentsCount: number, searchMode: string }
+ *   meta: {
+ *     searchResultsCount: number,
+ *     uniqueDocumentsCount: number,
+ *     searchMode: string,
+ *     appliedFilters: object|null,   // non-null values from the request filters object
+ *   }
  * }
+ *
+ * @param {object} raw            Raw Discovery Engine response
+ * @param {object|null} appliedFilters  Original filters object from the request body
  */
-function normalizeAnswer(raw) {
+function normalizeAnswer(raw, appliedFilters = null) {
   const answerObj  = raw.answer  || {};
   const sessionObj = raw.session || {};
 
@@ -47,7 +55,8 @@ function normalizeAnswer(raw) {
     meta: {
       searchResultsCount:   Array.isArray(answerObj.references) ? answerObj.references.length : 0,
       uniqueDocumentsCount: uniqueDocCount,
-      searchMode: 'CHUNKS',
+      searchMode:           'CHUNKS',
+      appliedFilters:       _activeFilters(appliedFilters),
     },
   };
 }
@@ -103,8 +112,42 @@ function buildEvidence(answerObj, citations) {
         null,
       documentId: docMeta.id || _uriToDocId(uri),
       citationIds: refToCitations.get(index) || [],
+      // Struct metadata — populated once the datastore schema includes these fields
+      metadata: _extractStructMetadata(ref),
     };
   });
+}
+
+/**
+ * Extract document-level struct metadata from a reference object.
+ * Returns null when no struct data is present (current corpus state).
+ * Fields mirror the filter schema keys for direct frontend consumption.
+ */
+function _extractStructMetadata(ref) {
+  const structData =
+    ref.structData ||
+    ref.unstructuredDocumentInfo?.structData ||
+    ref.chunkInfo?.documentMetadata?.structData ||
+    {};
+
+  if (Object.keys(structData).length === 0) return null;
+
+  return {
+    documentType: structData.document_type || null,
+    institution:  structData.institution   || null,
+    year:         structData.year          != null ? Number(structData.year) : null,
+    legislature:  structData.legislature   || null,
+    topic:        structData.topic         || null,
+    ocrQuality:   structData.ocr_quality   || null,
+  };
+}
+
+function _activeFilters(filters) {
+  if (!filters || typeof filters !== 'object') return null;
+  const active = Object.fromEntries(
+    Object.entries(filters).filter(([, v]) => v !== null && v !== undefined && v !== '')
+  );
+  return Object.keys(active).length > 0 ? active : null;
 }
 
 function _countUniqueDocuments(citations) {
@@ -118,4 +161,4 @@ function _countUniqueDocuments(citations) {
   return seen.size;
 }
 
-module.exports = { normalizeAnswer, buildEvidence };
+module.exports = { normalizeAnswer, buildEvidence, _activeFilters };

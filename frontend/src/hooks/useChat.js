@@ -9,6 +9,7 @@ export function useChat({
   activeConversationId,
   onAppend,
   onSessionUpdate,
+  filters,          // optional: active filter object sent to /api/answer
 } = {}) {
   const [internalMessages,  setInternalMessages]  = useState([]);
   const [internalSessionId, setInternalSessionId] = useState(null);
@@ -98,7 +99,11 @@ export function useChat({
         const res = await fetch("/api/answer", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ query: queryText.trim(), sessionId }),
+          body:    JSON.stringify({
+            query:   queryText.trim(),
+            sessionId,
+            ...(filters && Object.keys(filters).length > 0 ? { filters } : {}),
+          }),
           signal:  controller.signal,
         });
 
@@ -155,7 +160,7 @@ export function useChat({
         abortRef.current = null;
       }
     },
-    [isLoading, sessionId, addMessage, setSession, activeConversationId],
+    [isLoading, sessionId, filters, addMessage, setSession, activeConversationId],
   );
 
   // Only expose the streaming message for the currently active conversation

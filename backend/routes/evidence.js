@@ -23,21 +23,23 @@ const { Router } = require('express');
 const de          = require('../services/discoveryEngine');
 const { normalizeSearch } = require('../transformers/search');
 const { validateQuery, validateDocumentId } = require('../middleware/validate');
+const { validateFilters }       = require('../middleware/validateFilters');
+const { buildFilterExpression } = require('../filters/schema');
 
 const router = Router();
 
 // POST /api/evidence/search ─────────────────────────────────────────────────
 
-router.post('/search', validateQuery, async (req, res, next) => {
-  const { query, maxResults, filter } = req.body;
+router.post('/search', [validateQuery, validateFilters], async (req, res, next) => {
+  const { query, maxResults, filters } = req.body;
 
   try {
     const raw        = await de.search(query, {
       maxResults: _clamp(maxResults, 1, 20, 10),
-      filter:     filter || null,
+      filter:     buildFilterExpression(filters),
       searchMode: 'CHUNKS',
     });
-    const normalized = normalizeSearch(raw, query);
+    const normalized = normalizeSearch(raw, query, filters || null);
 
     // Flatten to a linear evidence list — simpler for the workbench panel
     const evidence = normalized.results.map(r => ({

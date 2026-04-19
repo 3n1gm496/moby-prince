@@ -9,7 +9,7 @@
  * Output shape:
  * {
  *   results: SearchResult[],
- *   meta: { query, totalResults, searchMode }
+ *   meta: { query, totalResults, searchMode, appliedFilters }
  * }
  *
  * SearchResult (chunk):
@@ -17,8 +17,12 @@
  *
  * SearchResult (document):
  * { id, rank, type:'document', document: { id, title, uri }, snippet: string|null }
+ *
+ * @param {object}      raw
+ * @param {string}      query
+ * @param {object|null} appliedFilters  Original filters object from the request
  */
-function normalizeSearch(raw, query) {
+function normalizeSearch(raw, query, appliedFilters = null) {
   const rawResults = Array.isArray(raw.results) ? raw.results : [];
 
   const results = rawResults.map((result, idx) => {
@@ -34,10 +38,19 @@ function normalizeSearch(raw, query) {
     results,
     meta: {
       query,
-      totalResults: typeof raw.totalSize === 'number' ? raw.totalSize : results.length,
+      totalResults:   typeof raw.totalSize === 'number' ? raw.totalSize : results.length,
       searchMode,
+      appliedFilters: _activeFilters(appliedFilters),
     },
   };
+}
+
+function _activeFilters(filters) {
+  if (!filters || typeof filters !== 'object') return null;
+  const active = Object.fromEntries(
+    Object.entries(filters).filter(([, v]) => v !== null && v !== undefined && v !== '')
+  );
+  return Object.keys(active).length > 0 ? active : null;
 }
 
 function _normalizeChunkResult(result, idx) {
