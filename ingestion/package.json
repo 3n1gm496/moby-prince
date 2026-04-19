@@ -20,7 +20,10 @@
   "dependencies": {},
   "optionalDependencies": {
     "@google-cloud/storage": "^7.0.0",
-    "@google-cloud/firestore": "^7.0.0"
+    "@google-cloud/firestore": "^7.0.0",
+    "@google-cloud/monitoring": "^4.0.0",
+    "@google-cloud/documentai": "^8.0.0",
+    "google-auth-library": "^9.0.0"
   },
   "notes": {
     "pdf-parse": "Install separately when Document AI is not available for local PDF extraction",

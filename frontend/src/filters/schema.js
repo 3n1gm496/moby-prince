@@ -19,7 +19,7 @@ export const FILTER_SCHEMA = [
     key:       'documentType',
     label:     'Tipo documento',
     type:      'enum',
-    available: false,
+    available: true,
     options: [
       { value: 'testimony',        label: 'Testimonianza' },
       { value: 'report',           label: 'Relazione' },
@@ -35,7 +35,7 @@ export const FILTER_SCHEMA = [
     key:       'institution',
     label:     'Istituzione',
     type:      'enum',
-    available: false,
+    available: true,
     options: [
       { value: 'marina_militare',           label: 'Marina Militare' },
       { value: 'guardia_costiera',          label: 'Guardia Costiera' },
@@ -51,7 +51,7 @@ export const FILTER_SCHEMA = [
     key:         'year',
     label:       'Anno',
     type:        'number',
-    available:   false,
+    available:   true,
     min:         1991,
     max:         2024,
     placeholder: 'es. 1991',
@@ -60,7 +60,7 @@ export const FILTER_SCHEMA = [
     key:       'legislature',
     label:     'Legislatura',
     type:      'enum',
-    available: false,
+    available: true,
     options: [
       { value: 'X',    label: 'X Legislatura' },
       { value: 'XI',   label: 'XI Legislatura' },
@@ -78,14 +78,14 @@ export const FILTER_SCHEMA = [
     key:         'person',
     label:       'Persona citata',
     type:        'text',
-    available:   false,
+    available:   true,
     placeholder: 'es. Carlo Nardelli',
   },
   {
     key:       'topic',
     label:     'Argomento',
     type:      'enum',
-    available: false,
+    available: true,
     options: [
       { value: 'incendio',        label: 'Incendio' },
       { value: 'collisione',      label: 'Collisione' },
@@ -103,7 +103,7 @@ export const FILTER_SCHEMA = [
     key:       'ocrQuality',
     label:     'Qualità OCR',
     type:      'enum',
-    available: false,
+    available: true,
     options: [
       { value: 'high',   label: 'Alta' },
       { value: 'medium', label: 'Media' },

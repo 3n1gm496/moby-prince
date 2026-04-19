@@ -3,11 +3,10 @@
 /**
  * Metadata taxonomy for the Moby Prince corpus.
  *
- * `available: false` means the field is defined in the API but not yet
- * populated in the Vertex AI Search datastore. The API accepts the filter key
- * but silently drops it from the expression; the frontend shows the field as
- * disabled so users understand the capability exists even though it is not
- * active yet.
+ * `available: true` means the field is active — the API builds filter
+ * expressions for it and the frontend shows it as an enabled input.
+ * Set to `false` to disable a field without removing it (expression builder
+ * silently drops it; frontend shows it as "in arrivo").
  *
  * To activate a field:
  *   1. Set `available: true` here.
@@ -32,7 +31,7 @@ const SCHEMA = {
       'testimony', 'report', 'expert_opinion', 'exhibit',
       'decree', 'parliamentary_act', 'press', 'investigation',
     ],
-    available: false,
+    available: true,
   },
 
   institution: {
@@ -44,7 +43,7 @@ const SCHEMA = {
       'commissione_parlamentare', 'tribunale', 'ministero_trasporti',
       'rina', 'other',
     ],
-    available: false,
+    available: true,
   },
 
   year: {
@@ -53,7 +52,7 @@ const SCHEMA = {
     type:      'number',
     min:       1991,
     max:       2024,
-    available: false,
+    available: true,
   },
 
   legislature: {
@@ -61,14 +60,14 @@ const SCHEMA = {
     label:     'Legislatura',
     type:      'enum',
     values:    ['X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX'],
-    available: false,
+    available: true,
   },
 
   person: {
     field:     'persons_mentioned',
     label:     'Persona citata',
     type:      'text',
-    available: false,
+    available: true,
   },
 
   topic: {
@@ -79,7 +78,7 @@ const SCHEMA = {
       'incendio', 'collisione', 'soccorso', 'responsabilita',
       'indennizzo', 'rotta', 'comunicazioni', 'radar', 'nebbia', 'vittime',
     ],
-    available: false,
+    available: true,
   },
 
   ocrQuality: {
@@ -87,7 +86,7 @@ const SCHEMA = {
     label:     'Qualità OCR',
     type:      'enum',
     values:    ['high', 'medium', 'low'],
-    available: false,
+    available: true,
   },
 };
 

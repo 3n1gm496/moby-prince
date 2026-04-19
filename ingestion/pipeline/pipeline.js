@@ -19,7 +19,7 @@
 const { ValidatorWorker } = require('../workers/validator');
 const { SplitterWorker }  = require('../workers/splitter');
 const { IndexerWorker }   = require('../workers/indexer');
-const { createLogger }    = require('../workers/base');
+const { createLogger, createMetricsEmitter } = require('../workers/base');
 
 /**
  * Run the pipeline for a single job.
@@ -35,6 +35,7 @@ const { createLogger }    = require('../workers/base');
 async function runPipeline(job, store, workers, opts = {}) {
   const log      = opts.logger || createLogger('pipeline');
   const context  = opts.context || {};
+  const metrics  = context.metrics || createMetricsEmitter(null);
   const allChildJobs = [];
 
   log.info({ jobId: job.jobId, status: job.status }, 'Pipeline start');
@@ -55,11 +56,16 @@ async function runPipeline(job, store, workers, opts = {}) {
       log.error({ jobId: job.jobId, worker: worker.name, error: err.message }, 'Worker threw');
       current = current.fail('INTERNAL_ERROR', err.message);
       await store.save(current);
+      if (current.status === 'FAILED')      await metrics.recordJobFailed(current.jobId, 'INTERNAL_ERROR');
+      if (current.status === 'QUARANTINED') await metrics.recordJobQuarantined(current.jobId, 'INTERNAL_ERROR');
       return { job: current, childJobs: allChildJobs };
     }
 
     current = result.job;
     await store.save(current);
+
+    if (current.status === 'FAILED')      await metrics.recordJobFailed(current.jobId, current.errorCode);
+    if (current.status === 'QUARANTINED') await metrics.recordJobQuarantined(current.jobId, current.errorCode);
 
     log.info(
       { jobId: job.jobId, worker: worker.name, status: current.status, halt: result.halt },

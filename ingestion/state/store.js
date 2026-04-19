@@ -126,54 +126,82 @@ class FileStore {
   }
 }
 
-// ── FirestoreStore (interface sketch — not yet implemented) ───────────────────
-//
-// class FirestoreStore {
-//   constructor(db, collectionPath = 'ingestion_jobs') {
-//     this._col = db.collection(collectionPath);
-//   }
-//
-//   async get(jobId) {
-//     const doc = await this._col.doc(jobId).get();
-//     return doc.exists ? new IngestionJob(doc.data()) : null;
-//   }
-//
-//   async save(job) {
-//     await this._col.doc(job.jobId).set(job.toJSON());
-//     return job;
-//   }
-//
-//   async getByStatus(status) {
-//     const snap = await this._col.where('status', '==', status).get();
-//     return snap.docs.map(d => new IngestionJob(d.data()));
-//   }
-//
-//   async list(filter = null) {
-//     const snap = await this._col.get();
-//     const jobs = snap.docs.map(d => new IngestionJob(d.data()));
-//     return filter ? jobs.filter(filter) : jobs;
-//   }
-//
-//   async getBySourceUri(uri) {
-//     const snap = await this._col.where('sourceUri', '==', uri).limit(1).get();
-//     return snap.empty ? null : new IngestionJob(snap.docs[0].data());
-//   }
-//
-//   async delete(jobId) {
-//     await this._col.doc(jobId).delete();
-//   }
-// }
+// ── FirestoreStore ────────────────────────────────────────────────────────────
+
+class FirestoreStore {
+  constructor(db, collectionPath = 'ingestion_jobs') {
+    this._col = db.collection(collectionPath);
+  }
+
+  async get(jobId) {
+    const doc = await this._col.doc(jobId).get();
+    return doc.exists ? new IngestionJob(doc.data()) : null;
+  }
+
+  async save(job) {
+    await this._col.doc(job.jobId).set(job.toJSON());
+    return job;
+  }
+
+  async getByStatus(status) {
+    const snap = await this._col.where('status', '==', status).get();
+    return snap.docs.map(d => new IngestionJob(d.data()));
+  }
+
+  async list(filter = null) {
+    const snap = await this._col.get();
+    const jobs = snap.docs.map(d => new IngestionJob(d.data()));
+    return filter ? jobs.filter(filter) : jobs;
+  }
+
+  async getBySourceUri(uri) {
+    const snap = await this._col.where('sourceUri', '==', uri).limit(1).get();
+    return snap.empty ? null : new IngestionJob(snap.docs[0].data());
+  }
+
+  async delete(jobId) {
+    await this._col.doc(jobId).delete();
+  }
+
+  async summary() {
+    const jobs = await this.list();
+    const counts = {};
+    for (const j of jobs) counts[j.status] = (counts[j.status] || 0) + 1;
+    return { total: jobs.length, byStatus: counts };
+  }
+}
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
 /**
  * Create the appropriate store for the current environment.
- * Uses FileStore locally; can be wired to FirestoreStore in Cloud Run.
+ *
+ * - opts.type === 'memory'    → InMemoryStore (ephemeral, for tests)
+ * - opts.type === 'firestore' or STORE_TYPE=firestore → FirestoreStore
+ * - default                  → FileStore (local dev)
+ *
+ * FirestoreStore requires @google-cloud/firestore to be installed and GCP
+ * credentials available (ADC). Falls back to FileStore if unavailable.
  */
 function createStore(opts = {}) {
   if (opts.type === 'memory') return new InMemoryStore();
+
+  const useFirestore = opts.type === 'firestore' || process.env.STORE_TYPE === 'firestore';
+  if (useFirestore) {
+    try {
+      const { Firestore } = require('@google-cloud/firestore');
+      const projectId = opts.projectId || require('../config').projectId;
+      const db = new Firestore({ projectId });
+      return new FirestoreStore(db, opts.collection || 'ingestion_jobs');
+    } catch (err) {
+      process.stderr.write(
+        `[store] FirestoreStore unavailable (${err.message}); falling back to FileStore\n`
+      );
+    }
+  }
+
   const stateDir = opts.stateDir || require('../config').localDirs.state;
   return new FileStore(stateDir);
 }
 
-module.exports = { InMemoryStore, FileStore, createStore };
+module.exports = { InMemoryStore, FileStore, FirestoreStore, createStore };

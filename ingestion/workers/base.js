@@ -94,4 +94,65 @@ function _defaultLogger(name) {
   return createLogger(name);
 }
 
-module.exports = { BaseWorker, createLogger };
+// ── Cloud Monitoring metric emitter ──────────────────────────────────────────
+
+/**
+ * Returns a metrics emitter backed by @google-cloud/monitoring when the
+ * package is installed and projectId is set. Falls back to a no-op emitter
+ * so the pipeline never crashes on missing credentials or packages.
+ *
+ * @param {string|null} projectId
+ * @returns {{ record, recordJobFailed, recordJobQuarantined }}
+ */
+function createMetricsEmitter(projectId) {
+  if (!projectId) return _noopEmitter();
+
+  let client;
+  try {
+    const { MetricServiceClient } = require('@google-cloud/monitoring');
+    client = new MetricServiceClient();
+  } catch {
+    return _noopEmitter();
+  }
+
+  const projectName = `projects/${projectId}`;
+
+  async function record(metricType, value, labels = {}) {
+    try {
+      const seconds = Math.floor(Date.now() / 1000);
+      await client.createTimeSeries({
+        name: projectName,
+        timeSeries: [{
+          metric: {
+            type: `custom.googleapis.com/ingestion/${metricType}`,
+            labels: Object.fromEntries(
+              Object.entries(labels).map(([k, v]) => [k, String(v)])
+            ),
+          },
+          resource: { type: 'global', labels: { project_id: projectId } },
+          points: [{
+            interval: { endTime: { seconds } },
+            value: { int64Value: String(value) },
+          }],
+        }],
+      });
+    } catch (err) {
+      process.stderr.write(
+        JSON.stringify({ severity: 'WARN', message: `Metric emit failed: ${err.message}` }) + '\n'
+      );
+    }
+  }
+
+  return {
+    record,
+    recordJobFailed:      (jobId, errorCode) => record('jobs_failed',      1, { job_id: jobId, error_code: errorCode || 'UNKNOWN' }),
+    recordJobQuarantined: (jobId, errorCode) => record('quarantine_count', 1, { job_id: jobId, error_code: errorCode || 'UNKNOWN' }),
+  };
+}
+
+function _noopEmitter() {
+  const noop = async () => {};
+  return { record: noop, recordJobFailed: noop, recordJobQuarantined: noop };
+}
+
+module.exports = { BaseWorker, createLogger, createMetricsEmitter };
