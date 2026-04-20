@@ -103,7 +103,8 @@ export const FILTER_SCHEMA = [
     key:       'ocrQuality',
     label:     'Qualità OCR',
     type:      'enum',
-    available: true,
+    // Populated only when Document AI pipeline is active. See backend schema.
+    available: false,
     options: [
       { value: 'high',   label: 'Alta' },
       { value: 'medium', label: 'Media' },

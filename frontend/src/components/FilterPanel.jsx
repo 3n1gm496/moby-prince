@@ -104,8 +104,10 @@ export default function FilterPanel({ filters, onFilterChange, onClear, activeFi
 
       {/* Footer note */}
       <p className="mt-3 text-[10px] text-text-muted leading-relaxed border-t border-border/40 pt-2.5">
-        I filtri per tipo, istituzione, anno, legislatura, persona e argomento diventeranno attivi
-        una volta che lo schema del datastore Vertex AI Search sarà arricchito con i metadati del corpus.
+        Tipo, istituzione, anno e legislatura sono popolati in modo euristico dal nome del file
+        durante l'indicizzazione; persona e argomento richiedono annotazione manuale tramite manifest.
+        I filtri attivi generano espressioni <code className="font-mono text-accent/60">struct.*</code> su
+        Vertex AI Search — funzionano solo per i documenti indicizzati con metadati.
         Vedere <code className="font-mono text-accent/70">docs/metadata-model.md</code>.
       </p>
     </div>
