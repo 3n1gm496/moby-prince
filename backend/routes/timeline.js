@@ -78,4 +78,111 @@ router.put('/events', async (req, res, next) => {
   }
 });
 
+// ── POST /api/timeline/generate ───────────────────────────────────────────────
+
+const VALID_TYPES = new Set(['evento', 'udienza', 'sentenza', 'relazione', 'commissione']);
+
+function normaliseDate(raw) {
+  const s = (raw || '').replace(/[^\d-]/g, '').trim();
+  if (!s || !/^\d{4}/.test(s)) return null;
+  if (/^\d{4}$/.test(s))       return `${s}-01-01`;
+  if (/^\d{4}-\d{2}$/.test(s)) return `${s}-01`;
+  return s;
+}
+
+function parseEvents(answerText) {
+  const events = [];
+  let idx = 0;
+  for (const line of answerText.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split('|').map(p => p.trim());
+    if (parts.length < 3) continue;
+
+    const [rawDate, rawType, rawTitle, ...descParts] = parts;
+    const date  = normaliseDate(rawDate);
+    if (!date) continue;
+
+    const title = rawTitle?.trim();
+    if (!title) continue;
+
+    const type        = VALID_TYPES.has(rawType?.toLowerCase()) ? rawType.toLowerCase() : 'evento';
+    const description = descParts.join('|').trim();
+
+    events.push({
+      id:           `ai-${Date.now()}-${idx++}`,
+      date,
+      type,
+      title,
+      description,
+      importance:   1,
+      linkedDocs:   [],
+      _aiGenerated: true,
+    });
+  }
+  return events;
+}
+
+router.post('/generate', async (req, res, next) => {
+  if (!config.gcsBucket) return res.status(501).json({ error: 'GCS_BUCKET not configured.' });
+
+  const force = req.body?.force === true;
+
+  // Return GCS cache if not forced and cache has AI events
+  if (!force) {
+    try {
+      const obj  = await gcs.getObject(EVENTS_PATH);
+      const text = await obj.text();
+      const evts = JSON.parse(text);
+      if (Array.isArray(evts) && evts.some(e => e._aiGenerated)) {
+        return res.json({ events: evts, cached: true, generated: 0 });
+      }
+    } catch (err) {
+      if (err.statusCode !== 404) return next(err);
+    }
+  }
+
+  const prompt = [
+    'Basandoti esclusivamente sui documenti dell\'archivio del caso Moby Prince,',
+    'elenca in ordine cronologico almeno 25 eventi storici, giudiziari e parlamentari.',
+    'Per ogni evento usa ESATTAMENTE questo formato su una riga separata (senza numerazione):',
+    'DATA | TIPO | TITOLO | DESCRIZIONE',
+    'DATA = YYYY-MM-DD (YYYY-01-01 se ignoti mese/giorno, YYYY-MM-01 se ignoto solo il giorno)',
+    'TIPO = uno tra: evento, udienza, sentenza, relazione, commissione',
+    'TITOLO = massimo 10 parole',
+    'DESCRIZIONE = 1-2 frasi.',
+  ].join(' ');
+
+  try {
+    const raw        = await de.answer(prompt, null, { maxResults: 20, modelVersion: 'stable' });
+    const answerText = (raw.answer ?? raw)?.answerText ?? '';
+    const aiEvents   = parseEvents(answerText);
+
+    if (aiEvents.length === 0) {
+      return res.status(422).json({ error: 'AI non ha restituito eventi validi. Riprova.' });
+    }
+
+    // Load existing manually-curated events (preserve non-AI ones)
+    let manual = [];
+    try {
+      const obj  = await gcs.getObject(EVENTS_PATH);
+      const text = await obj.text();
+      const arr  = JSON.parse(text);
+      if (Array.isArray(arr)) manual = arr.filter(e => !e._aiGenerated);
+    } catch {}
+
+    const merged = [...manual, ...aiEvents];
+    try {
+      const buf = Buffer.from(JSON.stringify(merged, null, 2), 'utf-8');
+      await gcs.uploadObject(EVENTS_PATH, 'application/json', buf);
+    } catch (saveErr) {
+      return res.json({ events: merged, generated: aiEvents.length, cached: false, saveError: saveErr.message });
+    }
+
+    res.json({ events: merged, generated: aiEvents.length, cached: false });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

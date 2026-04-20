@@ -93,6 +93,16 @@ function CuratedEventCard({ event, onEdit, onDelete, onDocClick }) {
       <div className="px-4 py-3.5">
         <div className="flex items-start gap-2 mb-1.5">
           <TypeBadge type={event.type} />
+          {event._aiGenerated && (
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium
+                             bg-accent/10 border border-accent/20 text-accent/70">
+              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              AI
+            </span>
+          )}
           {event.importance >= 3 && (
             <span className="text-[10px] text-amber-400/80 font-medium">★ chiave</span>
           )}
@@ -387,14 +397,16 @@ function deDocToPanel(doc) {
 // ── Timeline ──────────────────────────────────────────────────────────────────
 
 export default function Timeline() {
-  const [deDocs,   setDeDocs]   = useState([]);
-  const [curated,  setCurated]  = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [filter,   setFilter]   = useState("all");
-  const [search,   setSearch]   = useState("");
-  const [drawer,   setDrawer]   = useState(null);
-  const [panelDoc, setPanelDoc] = useState(null);
-  const [saveErr,  setSaveErr]  = useState(null);
+  const [deDocs,      setDeDocs]      = useState([]);
+  const [curated,     setCurated]     = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [filter,      setFilter]      = useState("all");
+  const [search,      setSearch]      = useState("");
+  const [drawer,      setDrawer]      = useState(null);
+  const [panelDoc,    setPanelDoc]    = useState(null);
+  const [saveErr,     setSaveErr]     = useState(null);
+  const [generating,  setGenerating]  = useState(false);
+  const [genErr,      setGenErr]      = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -433,6 +445,25 @@ export default function Timeline() {
   const handleDelete = useCallback((id) => {
     saveEvents(curated.filter(e => e.id !== id));
   }, [curated, saveEvents]);
+
+  const handleGenerate = useCallback(async (force = false) => {
+    setGenerating(true);
+    setGenErr(null);
+    try {
+      const res  = await fetch("/api/timeline/generate", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ force }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setCurated(data.events || []);
+    } catch (e) {
+      setGenErr(e.message);
+    } finally {
+      setGenerating(false);
+    }
+  }, []);
 
   const allItems = useMemo(() => {
     const docs = deDocs.map(d => ({ ...d, _kind: "document", _year: d.year }));
@@ -502,6 +533,29 @@ export default function Timeline() {
             </svg>
           </button>
 
+          {/* AI generate button */}
+          <button onClick={() => handleGenerate(curated.some(e => e._aiGenerated))}
+                  disabled={generating}
+                  title={curated.some(e => e._aiGenerated) ? "Rigenera eventi AI (sovrascrive quelli precedenti)" : "Genera eventi dall'archivio con AI"}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium
+                             border border-border text-text-secondary hover:text-text-primary hover:border-border/80
+                             transition-colors flex-shrink-0 disabled:opacity-50">
+            {generating ? (
+              <>
+                <span className="w-3 h-3 rounded-full border-2 border-text-muted/30 border-t-accent animate-spin flex-shrink-0" />
+                Generazione…
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                {curated.some(e => e._aiGenerated) ? "Rigenera AI" : "Genera da AI"}
+              </>
+            )}
+          </button>
+
           <button onClick={() => setDrawer({})}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium
                              bg-accent text-white hover:bg-accent-hover transition-colors flex-shrink-0">
@@ -533,13 +587,24 @@ export default function Timeline() {
       <main className="flex-1 max-w-[860px] mx-auto w-full px-5 py-8">
 
         {saveErr && (
-          <div className="mb-6 px-4 py-3 rounded-xl bg-error-bg border border-error-border text-[12px] text-error-text flex items-center gap-2">
+          <div className="mb-4 px-4 py-3 rounded-xl bg-error-bg border border-error-border text-[12px] text-error-text flex items-center gap-2">
             <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             {saveErr}
             <button onClick={() => setSaveErr(null)} className="ml-auto underline text-[11px]">Chiudi</button>
+          </div>
+        )}
+
+        {genErr && (
+          <div className="mb-4 px-4 py-3 rounded-xl bg-error-bg border border-error-border text-[12px] text-error-text flex items-center gap-2">
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Generazione AI fallita: {genErr}
+            <button onClick={() => setGenErr(null)} className="ml-auto underline text-[11px]">Chiudi</button>
           </div>
         )}
 
@@ -558,17 +623,51 @@ export default function Timeline() {
         )}
 
         {!loading && filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <svg className="w-10 h-10 text-text-muted/30 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <p className="text-sm text-text-secondary mb-1">Nessun elemento trovato.</p>
-            <p className="text-xs text-text-muted">
-              {curated.length === 0
-                ? "Inizia aggiungendo il primo evento con il pulsante in alto."
-                : "Prova a modificare i filtri o la ricerca."}
-            </p>
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            {curated.length === 0 && deDocs.length === 0 ? (
+              <>
+                <div className="w-16 h-16 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center mb-5">
+                  <svg className="w-8 h-8 text-accent/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <p className="text-[14px] font-semibold text-text-primary mb-1.5">Nessun evento presente</p>
+                <p className="text-[12px] text-text-muted max-w-xs mb-5">
+                  Lascia che l'AI analizzi l'archivio e costruisca automaticamente la timeline del caso.
+                </p>
+                <button onClick={() => handleGenerate(false)} disabled={generating}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-medium
+                                   bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50">
+                  {generating ? (
+                    <>
+                      <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                      Analisi corpus in corso…
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      Genera timeline dall'archivio
+                    </>
+                  )}
+                </button>
+                <p className="text-[10px] text-text-muted mt-3">
+                  Una sola chiamata AI · risultato salvato in cache · gratuito al prossimo caricamento
+                </p>
+              </>
+            ) : (
+              <>
+                <svg className="w-10 h-10 text-text-muted/30 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-sm text-text-secondary mb-1">Nessun elemento trovato.</p>
+                <p className="text-xs text-text-muted">Prova a modificare i filtri o la ricerca.</p>
+              </>
+            )}
           </div>
         )}
 
