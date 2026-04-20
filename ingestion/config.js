@@ -69,6 +69,9 @@ const config = {
 
   // Logging
   logLevel: optional('LOG_LEVEL', 'info'),
+
+  // Dry-run: skip actual Discovery Engine import (for local dev / CI)
+  dryRun: optional('INDEX_DRY_RUN', 'false') === 'true',
 };
 
 module.exports = config;

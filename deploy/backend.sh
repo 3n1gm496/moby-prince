@@ -11,18 +11,26 @@
 #   DATA_STORE_ID      Vertex AI Search datastore ID
 #
 # Optional:
-#   REGION             Cloud Run region           (default: europe-west1)
-#   SERVICE_NAME       Cloud Run service name     (default: moby-prince-backend)
-#   IMAGE_TAG          Docker image tag           (default: git short SHA)
-#   FRONTEND_ORIGIN    Allowed CORS origin        (default: https://$SERVICE_NAME-*.run.app)
+#   REGION             Cloud Run region                (default: europe-west1)
+#   AR_REPO            Artifact Registry repository    (default: moby-prince)
+#   SERVICE_NAME       Cloud Run service name          (default: moby-prince-backend)
+#   IMAGE_TAG          Docker image tag                (default: git short SHA)
+#   FRONTEND_ORIGIN    Allowed CORS origin             (default: https://$SERVICE_NAME-*.run.app)
+#
+# Prerequisites (one-time setup):
+#   gcloud artifacts repositories create moby-prince \
+#     --repository-format=docker --location=europe-west1 --project=$PROJECT
+#   gcloud auth configure-docker europe-west1-docker.pkg.dev
 
 set -euo pipefail
 
 PROJECT="${PROJECT:-$(gcloud config get-value project)}"
 REGION="${REGION:-europe-west1}"
+AR_REPO="${AR_REPO:-moby-prince}"
 SERVICE_NAME="${SERVICE_NAME:-moby-prince-backend}"
 IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD 2>/dev/null || echo latest)}"
-IMAGE="gcr.io/${PROJECT}/${SERVICE_NAME}:${IMAGE_TAG}"
+# Artifact Registry replaces gcr.io (deprecated since May 2023)
+IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${AR_REPO}/${SERVICE_NAME}:${IMAGE_TAG}"
 
 ENGINE_ID="${ENGINE_ID:?ENGINE_ID must be set}"
 DATA_STORE_ID="${DATA_STORE_ID:-}"

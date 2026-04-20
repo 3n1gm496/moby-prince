@@ -33,6 +33,8 @@ const { retryFailed }               = require('../pipeline/retry');
 const log     = createLogger('entrypoint');
 const metrics = createMetricsEmitter(config.projectId);
 
+const SCAN_CONCURRENCY = 5;
+
 async function main() {
   const [,, cmd, ...args] = process.argv;
 
@@ -111,28 +113,39 @@ async function cmdScan(prefix, store, opts) {
     return;
   }
 
-  const { bucket, name } = _parseGcsUri(scanPrefix);
+  const { bucket, name } = parseGcsUri(scanPrefix);
   const [files] = await storage.bucket(bucket).getFiles({ prefix: name });
-  log.info({ count: files.length, scanPrefix }, 'GCS scan: files found');
+  const candidates = files.filter(f => !f.name.endsWith('/'));
+  log.info({ count: candidates.length, scanPrefix }, 'GCS scan: files found');
 
   let enqueued = 0;
-  for (const file of files) {
-    if (file.name.endsWith('/')) continue; // skip directory markers
+  await _withBoundedConcurrency(candidates, SCAN_CONCURRENCY, async (file) => {
     const uri = `gs://${bucket}/${file.name}`;
     const existing = await store.getBySourceUri(uri);
     if (existing) {
       log.debug({ uri, status: existing.status }, 'Already tracked; skipping');
-      continue;
+      return;
     }
     log.info({ uri }, 'New file — ingesting');
     await cmdIngest(uri, store, opts);
     enqueued++;
-  }
+  });
 
   log.info({ enqueued }, 'GCS scan complete');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Run fn(item) for every item, keeping at most `limit` Promises in flight.
+async function _withBoundedConcurrency(items, limit, fn) {
+  const running = new Set();
+  for (const item of items) {
+    const p = fn(item).finally(() => running.delete(p));
+    running.add(p);
+    if (running.size >= limit) await Promise.race(running);
+  }
+  await Promise.all(running);
+}
 
 async function _statUri(uri, storage) {
   if (!uri.startsWith('gs://')) {
@@ -141,7 +154,7 @@ async function _statUri(uri, storage) {
     return { fileSizeBytes: stat.size, mimeType: _guessMime(uri) };
   }
   if (!storage) return { fileSizeBytes: null, mimeType: null };
-  const { bucket, name } = _parseGcsUri(uri);
+  const { bucket, name } = parseGcsUri(uri);
   const [meta] = await storage.bucket(bucket).file(name).getMetadata();
   return {
     fileSizeBytes: meta.size ? parseInt(meta.size, 10) : null,
