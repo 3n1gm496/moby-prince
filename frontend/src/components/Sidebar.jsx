@@ -81,8 +81,8 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogg
                   transition-colors duration-150
                   focus-visible:ring-1 focus-visible:ring-accent/40
                   ${isActive
-                    ? "border-accent text-text-primary font-medium"
-                    : "border-transparent text-text-secondary hover:text-text-primary"
+                    ? "border-accent text-text-primary font-medium bg-surface-raised/40"
+                    : "border-transparent text-text-secondary hover:text-text-primary hover:bg-surface-raised/30"
                   }`}
     >
       {renaming ? (
@@ -157,8 +157,8 @@ export default function Sidebar({
   onRenameConversation, onTogglePin,
   isOpen, onClose,
 }) {
-  const [search, setSearch] = useState("");
-  // Groups whose full list is expanded beyond PAGE_SIZE
+  const [search,    setSearch]    = useState("");
+  const [collapsed, setCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState({});
   const searchRef = useRef(null);
   const navRef    = useRef(null);
@@ -247,22 +247,23 @@ export default function Sidebar({
 
       <aside className={`
         fixed lg:relative inset-y-0 left-0 z-40
-        w-60 flex-shrink-0 flex flex-col
+        ${collapsed ? "w-60 lg:w-14" : "w-60"}
+        flex-shrink-0 flex flex-col
         bg-surface-sidebar border-r border-border/50
-        transform transition-transform duration-200 ease-in-out
+        transition-all duration-200 ease-in-out
         ${isOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 print:hidden
       `}>
 
-        {/* Wordmark — click to start new chat */}
+        {/* ── Header: mobile — always expanded ─────────────────────────────── */}
         <button
           onClick={() => { onNewChat(); onClose(); }}
-          className="flex items-center gap-2.5 px-4 py-4 border-b border-border/30
+          className="lg:hidden flex items-center gap-2.5 px-4 py-4 border-b border-border/30
                      w-full text-left hover:bg-surface-raised/50 transition-colors"
           title="Nuova chat"
         >
           <AnchorAvatar size="md" />
-          <div>
-            <span className="block font-serif text-[13px] font-semibold text-text-primary leading-tight">
+          <div className="min-w-0">
+            <span className="block font-serif text-[13px] font-semibold text-text-primary leading-tight truncate">
               Archivio Moby Prince
             </span>
             <span className="block text-[10px] text-text-muted leading-tight mt-0.5">
@@ -271,14 +272,71 @@ export default function Sidebar({
           </div>
         </button>
 
+        {/* ── Header: desktop collapsed — avatar + expand toggle ───────────── */}
+        {collapsed && (
+          <div className="hidden lg:flex flex-col items-center py-3 px-1.5 gap-1.5 border-b border-border/30">
+            <button
+              onClick={() => { onNewChat(); onClose(); }}
+              className="p-1 rounded-lg hover:bg-surface-raised/50 transition-colors"
+              title="Nuova chat" aria-label="Nuova chat"
+            >
+              <AnchorAvatar size="md" />
+            </button>
+            <button
+              onClick={() => setCollapsed(false)}
+              className="flex items-center justify-center w-7 h-7 rounded-md
+                         text-text-muted hover:text-text-secondary hover:bg-surface-raised/50
+                         transition-colors"
+              title="Espandi sidebar" aria-label="Espandi sidebar"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* ── Header: desktop expanded — wordmark row + collapse toggle ───── */}
+        {!collapsed && (
+          <div className="hidden lg:flex items-center border-b border-border/30">
+            <button
+              onClick={() => { onNewChat(); onClose(); }}
+              className="flex-1 flex items-center gap-2.5 px-4 py-4 text-left min-w-0
+                         hover:bg-surface-raised/50 transition-colors"
+              title="Nuova chat"
+            >
+              <AnchorAvatar size="md" />
+              <div className="min-w-0">
+                <span className="block font-serif text-[13px] font-semibold text-text-primary leading-tight truncate">
+                  Archivio Moby Prince
+                </span>
+                <span className="block text-[10px] text-text-muted leading-tight mt-0.5">
+                  Commissione Parlamentare
+                </span>
+              </div>
+            </button>
+            <button
+              onClick={() => setCollapsed(true)}
+              className="flex-shrink-0 flex items-center justify-center w-7 h-7 mr-2 rounded-md
+                         text-text-muted hover:text-text-secondary hover:bg-surface-raised/50
+                         transition-colors"
+              title="Comprimi sidebar" aria-label="Comprimi sidebar"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* New chat */}
-        <div className="px-3 pt-3 pb-1">
+        <div className={`px-3 pt-3 pb-1 ${collapsed ? "lg:hidden" : ""}`}>
           <button
             onClick={() => { onNewChat(); onClose(); }}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]
                        text-text-secondary hover:text-text-primary transition-colors duration-100"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             Nuova chat
@@ -287,7 +345,7 @@ export default function Sidebar({
         </div>
 
         {/* Search */}
-        <div className="px-3 pb-2">
+        <div className={`px-3 pb-2 ${collapsed ? "lg:hidden" : ""}`}>
           <div className="relative">
             <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-text-muted pointer-events-none"
                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -322,7 +380,8 @@ export default function Sidebar({
         </div>
 
         {/* Conversations */}
-        <nav ref={navRef} onKeyDown={handleNavKey} className="flex-1 overflow-y-auto px-3 pb-4 space-y-4">
+        <nav ref={navRef} onKeyDown={handleNavKey}
+             className={`flex-1 overflow-y-auto px-3 pb-4 space-y-4 ${collapsed ? "lg:hidden" : ""}`}>
           {isSearching ? (
             <section>
               <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-secondary uppercase tracking-[0.12em]">
@@ -369,9 +428,12 @@ export default function Sidebar({
           )}
         </nav>
 
+        {/* Spacer — keeps analysis/footer pinned to bottom when nav is hidden (desktop collapsed) */}
+        {collapsed && <div className="hidden lg:block flex-1" />}
+
         {/* Analysis views */}
-        <div className="px-3 py-2 border-t border-border/30">
-          <h3 className="px-[10px] pt-1.5 pb-1 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
+        <div className={`border-t border-border/30 py-2 ${collapsed ? "lg:px-1.5 px-3" : "px-3"}`}>
+          <h3 className={`px-[10px] pt-1.5 pb-1 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em] ${collapsed ? "lg:hidden" : ""}`}>
             Analisi
           </h3>
           <div className="space-y-0.5">
@@ -380,25 +442,26 @@ export default function Sidebar({
                 key={to}
                 to={to}
                 onClick={onClose}
-                className={({ isActive }) =>
-                  `flex items-center gap-2 px-[10px] py-2 rounded-lg text-[13px]
-                   border-l-[2px] transition-colors duration-150 select-none
-                   ${isActive
-                     ? "border-accent text-text-primary font-medium"
-                     : "border-transparent text-text-secondary hover:text-text-primary"
-                   }`
+                className={() =>
+                  `flex items-center gap-2 py-2 rounded-lg text-[13px]
+                   border-l-[2px] select-none
+                   cursor-not-allowed pointer-events-none
+                   opacity-50 border-transparent text-text-secondary
+                   ${collapsed ? "lg:justify-center lg:px-0 lg:border-l-0 px-[10px]" : "px-[10px]"}`
                 }
+                tabIndex={-1}
+                aria-disabled="true"
               >
-                {icon}
-                <span className="flex-1 truncate">{label}</span>
-                <span className="text-[9px] text-text-muted font-mono opacity-60">prossimamente</span>
+                <span className="flex-shrink-0">{icon}</span>
+                <span className={`flex-1 truncate ${collapsed ? "lg:hidden" : ""}`}>{label}</span>
+                <span className={`text-[9px] text-text-muted font-mono ${collapsed ? "lg:hidden" : ""}`}>prossimamente</span>
               </NavLink>
             ))}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-border/30 flex items-center justify-between gap-2">
+        <div className={`px-4 py-3 border-t border-border/30 flex items-center justify-between gap-2 ${collapsed ? "lg:hidden" : ""}`}>
           <p className="text-[10px] text-text-muted leading-tight">
             Camera dei Deputati<br />
             <span className="opacity-60">Uso riservato · v1.0</span>
