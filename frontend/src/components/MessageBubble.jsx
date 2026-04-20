@@ -25,6 +25,7 @@ function AnnotatedAnswer({ text, citations, onInlineCite }) {
   const segments = [];
   let cursor = 0, idx = 0;
   annotations.forEach((ann) => {
+    if (ann.start < cursor) return; // skip overlapping annotations to avoid duplicate text
     if (ann.start > cursor)
       segments.push({ type: "text", key: `s${idx++}`, content: text.slice(cursor, ann.start) });
     segments.push({ type: "text",     key: `s${idx++}`, content: text.slice(ann.start, ann.end) });
@@ -75,7 +76,7 @@ function InlineCitationCard({ citation, onClose, onOpenPanel }) {
           &ldquo;{src.snippet.slice(0, 220)}{src.snippet.length > 220 ? "…" : ""}&rdquo;
         </p>
       )}
-      {citation.sources.length > 0 && (
+      {(citation.sources?.length ?? 0) > 0 && (
         <button onClick={onOpenPanel}
                 className="text-accent hover:text-accent-hover transition-colors flex items-center gap-1">
           Vedi tutte le fonti
@@ -158,7 +159,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
   const uniqueSources = (() => {
     const seen = new Set(), out = [];
     message.citations?.forEach((cit) =>
-      cit.sources.forEach((src) => {
+      (cit.sources || []).forEach((src) => {
         const k = src.uri || src.title;
         if (k && !seen.has(k)) { seen.add(k); out.push({ cit, src }); }
       })

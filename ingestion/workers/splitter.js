@@ -123,7 +123,7 @@ class SplitterWorker extends BaseWorker {
     if (uri.startsWith('gs://')) {
       const storage = context.storage;
       if (!storage) throw new Error('GCS storage client not provided');
-      const { bucket, name } = _parseGcsUri(uri);
+      const { bucket, name } = parseGcsUri(uri);
       const [content] = await storage.bucket(bucket).file(name).download();
       return content.toString('utf8');
     }
@@ -141,7 +141,7 @@ class SplitterWorker extends BaseWorker {
       if (job.sourceUri.startsWith('gs://')) {
         const storage = context.storage;
         if (!storage) throw new Error('GCS storage client required for GCS write');
-        const { name: srcName } = _parseGcsUri(job.sourceUri);
+        const { name: srcName } = parseGcsUri(job.sourceUri);
         const destName = srcName.replace(/[^/]+$/, partName);
         const destUri  = `gs://${this._config.buckets.normalized}/${destName}`;
         await storage.bucket(this._config.buckets.normalized).file(destName).save(content, {

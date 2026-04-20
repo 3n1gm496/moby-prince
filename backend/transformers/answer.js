@@ -146,7 +146,7 @@ function _extractStructMetadata(ref) {
 function _countUniqueDocuments(citations) {
   const seen = new Set();
   citations.forEach(c =>
-    c.sources.forEach(s => {
+    (c.sources || []).forEach(s => {
       const key = s.documentId || s.uri;
       if (key) seen.add(key);
     })

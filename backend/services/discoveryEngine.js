@@ -3,11 +3,8 @@
 /**
  * Discovery Engine REST client.
  *
- * Wraps the raw Google Cloud Discovery Engine v1/v1alpha HTTP API.
+ * Wraps the Google Cloud Discovery Engine v1 HTTP API.
  * All methods return plain JS objects; normalisation lives in ../transformers/.
- *
- * Phase 2 note: swap these manual fetches for @google-cloud/discoveryengine
- * SDK calls — the transformers remain unchanged.
  */
 
 const config           = require('../config');

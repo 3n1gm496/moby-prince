@@ -38,7 +38,7 @@ const config = {
   dataStoreId,
   frontendOrigin: optional('FRONTEND_ORIGIN', 'http://localhost:5173'),
 
-  // BigQuery evidence layer (Phase 5 — not yet wired)
+  // BigQuery evidence layer (optional — not active in the current deployment)
   bigquery: {
     projectId: optional('BQ_PROJECT_ID', projectId),
     datasetId: optional('BQ_DATASET_ID', 'evidence'),

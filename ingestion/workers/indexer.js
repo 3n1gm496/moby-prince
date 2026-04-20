@@ -93,7 +93,7 @@ class IndexerWorker extends BaseWorker {
     let res;
     try {
       res = await fetch(endpoint, {
-        method:  'POST',
+        method:  'PUT',
         headers: {
           Authorization:         `Bearer ${token}`,
           'Content-Type':        'application/json',

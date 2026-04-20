@@ -337,7 +337,6 @@ export default function Sidebar({
               >
                 {icon}
                 <span className="flex-1 truncate">{label}</span>
-                {/* "coming soon" indicator — remove once BQ is wired */}
                 <span className="text-[9px] text-text-muted font-mono opacity-60">prossimamente</span>
               </NavLink>
             ))}
