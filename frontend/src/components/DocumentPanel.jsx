@@ -27,6 +27,40 @@ function formatDate(iso) {
   } catch { return null; }
 }
 
+// ── InlinePdfPreview ──────────────────────────────────────────────────────────
+
+function InlinePdfPreview({ fullPath }) {
+  const [open, setOpen] = useState(false);
+  const src = `/api/storage/file?name=${encodeURIComponent(fullPath)}`;
+  return (
+    <>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="inline-flex items-center gap-1.5 text-[11px] text-text-secondary
+                   hover:text-text-primary transition-colors"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+        {open ? "Chiudi anteprima" : "Anteprima"}
+      </button>
+      {open && (
+        <div className="mt-3 -mx-5 border-t border-border/30">
+          <iframe
+            src={src}
+            title="Anteprima documento"
+            className="w-full"
+            style={{ height: "420px" }}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── GcsMetadataSection ────────────────────────────────────────────────────────
 
 function GcsMetadataSection({ fullPath }) {
@@ -409,20 +443,22 @@ export default function DocumentPanel({ doc, onClose }) {
                 )}
               </dl>
 
-              {/* Download link */}
-              <a
-                href={`/api/storage/file?name=${encodeURIComponent(doc.gcs.fullPath)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-accent
-                           hover:text-accent-hover transition-colors"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Apri / scarica documento
-              </a>
+              {/* Download + Preview links */}
+              <div className="mt-3 flex items-center gap-3 flex-wrap">
+                <a
+                  href={`/api/storage/file?name=${encodeURIComponent(doc.gcs.fullPath)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[11px] text-accent hover:text-accent-hover transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Apri / scarica
+                </a>
+                {doc.mimeType?.includes("pdf") && <InlinePdfPreview fullPath={doc.gcs.fullPath} />}
+              </div>
             </section>
           )}
 
