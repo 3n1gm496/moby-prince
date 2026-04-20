@@ -3,8 +3,10 @@
 // Load .env before importing config (config reads process.env at module init)
 require('dotenv').config();
 
-const express = require('express');
-const cors    = require('cors');
+const express   = require('express');
+const cors      = require('cors');
+const helmet    = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const config        = require('./config');
 const { logger }    = require('./logger');
@@ -20,8 +22,29 @@ const healthRouter   = require('./routes/health');
 
 const app = express();
 
+// ── Rate limiters ─────────────────────────────────────────────────────────────
+
+// /api/answer is expensive (Vertex AI call) — cap at 20 req/min per IP
+const answerLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Troppe richieste. Riprova tra un minuto.' },
+});
+
+// General API cap — 120 req/min per IP (search, evidence, health)
+const generalLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Troppe richieste. Riprova tra un minuto.' },
+});
+
 // ── Middleware ────────────────────────────────────────────────────────────────
 
+app.use(helmet({ contentSecurityPolicy: false })); // CSP managed by nginx
 app.use(requestId);
 app.use(requestLogger);
 app.use(express.json({ limit: '32kb' }));
@@ -32,15 +55,11 @@ app.use(cors({
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-app.use('/api/answer',   answerRouter);
-app.use('/api/search',   searchRouter);
-app.use('/api/evidence', evidenceRouter);
-app.use('/api/health',   healthRouter);
-
-// Backwards-compatibility alias — keeps existing frontend calls working
-// during any rolling deploy before the frontend is updated to /api/answer.
-// Remove once all clients use /api/answer.
-app.use('/api/ask', answerRouter);
+app.use('/api/answer',   answerLimiter,   answerRouter);
+app.use('/api/ask',      answerLimiter,   answerRouter); // backwards-compat alias
+app.use('/api/search',   generalLimiter,  searchRouter);
+app.use('/api/evidence', generalLimiter,  evidenceRouter);
+app.use('/api/health',                    healthRouter);
 
 // ── Error handler (must be last) ──────────────────────────────────────────────
 

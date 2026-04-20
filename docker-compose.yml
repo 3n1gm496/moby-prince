@@ -1,26 +1,35 @@
 version: "3.9"
 
-# Local development stack — mirrors Cloud Run production layout.
-# Prerequisites:
-#   1. cp backend/.env.example backend/.env  → fill in your values
-#   2. gcloud auth application-default login  → creates ADC credentials
+# ── Moby Prince — local stack ─────────────────────────────────────────────────
+#
+# Quick start:
+#   1. cp backend/.env.example backend/.env   ← fill in PROJECT, ENGINE_ID, etc.
+#   2. gcloud auth application-default login  ← grants access to Vertex AI Search
+#   3. docker compose up --build
+#   4. Open http://localhost:5173
+#
+# The frontend nginx container proxies /api/* → backend:3001 internally,
+# so the browser only ever talks to port 5173. No API URL config needed.
+#
+# Vertex AI Search / Discovery Engine calls originate from the backend container
+# and use the ADC credentials mounted from the host (step 2).
 
 services:
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "3001:3001"
+      - "3001:3001"     # exposed for debugging; not required by the frontend
     env_file:
       - backend/.env
     environment:
-      # Override NODE_ENV for local dev (env_file may set it to 'development' too)
       NODE_ENV: development
       FRONTEND_ORIGIN: http://localhost:5173
     volumes:
-      # Mount Application Default Credentials from host
-      # The non-root 'node' user in the container reads from /home/node/.config
+      # Mount Application Default Credentials so the backend can call GCP APIs.
+      # Created by: gcloud auth application-default login
       - ${HOME}/.config/gcloud:/home/node/.config/gcloud:ro
     healthcheck:
       test: >
@@ -29,7 +38,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
     restart: unless-stopped
 
   frontend:
