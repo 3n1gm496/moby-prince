@@ -10,11 +10,15 @@
  * SDK calls — the transformers remain unchanged.
  */
 
-const config = require('../config');
+const config           = require('../config');
 const { getAccessToken } = require('./auth');
+const { createLogger } = require('../logger');
 
-const DEFAULT_TIMEOUT_MS = 55_000;
-const RETRY_DELAY_MS     = 2_000;
+const log = createLogger('discovery-engine');
+
+const POST_TIMEOUT_MS = 55_000;
+const GET_TIMEOUT_MS  = 30_000;  // chunk lookup is a simple read; shorter timeout
+const RETRY_DELAY_MS  = 2_000;
 
 // ── Error type ───────────────────────────────────────────────────────────────
 
@@ -30,7 +34,7 @@ class DiscoveryEngineError extends Error {
 
 // ── HTTP helpers ─────────────────────────────────────────────────────────────
 
-async function _post(url, body, { timeoutMs = DEFAULT_TIMEOUT_MS, attempt = 1 } = {}) {
+async function _post(url, body, { timeoutMs = POST_TIMEOUT_MS, attempt = 1 } = {}) {
   const token      = await getAccessToken();
   const controller = new AbortController();
   const timerId    = setTimeout(() => controller.abort('timeout'), timeoutMs);
@@ -40,8 +44,8 @@ async function _post(url, body, { timeoutMs = DEFAULT_TIMEOUT_MS, attempt = 1 } 
     response = await fetch(url, {
       method:  'POST',
       headers: {
-        Authorization:       `Bearer ${token}`,
-        'Content-Type':      'application/json',
+        Authorization:         `Bearer ${token}`,
+        'Content-Type':        'application/json',
         'X-Goog-User-Project': config.projectId,
       },
       body:   JSON.stringify(body),
@@ -56,7 +60,8 @@ async function _post(url, body, { timeoutMs = DEFAULT_TIMEOUT_MS, attempt = 1 } 
     }
     // Retry once on low-level network errors
     if (attempt === 1) {
-      console.warn(`[DE] Network error on attempt 1, retrying in ${RETRY_DELAY_MS}ms:`, fetchErr.message);
+      log.warn({ url: _redactUrl(url), attempt, error: fetchErr.message },
+        'Network error — retrying');
       await _sleep(RETRY_DELAY_MS);
       return _post(url, body, { timeoutMs, attempt: 2 });
     }
@@ -67,11 +72,13 @@ async function _post(url, body, { timeoutMs = DEFAULT_TIMEOUT_MS, attempt = 1 } 
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
-    console.error(`[DE] HTTP ${response.status} from ${url}:`, errText.slice(0, 300));
+    log.error({ url: _redactUrl(url), status: response.status, detail: errText.slice(0, 300) },
+      `Discovery Engine HTTP ${response.status}`);
 
     // Retry once on 5xx
     if (response.status >= 500 && attempt === 1) {
-      console.warn(`[DE] ${response.status} on attempt 1, retrying in ${RETRY_DELAY_MS}ms`);
+      log.warn({ url: _redactUrl(url), status: response.status, attempt },
+        'Server error — retrying');
       await _sleep(RETRY_DELAY_MS);
       return _post(url, body, { timeoutMs, attempt: 2 });
     }
@@ -86,18 +93,51 @@ async function _post(url, body, { timeoutMs = DEFAULT_TIMEOUT_MS, attempt = 1 } 
   return _parseResponse(response);
 }
 
-async function _get(url) {
-  const token = await getAccessToken();
-  const response = await fetch(url, {
-    method:  'GET',
-    headers: {
-      Authorization:       `Bearer ${token}`,
-      'X-Goog-User-Project': config.projectId,
-    },
-  });
+async function _get(url, { timeoutMs = GET_TIMEOUT_MS, attempt = 1 } = {}) {
+  const token      = await getAccessToken();
+  const controller = new AbortController();
+  const timerId    = setTimeout(() => controller.abort('timeout'), timeoutMs);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method:  'GET',
+      headers: {
+        Authorization:         `Bearer ${token}`,
+        'X-Goog-User-Project': config.projectId,
+      },
+      signal: controller.signal,
+    });
+  } catch (fetchErr) {
+    clearTimeout(timerId);
+    if (fetchErr.name === 'AbortError') {
+      const e = new DiscoveryEngineError('Request timed out', 504);
+      e.isTimeout = true;
+      throw e;
+    }
+    if (attempt === 1) {
+      log.warn({ url: _redactUrl(url), attempt, error: fetchErr.message },
+        'Network error — retrying');
+      await _sleep(RETRY_DELAY_MS);
+      return _get(url, { timeoutMs, attempt: 2 });
+    }
+    throw new DiscoveryEngineError(fetchErr.message);
+  }
+
+  clearTimeout(timerId);
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
+    log.error({ url: _redactUrl(url), status: response.status, detail: errText.slice(0, 300) },
+      `Discovery Engine HTTP ${response.status}`);
+
+    if (response.status >= 500 && attempt === 1) {
+      log.warn({ url: _redactUrl(url), status: response.status, attempt },
+        'Server error — retrying');
+      await _sleep(RETRY_DELAY_MS);
+      return _get(url, { timeoutMs, attempt: 2 });
+    }
+
     throw new DiscoveryEngineError(
       `Discovery Engine returned ${response.status}`,
       response.status,
@@ -124,6 +164,17 @@ async function _parseResponse(response) {
 
 function _sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
+}
+
+// Strip project-specific path segments from URLs before logging to avoid
+// leaking resource names into structured log fields at the wrong verbosity.
+function _redactUrl(url) {
+  try {
+    const u = new URL(url);
+    return `${u.hostname}${u.pathname.split('/').slice(0, 6).join('/')}/…`;
+  } catch {
+    return '(url)';
+  }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -203,11 +254,10 @@ async function search(queryText, {
  */
 async function getDocumentChunks(documentId) {
   if (!config.dataStoreBase) {
-    const e = new DiscoveryEngineError(
+    throw new DiscoveryEngineError(
       'DATA_STORE_ID is not configured — chunk lookup unavailable.',
       501,
     );
-    throw e;
   }
   const url = `${config.dataStoreBase}/branches/0/documents/${encodeURIComponent(documentId)}/chunks`;
   return _get(url);

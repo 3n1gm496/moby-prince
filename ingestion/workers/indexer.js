@@ -66,7 +66,7 @@ class IndexerWorker extends BaseWorker {
   }
 
   async _importDocument(job, uri, context) {
-    const { getAccessToken } = require('../../backend/services/auth');
+    const { getAccessToken } = require('../services/auth');
     const cfg = this._config;
 
     const token    = await getAccessToken();
