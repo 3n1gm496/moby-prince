@@ -15,12 +15,13 @@ const requestLogger      = require('./middleware/requestLogger');
 const errorHandler       = require('./middleware/errorHandler');
 const { requireApiKey }  = require('./middleware/auth');
 
-const de             = require('./services/discoveryEngine');
-const answerRouter   = require('./routes/answer');
-const searchRouter   = require('./routes/search');
-const evidenceRouter = require('./routes/evidence');
-const analysisRouter = require('./routes/analysis');
-const healthRouter   = require('./routes/health');
+const de              = require('./services/discoveryEngine');
+const answerRouter    = require('./routes/answer');
+const searchRouter    = require('./routes/search');
+const evidenceRouter  = require('./routes/evidence');
+const analysisRouter  = require('./routes/analysis');
+const storageRouter   = require('./routes/storage');
+const healthRouter    = require('./routes/health');
 
 const app = express();
 
@@ -68,6 +69,7 @@ app.use('/api/ask',      answerLimiter,  requireApiKey, answerRouter); // backwa
 app.use('/api/search',   generalLimiter, requireApiKey, searchRouter);
 app.use('/api/evidence', generalLimiter, requireApiKey, evidenceRouter);
 app.use('/api/analysis', generalLimiter, requireApiKey, analysisRouter);
+app.use('/api/storage',  generalLimiter, requireApiKey, storageRouter);
 app.use('/api/health',                                  healthRouter);  // health is always public
 
 // ── Error handler (must be last) ──────────────────────────────────────────────

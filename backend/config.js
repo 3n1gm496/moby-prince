@@ -22,6 +22,7 @@ const projectId   = required('GOOGLE_CLOUD_PROJECT');
 const location    = optional('GCP_LOCATION', 'eu');
 const engineId    = required('ENGINE_ID');
 const dataStoreId = optional('DATA_STORE_ID');
+const gcsBucket   = optional('GCS_BUCKET');
 const apiKey      = optional('API_KEY');
 
 // Validate FRONTEND_ORIGIN is a real URL (misconfiguration in prod would silently break CORS)
@@ -43,6 +44,7 @@ const config = {
   location,
   engineId,
   dataStoreId,
+  gcsBucket,
   apiKey,
   frontendOrigin: frontendOriginRaw,
 
@@ -90,6 +92,7 @@ config.printStartup = function printStartup(log) {
     location:       config.location,
     engineId:       config.engineId,
     dataStoreId:    config.dataStoreId ?? '(not set)',
+    gcsBucket:      config.gcsBucket   ?? '(not set)',
     frontendOrigin: config.frontendOrigin,
     apiKeyEnabled:  !!config.apiKey,
     bqDataset:      `${config.bigquery.projectId}.${config.bigquery.datasetId}`,
@@ -97,6 +100,9 @@ config.printStartup = function printStartup(log) {
 
   if (!config.dataStoreId) {
     log.warn({}, 'DATA_STORE_ID is not set — chunk/document lookup endpoints will be disabled');
+  }
+  if (!config.gcsBucket) {
+    log.warn({}, 'GCS_BUCKET is not set — storage browse/upload endpoints will be disabled');
   }
   if (!config.apiKey && config.isProd) {
     log.warn({}, 'API_KEY is not set — all API endpoints are publicly accessible');

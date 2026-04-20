@@ -533,7 +533,7 @@ function WelcomeScreen() {
       <p className="text-text-secondary text-sm leading-relaxed max-w-xs mx-auto">
         Sistema di consultazione documentale della Commissione Parlamentare
         d&apos;Inchiesta sul naufragio del{" "}
-        <span className="text-text-primary">10 aprile 1991</span>.
+        <span className="text-text-primary">10 aprile 1991</span>
       </p>
     </div>
   );

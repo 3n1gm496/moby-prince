@@ -43,10 +43,19 @@ router.get('/dossier', async (req, res, next) => {
     let raw, mode;
 
     if (config.dataStoreBase) {
-      // Full enumeration — uses the DE listDocuments REST endpoint.
-      // Returns all documents in insertion order with cursor-based pagination.
-      raw  = await de.listDocuments(pageToken, pageSize);
-      mode = 'listDocuments';
+      try {
+        raw  = await de.listDocuments(pageToken, pageSize);
+        mode = 'listDocuments';
+      } catch (deErr) {
+        // If the datastore path returns 404 (wrong DATA_STORE_ID or branch not found),
+        // degrade gracefully to searchFallback rather than surfacing a hard error.
+        if (deErr.statusCode === 404) {
+          raw  = await de.search('Moby Prince inchiesta', { maxResults: 20, searchMode: 'DOCUMENTS' });
+          mode = 'searchFallback';
+        } else {
+          throw deErr;
+        }
+      }
     } else {
       // Partial fallback — DATA_STORE_ID not configured.
       // We use a broad search query instead; results are relevance-ranked,
@@ -70,8 +79,8 @@ router.get('/dossier', async (req, res, next) => {
 
     if (mode === 'searchFallback') {
       normalized.warning =
-        'DATA_STORE_ID non configurato: i risultati sono parziali (top-20 per rilevanza). ' +
-        'Configura DATA_STORE_ID nel backend per ottenere la lista completa dei documenti.';
+        'Elenco documenti non disponibile (DATA_STORE_ID non raggiungibile): ' +
+        'i risultati mostrati sono parziali (top-20 per rilevanza).';
     }
 
     res.json(normalized);
