@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AnchorAvatar from "./AnchorAvatar";
@@ -56,7 +56,7 @@ function buildAnnotatedText(text, citations) {
 
 // ─── CitationBadge ─────────────────────────────────────────────────────────────
 
-function CitationBadge({ id, sources }) {
+function CitationBadge({ id, sources, onClick }) {
   const [visible, setVisible] = useState(false);
   return (
     <span
@@ -64,7 +64,7 @@ function CitationBadge({ id, sources }) {
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
     >
-      <span className="citation-badge cursor-help select-none">{id}</span>
+      <span className="citation-badge cursor-pointer select-none" onClick={onClick}>{id}</span>
       {visible && sources?.length > 0 && (
         <span
           className="absolute bottom-full left-1/2 -translate-x-1/2 z-50 mb-1.5
@@ -88,7 +88,7 @@ function CitationBadge({ id, sources }) {
 
 // ─── AnnotatedAnswer ──────────────────────────────────────────────────────────
 
-function AnnotatedAnswer({ text, citations }) {
+function AnnotatedAnswer({ text, citations, onCitationClick }) {
   const annotated = useMemo(
     () => buildAnnotatedText(text, citations),
     [text, citations]
@@ -99,15 +99,19 @@ function AnnotatedAnswer({ text, citations }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          // Intercept inline code nodes — detect our citation markers
           code({ children, className }) {
             const str = String(children).trim();
             const match = str.match(/^\[cite:(\d+)\]$/);
-            // Only process inline code (no language className) matching the pattern
             if (match && !className) {
               const id = parseInt(match[1], 10);
               const cit = citations?.find((c) => c.id === id);
-              return <CitationBadge id={id} sources={cit?.sources ?? []} />;
+              return (
+                <CitationBadge
+                  id={id}
+                  sources={cit?.sources ?? []}
+                  onClick={cit ? () => onCitationClick?.(cit) : undefined}
+                />
+              );
             }
             return <code className={className}>{children}</code>;
           },
@@ -122,8 +126,14 @@ function AnnotatedAnswer({ text, citations }) {
 // ─── MessageBubble ────────────────────────────────────────────────────────────
 
 export default function MessageBubble({ message, onCitationClick, onFollowUp, onRetry }) {
-  const [showSteps, setShowSteps] = useState(false);
-  const [copied,    setCopied]    = useState(false);
+  const [showSteps,     setShowSteps]     = useState(false);
+  const [copied,        setCopied]        = useState(false);
+  const [activeCitId,   setActiveCitId]   = useState(null);
+  const evidenceRef = useRef(null);
+
+  const handleBadgeClick = useCallback((cit) => {
+    setActiveCitId(cit.id);
+  }, []);
 
   const handleCopy = () =>
     navigator.clipboard.writeText(message.text).then(() => {
@@ -217,7 +227,11 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
             </button>
           )}
 
-          <AnnotatedAnswer text={message.text} citations={isStreaming ? [] : message.citations} />
+          <AnnotatedAnswer
+            text={message.text}
+            citations={isStreaming ? [] : message.citations}
+            onCitationClick={handleBadgeClick}
+          />
 
           {isStreaming && (
             <span className="inline-block w-px h-[14px] bg-accent/80 animate-pulse ml-0.5 align-text-bottom" />
@@ -236,9 +250,11 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
 
         {!isStreaming && (
           <EvidenceSection
+            ref={evidenceRef}
             evidence={message.evidence}
             citations={message.citations}
             onCitationClick={onCitationClick}
+            activeCitationId={activeCitId}
           />
         )}
 

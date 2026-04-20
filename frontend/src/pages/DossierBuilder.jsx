@@ -57,6 +57,13 @@ function gcsFileToDoc(file) {
       size:        file.size,
       contentType: file.contentType,
       updated:     file.updated,
+      // Candidate DE document IDs to try in order (DE assigns IDs during indexing,
+      // exact format depends on how documents were imported).
+      deIdCandidates: [
+        nameWithoutExt,          // most common: filename without extension
+        file.name,               // filename with extension
+        file.fullPath,           // full GCS path (e.g. "folder/subfolder/file.pdf")
+      ],
     },
   };
 }

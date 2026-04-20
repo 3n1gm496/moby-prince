@@ -67,10 +67,11 @@ export default function ChatInterface() {
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [showFilters,    setShowFilters]    = useState(false);
 
-  const messagesEndRef       = useRef(null);
-  const messagesContainerRef = useRef(null);
-  const textareaRef          = useRef(null);
-  const autoScrollRef        = useRef(true);
+  const messagesEndRef        = useRef(null);
+  const messagesContainerRef  = useRef(null);
+  const messagesInnerRef      = useRef(null);
+  const textareaRef           = useRef(null);
+  const autoScrollRef         = useRef(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   const showLoadingBubble = loadingConvId !== null
@@ -104,6 +105,19 @@ export default function ChatInterface() {
     textareaRef.current?.focus();
   }, [history.activeConversationId, scrollToBottom]);
 
+  // Hide scroll button when content shrinks (e.g. evidence panel collapses)
+  useEffect(() => {
+    const inner = messagesInnerRef.current;
+    const container = messagesContainerRef.current;
+    if (!inner || !container) return;
+    const observer = new ResizeObserver(() => {
+      const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+      if (nearBottom) setShowScrollButton(false);
+    });
+    observer.observe(inner);
+    return () => observer.disconnect();
+  }, []);
+
   // ── Keyboard shortcuts ───────────────────────────────────────────────────────
 
   const handleNewChat = useCallback(() => {
@@ -116,9 +130,8 @@ export default function ChatInterface() {
   useEffect(() => {
     const onKey = (e) => {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key === "n") { e.preventDefault(); handleNewChat(); }
+      // ⌘N/Ctrl+N conflicts with browser new-window — skip
       if (mod && e.key === "/") { e.preventDefault(); textareaRef.current?.focus(); }
-      if (mod && e.key === "p") { e.preventDefault(); handlePrint(); }
       if (mod && e.shiftKey && e.key === "f") { e.preventDefault(); setShowFilters(v => !v); }
     };
     document.addEventListener("keydown", onKey);
@@ -256,7 +269,8 @@ export default function ChatInterface() {
                 </svg>
               </button>
               {convTitle && (
-                <h1 className="text-sm font-medium truncate text-text-primary">
+                <h1 className="text-sm font-medium truncate text-text-primary flex-1 min-w-0"
+                    title={convTitle}>
                   {convTitle}
                 </h1>
               )}
@@ -265,7 +279,7 @@ export default function ChatInterface() {
             {!isEmpty && (
               <div className="flex items-center gap-0.5 flex-shrink-0">
                 <button onClick={handlePrint}
-                        title="Stampa / Salva PDF (⌘P)" aria-label="Stampa"
+                        title="Stampa / Salva PDF (Ctrl+P)" aria-label="Stampa"
                         className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary
                                    hover:bg-surface-raised transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -317,7 +331,7 @@ export default function ChatInterface() {
               </p>
             </div>
 
-            <div className="max-w-[760px] mx-auto px-5 py-6 print:max-w-none print:px-8 print:py-0">
+            <div ref={messagesInnerRef} className="max-w-[760px] mx-auto px-5 py-6 print:max-w-none print:px-8 print:py-0">
               <div className="space-y-8">
                 {messages.map((msg) => (
                   <MessageBubble
@@ -441,7 +455,7 @@ export default function ChatInterface() {
                   <button
                     type="button"
                     onClick={() => setShowFilters(v => !v)}
-                    title="Filtri (⌘⇧F)"
+                    title="Filtri (Ctrl+Shift+F)"
                     aria-label={showFilters ? "Chiudi filtri" : "Apri filtri"}
                     className={`flex items-center gap-1 text-[11px] transition-colors ${
                       showFilters || hasActiveFilters

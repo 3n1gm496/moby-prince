@@ -1,23 +1,19 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, forwardRef, useRef } from "react";
 import { getFilterValueLabel } from "../filters/schema";
 
 const SNIPPET_LIMIT = 280;
 
-// Strip redundant "Moby Prince" prefix that appears on every document title
 function cleanTitle(title) {
   if (!title) return title;
   return title.replace(/^moby\s+prince\s*[-–—:·]\s*/i, "").trim() || title;
 }
 
-// Metadata badge keys shown on evidence items (in display order)
 const METADATA_BADGE_KEYS = ["documentType", "institution", "year", "legislature", "topic"];
 
 // ─── DocumentChunksPanel ──────────────────────────────────────────────────────
-// Lazily fetches all chunks for a document from GET /api/evidence/documents/:id/chunks.
-// Only rendered when a documentId is available and the user expands the item.
 
 function DocumentChunksPanel({ documentId }) {
-  const [phase,  setPhase]  = useState("idle");   // idle | loading | done | error | unavailable
+  const [phase,  setPhase]  = useState("idle");
   const [chunks, setChunks] = useState([]);
 
   const load = useCallback(async () => {
@@ -43,8 +39,7 @@ function DocumentChunksPanel({ documentId }) {
                    hover:text-accent transition-colors"
       >
         <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M9 5l7 7-7 7" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
         Tutti i frammenti del documento
       </button>
@@ -52,11 +47,7 @@ function DocumentChunksPanel({ documentId }) {
   }
 
   if (phase === "loading") {
-    return (
-      <p className="mt-1.5 text-[10px] text-text-secondary animate-pulse">
-        Caricamento frammenti…
-      </p>
-    );
+    return <p className="mt-1.5 text-[10px] text-text-secondary animate-pulse">Caricamento frammenti…</p>;
   }
 
   if (phase === "unavailable") {
@@ -68,14 +59,9 @@ function DocumentChunksPanel({ documentId }) {
   }
 
   if (phase === "error") {
-    return (
-      <p className="mt-1.5 text-[10px] text-red-400">
-        Impossibile caricare i frammenti.
-      </p>
-    );
+    return <p className="mt-1.5 text-[10px] text-red-400">Impossibile caricare i frammenti.</p>;
   }
 
-  // phase === "done"
   if (chunks.length === 0) {
     return (
       <p className="mt-1.5 text-xs text-text-secondary italic bg-surface rounded-md px-2 py-1.5">
@@ -122,7 +108,7 @@ function DocumentChunksPanel({ documentId }) {
 
 // ─── EvidenceItem ─────────────────────────────────────────────────────────────
 
-function EvidenceItem({ item, citations, isActive, onCitationClick }) {
+const EvidenceItem = forwardRef(function EvidenceItem({ item, citations, isActive, onCitationClick }, ref) {
   const [expanded, setExpanded] = useState(false);
 
   const relatedCits = citations.filter((c) => item.citationIds?.includes(c.id));
@@ -133,13 +119,14 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
   })();
 
   return (
-    <div className={`rounded-lg border p-3 text-xs transition-colors ${
-      isActive
-        ? "border-l-2 border-accent bg-accent/5"
-        : "border-border bg-surface-raised"
-    }`}>
-
-      {/* Citation chips */}
+    <div
+      ref={ref}
+      className={`rounded-lg border p-3 text-xs transition-colors ${
+        isActive
+          ? "border-l-2 border-accent bg-accent/5 ring-1 ring-accent/20"
+          : "border-border bg-surface-raised"
+      }`}
+    >
       {relatedCits.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
           {relatedCits.map((cit) => (
@@ -151,12 +138,10 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
         </div>
       )}
 
-      {/* Title */}
       <p className="font-medium text-text-primary leading-snug mb-1 break-words">
         {cleanTitle(item.title)}
       </p>
 
-      {/* Struct metadata badges — visible only when corpus has metadata populated */}
       {item.metadata && METADATA_BADGE_KEYS.some(k => item.metadata[k] != null) && (
         <div className="flex flex-wrap gap-1 mb-1.5">
           {METADATA_BADGE_KEYS.map(key => {
@@ -176,12 +161,10 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
         </div>
       )}
 
-      {/* Page identifier */}
       {item.pageIdentifier && (
         <p className="text-text-secondary font-mono mb-1.5">p.&nbsp;{item.pageIdentifier}</p>
       )}
 
-      {/* Verbatim snippet */}
       {item.snippet && (
         <p className="text-text-primary leading-relaxed italic mb-1.5">
           &ldquo;
@@ -191,13 +174,12 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
           {item.snippet.length > SNIPPET_LIMIT && (
             <button onClick={() => setExpanded((v) => !v)}
                     className="ml-1 not-italic text-accent hover:text-accent-hover transition-colors">
-              {expanded ? "Mostra meno" : "Mostra tutto"}
+              {expanded ? "mostra meno" : "mostra tutto"}
             </button>
           )}
         </p>
       )}
 
-      {/* Source link — only show if it's a navigable web URL (not a GCS bucket URI) */}
       {hostname && !hostname.includes("storage.googleapis.com") && (
         <a href={item.uri} target="_blank" rel="noopener noreferrer"
            className="text-accent hover:text-accent-hover transition-colors break-all block max-w-full mb-1 text-[10px]">
@@ -205,18 +187,37 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
         </a>
       )}
 
-      {/* Document chunk drill-down — only when documentId is available */}
-      {item.documentId && (
-        <DocumentChunksPanel documentId={item.documentId} />
-      )}
+      {item.documentId && <DocumentChunksPanel documentId={item.documentId} />}
     </div>
   );
-}
+});
 
 // ─── EvidenceSection ──────────────────────────────────────────────────────────
 
-export default function EvidenceSection({ evidence, citations, onCitationClick }) {
+const EvidenceSection = forwardRef(function EvidenceSection(
+  { evidence, citations, onCitationClick, activeCitationId },
+  ref
+) {
   const [open, setOpen] = useState(false);
+  const itemRefs = useRef({});
+
+  // Auto-open and scroll to highlighted item when a citation badge is clicked
+  useEffect(() => {
+    if (activeCitationId == null) return;
+    setOpen(true);
+    // Wait for React to render the open state before scrolling
+    const timer = setTimeout(() => {
+      const targetIdx = evidence?.findIndex(
+        (item) => item.citationIds?.includes(activeCitationId)
+      );
+      if (targetIdx >= 0 && itemRefs.current[targetIdx]) {
+        itemRefs.current[targetIdx].scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } else {
+        ref?.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+      }
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [activeCitationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!evidence || evidence.length === 0) return null;
 
@@ -225,7 +226,7 @@ export default function EvidenceSection({ evidence, citations, onCitationClick }
   ).size;
 
   return (
-    <div className="mt-2 print:hidden">
+    <div ref={ref} className="mt-2 print:hidden">
       <button onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
               className={`flex items-center gap-1.5 text-xs transition-colors ${
@@ -243,12 +244,13 @@ export default function EvidenceSection({ evidence, citations, onCitationClick }
 
       {open && (
         <div className="mt-2 space-y-2">
-          {evidence.map((item) => (
+          {evidence.map((item, idx) => (
             <EvidenceItem
               key={item.index}
+              ref={(el) => { itemRefs.current[idx] = el; }}
               item={item}
               citations={citations || []}
-              isActive={false}
+              isActive={activeCitationId != null && !!item.citationIds?.includes(activeCitationId)}
               onCitationClick={onCitationClick}
             />
           ))}
@@ -256,4 +258,6 @@ export default function EvidenceSection({ evidence, citations, onCitationClick }
       )}
     </div>
   );
-}
+});
+
+export default EvidenceSection;

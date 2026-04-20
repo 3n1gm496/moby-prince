@@ -80,7 +80,14 @@
 
 /* ── Print stylesheet ────────────────────────────────────────────────────── */
 @media print {
-  * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  /* Force light theme: strip all dark backgrounds, force dark text */
+  * {
+    color: #111 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    animation: none !important;
+  }
 
   body {
     background: white !important;
@@ -90,26 +97,43 @@
     line-height: 1.6;
   }
 
-  .print\:hidden, aside, header { display: none !important; }
+  /* Elements that should not appear in print */
+  .print\:hidden, aside, header, nav { display: none !important; }
 
-  .flex.h-screen     { display: block !important; height: auto !important; }
-  .flex-1            { overflow: visible !important; height: auto !important; }
-  .max-w-2xl         { max-width: 100% !important; }
-  .space-y-6 > * + * { margin-top: 1.5rem !important; }
+  /* Layout: remove flex/height constraints so content flows naturally */
+  .flex.h-screen { display: block !important; height: auto !important; }
+  .flex-1        { overflow: visible !important; height: auto !important; }
 
-  .prose-answer       { color: #111 !important; line-height: 1.65; }
-  .prose-answer p     { margin-bottom: 0.5rem !important; }
-  .prose-answer strong { color: #111 !important; }
+  /* Prose */
+  .prose-answer { line-height: 1.65; }
+  .prose-answer p { margin-bottom: 0.5rem !important; }
 
-  .rounded-2xl { border-radius: 0 !important; box-shadow: none !important; }
-  .bg-surface-overlay, .bg-surface-raised { background: transparent !important; }
-
-  .flex.justify-end > div {
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 0.4rem;
+  /* User messages: left border instead of bubble */
+  .flex.print\:justify-start > div {
+    border-left: 2px solid #aaa !important;
+    padding-left: 0.75rem !important;
+    border-radius: 0 !important;
     font-weight: 600;
-    color: #222 !important;
   }
+
+  /* Citation badges: visible in print with light gold tint */
+  .citation-badge {
+    background: #f5edd8 !important;
+    color: #7a6020 !important;
+    border: 1px solid #c9a84c !important;
+    animation: none !important;
+  }
+
+  /* Print header block */
+  .hidden.print\:block {
+    display: block !important;
+    border-bottom: 1px solid #ccc !important;
+    padding-bottom: 1rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  /* Message spacing */
+  .space-y-8 > * + * { margin-top: 1.75rem !important; }
 
   @page { margin: 2cm; size: A4; }
 }

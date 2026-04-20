@@ -353,7 +353,6 @@ export default function Sidebar({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 Nuova chat
-                <span className="ml-auto text-[10px] text-text-muted font-mono">⌘N</span>
               </button>
             </div>
 
@@ -439,8 +438,8 @@ export default function Sidebar({
               )}
             </nav>
 
-            {/* Analysis views — prossimamente, non-interactive */}
-            <div className="px-3 py-2 border-t border-border/30">
+            {/* Analysis views — sticky above footer, solid bg to prevent nav scroll bleed */}
+            <div className="px-3 py-2 border-t border-border/30 bg-surface-sidebar relative z-10">
               <h3 className="px-[10px] pt-1.5 pb-1 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
                 Analisi
               </h3>
@@ -481,14 +480,22 @@ export default function Sidebar({
             </div>
 
             {/* Footer */}
-            <div className="px-4 py-3 border-t border-border/30 flex items-center justify-between gap-2">
-              <p className="text-[10px] text-text-muted leading-tight">
-                Camera dei Deputati<br />
-                <span className="opacity-60">Uso riservato · v1.0</span>
+            <div className="px-4 py-3 border-t border-border/30 bg-surface-sidebar flex items-center justify-between gap-2">
+              <p className="text-[11px] font-medium text-text-muted/70 leading-tight">
+                Camera dei Deputati
               </p>
-              <svg className="w-4 h-4 text-text-muted/30 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
-                      d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+              {/* Montecitorio building — simplified neoclassical silhouette */}
+              <svg className="w-6 h-[22px] text-text-muted/35 flex-shrink-0" fill="currentColor" viewBox="0 0 24 22">
+                <rect x="0" y="20.5" width="24" height="1.5" rx="0.5"/>
+                <rect x="1"  y="13"  width="1.5" height="7.5"/>
+                <rect x="5"  y="13"  width="1.5" height="7.5"/>
+                <rect x="9"  y="13"  width="1.5" height="7.5"/>
+                <rect x="13" y="13"  width="1.5" height="7.5"/>
+                <rect x="17" y="13"  width="1.5" height="7.5"/>
+                <rect x="21" y="13"  width="1.5" height="7.5"/>
+                <rect x="0"  y="11"  width="24" height="2" rx="0.3"/>
+                <path d="M0,11 L12,4 L24,11Z"/>
+                <ellipse cx="12" cy="4" rx="2.5" ry="2.5"/>
               </svg>
             </div>
           </>
