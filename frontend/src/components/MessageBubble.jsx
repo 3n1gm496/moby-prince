@@ -59,6 +59,7 @@ function AnnotatedAnswer({ text, citations, onInlineCite }) {
   const annotations = citations
     .filter((c) => c.startIndex != null && c.endIndex != null)
     .map((c) => ({ ...c, start: Number(c.startIndex), end: Number(c.endIndex) }))
+    .filter((ann) => ann.start < text.length) // drop annotations beyond truncated display
     .sort((a, b) => a.start - b.start);
 
   const segments = [];

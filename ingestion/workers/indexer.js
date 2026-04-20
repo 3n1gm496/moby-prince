@@ -48,6 +48,7 @@ class IndexerWorker extends BaseWorker {
   }
 
   shouldRun(job) {
+    if (job.isSplit) return false; // parent was split into child jobs; children are indexed separately
     return ['VALIDATING', 'SPLITTING', 'INDEXING'].includes(job.status);
   }
 
