@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { getFilterValueLabel } from "../filters/schema";
 
 const META_FIELDS = [
@@ -25,6 +25,167 @@ function formatDate(iso) {
       day: "2-digit", month: "short", year: "numeric",
     });
   } catch { return null; }
+}
+
+// ── GcsMetadataSection ────────────────────────────────────────────────────────
+
+function GcsMetadataSection({ fullPath }) {
+  const [phase,    setPhase]    = useState("idle"); // idle | loading | done | error
+  const [sysMeta,  setSysMeta]  = useState(null);
+  const [custom,   setCustom]   = useState({});     // { key: value } being edited
+  const [saving,   setSaving]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [newKey,   setNewKey]   = useState("");
+  const [newVal,   setNewVal]   = useState("");
+
+  const load = useCallback(async () => {
+    setPhase("loading");
+    try {
+      const res = await fetch(`/api/storage/metadata?name=${encodeURIComponent(fullPath)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setSysMeta(data);
+      setCustom(data.metadata || {});
+      setPhase("done");
+    } catch {
+      setPhase("error");
+    }
+  }, [fullPath]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/storage/metadata", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ name: fullPath, metadata: custom }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setCustom(data.metadata || {});
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch { /* silent */ }
+    finally { setSaving(false); }
+  };
+
+  const addPair = () => {
+    const k = newKey.trim(), v = newVal.trim();
+    if (!k) return;
+    setCustom((prev) => ({ ...prev, [k]: v }));
+    setNewKey(""); setNewVal("");
+  };
+
+  const removePair = (key) => setCustom((prev) => {
+    const next = { ...prev };
+    delete next[key];
+    return next;
+  });
+
+  if (phase === "idle" || phase === "loading") {
+    return <p className="text-[11px] text-text-secondary animate-pulse">Caricamento metadati…</p>;
+  }
+  if (phase === "error") {
+    return <p className="text-[11px] text-red-400">Impossibile caricare i metadati.</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* System metadata */}
+      {sysMeta && (
+        <div>
+          <h4 className="text-[10px] font-medium text-text-muted uppercase tracking-wider mb-1.5">
+            Sistema
+          </h4>
+          <dl className="space-y-1">
+            {[
+              ["Creato",    formatDate(sysMeta.timeCreated)],
+              ["MD5",       sysMeta.md5Hash],
+              ["Generaz.",  sysMeta.generation],
+            ].filter(([, v]) => v).map(([label, val]) => (
+              <div key={label} className="flex items-baseline gap-2">
+                <dt className="text-[10px] text-text-muted w-16 flex-shrink-0">{label}</dt>
+                <dd className="text-[10px] font-mono text-text-secondary break-all select-all">{val}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+
+      {/* Custom metadata */}
+      <div>
+        <h4 className="text-[10px] font-medium text-text-muted uppercase tracking-wider mb-1.5">
+          Metadati personalizzati
+        </h4>
+        <div className="space-y-1">
+          {Object.entries(custom).map(([k, v]) => (
+            <div key={k} className="flex items-center gap-1.5 group/pair">
+              <input
+                value={k}
+                readOnly
+                className="w-24 text-[10px] font-mono bg-surface border border-border/40 rounded px-1.5 py-1
+                           text-text-muted focus:outline-none"
+              />
+              <input
+                value={v}
+                onChange={(e) => setCustom((prev) => ({ ...prev, [k]: e.target.value }))}
+                className="flex-1 text-[10px] bg-surface border border-border/40 rounded px-1.5 py-1
+                           text-text-primary focus:outline-none focus:border-accent/50"
+              />
+              <button onClick={() => removePair(k)}
+                      className="text-text-muted hover:text-red-400 opacity-0 group-hover/pair:opacity-100 transition-opacity p-0.5">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))}
+          {/* Add new pair */}
+          <div className="flex items-center gap-1.5 pt-0.5">
+            <input
+              value={newKey}
+              onChange={(e) => setNewKey(e.target.value)}
+              placeholder="chiave"
+              className="w-24 text-[10px] font-mono bg-surface border border-dashed border-border/50 rounded px-1.5 py-1
+                         text-text-muted placeholder:text-text-muted/50 focus:outline-none focus:border-accent/40"
+            />
+            <input
+              value={newVal}
+              onChange={(e) => setNewVal(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addPair()}
+              placeholder="valore"
+              className="flex-1 text-[10px] bg-surface border border-dashed border-border/50 rounded px-1.5 py-1
+                         text-text-muted placeholder:text-text-muted/50 focus:outline-none focus:border-accent/40"
+            />
+            <button onClick={addPair} disabled={!newKey.trim()}
+                    className="text-[10px] text-accent hover:text-accent-hover disabled:opacity-30 transition-colors px-1">
+              +
+            </button>
+          </div>
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className={`mt-2.5 flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg border transition-colors
+                      ${saved
+                        ? "border-green-500/40 text-green-400 bg-green-500/5"
+                        : "border-border text-text-secondary hover:border-accent/40 hover:text-text-primary"}
+                      disabled:opacity-40`}
+        >
+          {saved ? (
+            <>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Salvato
+            </>
+          ) : saving ? "Salvataggio…" : "Salva metadati"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── ChunksSection ─────────────────────────────────────────────────────────────
@@ -262,6 +423,16 @@ export default function DocumentPanel({ doc, onClose }) {
                 </svg>
                 Apri / scarica documento
               </a>
+            </section>
+          )}
+
+          {/* GCS metadata (system + custom) */}
+          {isGcs && doc.gcs?.fullPath && (
+            <section>
+              <h3 className="text-[10px] font-medium text-text-muted uppercase tracking-wider mb-2">
+                Metadati
+              </h3>
+              <GcsMetadataSection fullPath={doc.gcs.fullPath} />
             </section>
           )}
 

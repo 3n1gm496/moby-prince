@@ -168,4 +168,57 @@ async function copyObject(srcName, dstName) {
   return res.json();
 }
 
-module.exports = { listObjects, uploadObject, getObject, deleteObject, copyObject };
+/**
+ * Fetch the full metadata object for a GCS object (includes custom metadata).
+ *
+ * @param {string} name  Full GCS object name
+ */
+async function getObjectMetadata(name) {
+  await _checkBucket();
+
+  const url = `${GCS_API}/b/${config.gcsBucket}/o/${encodeURIComponent(name)}`;
+  const res = await fetch(url, { headers: await _headers() });
+
+  if (!res.ok) {
+    const err = new Error(`GCS metadata failed: ${res.status}`);
+    err.statusCode = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+/**
+ * Patch custom metadata on a GCS object.
+ * Merges with existing metadata; pass null values to remove keys.
+ *
+ * @param {string} name      Full GCS object name
+ * @param {object} metadata  Key-value pairs (string values only)
+ */
+async function updateObjectMetadata(name, metadata) {
+  await _checkBucket();
+
+  const url     = `${GCS_API}/b/${config.gcsBucket}/o/${encodeURIComponent(name)}`;
+  const headers = await _headers();
+  headers['Content-Type'] = 'application/json';
+
+  const res = await fetch(url, {
+    method:  'PATCH',
+    headers,
+    body:    JSON.stringify({ metadata }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    log.error({ status: res.status, detail: text.slice(0, 300) }, 'GCS metadata update failed');
+    const err = new Error(`GCS metadata update failed: ${res.status}`);
+    err.statusCode = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+module.exports = {
+  listObjects, uploadObject, getObject,
+  deleteObject, copyObject,
+  getObjectMetadata, updateObjectMetadata,
+};

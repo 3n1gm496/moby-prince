@@ -40,6 +40,12 @@ export function useGcsBrowser() {
   // Load root on mount
   useEffect(() => { browse(""); }, [browse]);
 
+  // Auto-refresh every 60 s to stay in sync with cloud
+  useEffect(() => {
+    const id = setInterval(() => browse(prefix), 60_000);
+    return () => clearInterval(id);
+  }, [browse, prefix]);
+
   // Navigate into a sub-folder
   const navigate = useCallback((newPrefix) => browse(newPrefix), [browse]);
 

@@ -107,19 +107,59 @@ function FolderCard({ name, folderPrefix, onClick, onFileDrop }) {
 
 // ── FileCard ──────────────────────────────────────────────────────────────────
 
-function FileCard({ file, onClick, onDelete }) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
+function FileCard({ file, onClick, onDelete, onRename, onCopy }) {
+  const [mode,   setMode]   = useState("idle"); // idle | rename | confirmDelete
+  const [newName, setNewName] = useState("");
+  const renameInputRef = useRef(null);
+
   const icon  = fileIconType(file.contentType);
   const color = FILE_ICON_COLORS[icon] || "text-text-secondary";
 
+  const openRename = (e) => {
+    e.stopPropagation();
+    setNewName(file.name);
+    setMode("rename");
+    setTimeout(() => { renameInputRef.current?.focus(); renameInputRef.current?.select(); }, 0);
+  };
+
+  const submitRename = () => {
+    const n = newName.trim();
+    if (n && n !== file.name) onRename?.(file, n);
+    setMode("idle");
+  };
+
+  const handleRenameKey = (e) => {
+    if (e.key === "Enter")  submitRename();
+    if (e.key === "Escape") setMode("idle");
+  };
+
   const handleDeleteClick = (e) => {
     e.stopPropagation();
-    if (confirmDelete) {
-      onDelete?.(file);
-    } else {
-      setConfirmDelete(true);
-    }
+    if (mode === "confirmDelete") { onDelete?.(file); setMode("idle"); }
+    else setMode("confirmDelete");
   };
+
+  const handleCopy = (e) => { e.stopPropagation(); onCopy?.(file); };
+
+  if (mode === "rename") {
+    return (
+      <div className="rounded-xl border border-accent/40 bg-surface-raised px-4 py-3.5 flex items-center gap-3">
+        <svg className={`w-7 h-7 flex-shrink-0 ${color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <input
+          ref={renameInputRef}
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={handleRenameKey}
+          onBlur={submitRename}
+          className="flex-1 min-w-0 text-[13px] bg-surface border border-border rounded-md px-2 py-1
+                     text-text-primary focus:outline-none focus:border-accent/60"
+        />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -128,13 +168,13 @@ function FileCard({ file, onClick, onDelete }) {
         e.dataTransfer.setData("text/plain", file.fullPath);
         e.dataTransfer.effectAllowed = "move";
       }}
-      onMouseLeave={() => setConfirmDelete(false)}
+      onMouseLeave={() => { if (mode === "confirmDelete") setMode("idle"); }}
       className="relative group rounded-xl border border-border bg-surface-raised
                  hover:border-accent/40 transition-colors duration-150 cursor-grab active:cursor-grabbing"
     >
       <button
         onClick={onClick}
-        className="text-left w-full px-4 py-3.5 flex items-start gap-3"
+        className="text-left w-full px-4 py-3.5 flex items-start gap-3 pr-24"
       >
         <svg className={`w-7 h-7 flex-shrink-0 mt-0.5 ${color}`}
              fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,25 +193,40 @@ function FileCard({ file, onClick, onDelete }) {
         </div>
       </button>
 
-      {/* Delete button — visible on hover */}
-      <button
-        onClick={handleDeleteClick}
-        title={confirmDelete ? "Clicca per confermare" : "Elimina file"}
-        className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all duration-150
-                    opacity-0 group-hover:opacity-100
-                    ${confirmDelete
-                      ? "opacity-100 bg-red-500 text-white"
-                      : "bg-surface text-text-muted hover:text-red-400 hover:bg-red-500/10"}`}
-      >
-        {confirmDelete ? (
-          <span className="text-[9px] font-semibold px-0.5 leading-none">OK?</span>
-        ) : (
+      {/* Action buttons — visible on hover */}
+      <div className="absolute top-2 right-2 flex items-center gap-0.5
+                      opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        {/* Rename */}
+        <button onClick={openRename} title="Rinomina"
+                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-colors">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
-        )}
-      </button>
+        </button>
+        {/* Copy */}
+        <button onClick={handleCopy} title="Duplica"
+                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-colors">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        </button>
+        {/* Delete */}
+        <button onClick={handleDeleteClick} title={mode === "confirmDelete" ? "Conferma eliminazione" : "Elimina"}
+                className={`p-1.5 rounded-lg transition-colors
+                            ${mode === "confirmDelete"
+                              ? "bg-red-500 text-white"
+                              : "text-text-muted hover:text-red-400 hover:bg-red-500/10"}`}>
+          {mode === "confirmDelete"
+            ? <span className="text-[9px] font-bold px-0.5">OK?</span>
+            : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+          }
+        </button>
+      </div>
     </div>
   );
 }
@@ -387,6 +442,36 @@ export default function DossierBuilder() {
     ? prefix.slice(0, prefix.slice(0, -1).lastIndexOf("/") + 1)
     : null;
 
+  const handleRename = useCallback(async (file, newName) => {
+    setActionError(null);
+    try {
+      const res = await fetch("/api/storage/rename", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ source: file.fullPath, newName }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      refresh();
+    } catch (e) {
+      setActionError(`Impossibile rinominare "${file.name}": ${e.message}`);
+    }
+  }, [refresh]);
+
+  const handleCopy = useCallback(async (file) => {
+    setActionError(null);
+    try {
+      const res = await fetch("/api/storage/copy", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ source: file.fullPath }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      refresh();
+    } catch (e) {
+      setActionError(`Impossibile duplicare "${file.name}": ${e.message}`);
+    }
+  }, [refresh]);
+
   const handleDelete = useCallback(async (file) => {
     setActionError(null);
     try {
@@ -584,6 +669,8 @@ export default function DossierBuilder() {
                       file={file}
                       onClick={() => setSelectedFile(file)}
                       onDelete={handleDelete}
+                      onRename={handleRename}
+                      onCopy={handleCopy}
                     />
                   ))}
                 </div>

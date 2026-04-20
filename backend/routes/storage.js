@@ -122,6 +122,88 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
   }
 });
 
+// ── GET /api/storage/metadata ─────────────────────────────────────────────────
+
+router.get('/metadata', async (req, res, next) => {
+  const name = typeof req.query.name === 'string' ? req.query.name.trim() : null;
+  if (!name) return res.status(400).json({ error: '"name" query param required.' });
+  try {
+    const obj = await gcs.getObjectMetadata(name);
+    res.json({
+      name:        obj.name,
+      size:        obj.size ? Number(obj.size) : 0,
+      contentType: obj.contentType || null,
+      updated:     obj.updated     || null,
+      timeCreated: obj.timeCreated || null,
+      md5Hash:     obj.md5Hash     || null,
+      crc32c:      obj.crc32c      || null,
+      generation:  obj.generation  || null,
+      metadata:    obj.metadata    || {},
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── PATCH /api/storage/metadata ───────────────────────────────────────────────
+
+router.patch('/metadata', async (req, res, next) => {
+  const { name, metadata } = req.body || {};
+  if (!name || typeof metadata !== 'object' || metadata === null) {
+    return res.status(400).json({ error: '"name" and "metadata" (object) required.' });
+  }
+  try {
+    const obj = await gcs.updateObjectMetadata(name, metadata);
+    res.json({ success: true, metadata: obj.metadata || {} });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/storage/rename ──────────────────────────────────────────────────
+
+router.post('/rename', async (req, res, next) => {
+  const { source, newName } = req.body || {};
+  if (!source || !newName) return res.status(400).json({ error: '"source" and "newName" required.' });
+
+  const slash       = source.lastIndexOf('/');
+  const dirPrefix   = slash >= 0 ? source.slice(0, slash + 1) : '';
+  const destination = dirPrefix + newName;
+
+  if (source === destination) return res.status(400).json({ error: 'New name is the same.' });
+
+  try {
+    await gcs.copyObject(source, destination);
+    await gcs.deleteObject(source);
+    res.json({ success: true, destination });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/storage/copy ────────────────────────────────────────────────────
+
+router.post('/copy', async (req, res, next) => {
+  const { source } = req.body || {};
+  if (!source) return res.status(400).json({ error: '"source" required.' });
+
+  const slash     = source.lastIndexOf('/');
+  const dirPrefix = slash >= 0 ? source.slice(0, slash + 1) : '';
+  const filename  = slash >= 0 ? source.slice(slash + 1) : source;
+  const dotIdx    = filename.lastIndexOf('.');
+  const base      = dotIdx >= 0 ? filename.slice(0, dotIdx) : filename;
+  const ext       = dotIdx >= 0 ? filename.slice(dotIdx)    : '';
+
+  const destination = `${dirPrefix}${base} (copia)${ext}`;
+
+  try {
+    await gcs.copyObject(source, destination);
+    res.json({ success: true, destination });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── DELETE /api/storage/file ──────────────────────────────────────────────────
 
 router.delete('/file', async (req, res, next) => {
