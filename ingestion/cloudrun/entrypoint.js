@@ -22,6 +22,7 @@
 const path = require('path');
 
 const config  = require('../config');
+const { parseGcsUri } = require('../lib/gcs');
 const { createStore }               = require('../state/store');
 const { createLogger, createMetricsEmitter } = require('../workers/base');
 const { createJob }                 = require('../state/job');
@@ -146,12 +147,6 @@ async function _statUri(uri, storage) {
     fileSizeBytes: meta.size ? parseInt(meta.size, 10) : null,
     mimeType:      meta.contentType || null,
   };
-}
-
-function _parseGcsUri(uri) {
-  const m = uri.match(/^gs:\/\/([^/]+)\/(.+)$/);
-  if (!m) throw new Error(`Invalid GCS URI: ${uri}`);
-  return { bucket: m[1], name: m[2] };
 }
 
 function _guessMime(filePath) {

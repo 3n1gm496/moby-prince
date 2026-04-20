@@ -1,5 +1,7 @@
 'use strict';
 
+const { activeFilters } = require('../lib/utils');
+
 /**
  * Normalise a raw Discovery Engine :search response.
  *
@@ -40,17 +42,9 @@ function normalizeSearch(raw, query, appliedFilters = null) {
       query,
       totalResults:   typeof raw.totalSize === 'number' ? raw.totalSize : results.length,
       searchMode,
-      appliedFilters: _activeFilters(appliedFilters),
+      appliedFilters: activeFilters(appliedFilters),
     },
   };
-}
-
-function _activeFilters(filters) {
-  if (!filters || typeof filters !== 'object') return null;
-  const active = Object.fromEntries(
-    Object.entries(filters).filter(([, v]) => v !== null && v !== undefined && v !== '')
-  );
-  return Object.keys(active).length > 0 ? active : null;
 }
 
 function _normalizeChunkResult(result, idx) {

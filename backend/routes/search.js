@@ -21,6 +21,7 @@ const { normalizeSearch } = require('../transformers/search');
 const { validateQuery } = require('../middleware/validate');
 const { validateFilters }       = require('../middleware/validateFilters');
 const { buildFilterExpression } = require('../filters/schema');
+const { clamp } = require('../lib/utils');
 
 const router = Router();
 
@@ -31,7 +32,7 @@ router.post('/', [validateQuery, validateFilters], async (req, res, next) => {
 
   try {
     const raw = await de.search(query, {
-      maxResults: _clamp(maxResults, 1, 20, 10),
+      maxResults: clamp(maxResults, 1, 20, 10),
       filter:     buildFilterExpression(filters),
       searchMode: mode,
     });
@@ -41,11 +42,5 @@ router.post('/', [validateQuery, validateFilters], async (req, res, next) => {
     next(err);
   }
 });
-
-function _clamp(value, min, max, fallback) {
-  const n = parseInt(value, 10);
-  if (Number.isNaN(n)) return fallback;
-  return Math.min(Math.max(n, min), max);
-}
 
 module.exports = router;

@@ -20,6 +20,7 @@ const { normalizeAnswer } = require('../transformers/answer');
 const { validateQuery, validateSessionId } = require('../middleware/validate');
 const { validateFilters }       = require('../middleware/validateFilters');
 const { buildFilterExpression } = require('../filters/schema');
+const { clamp } = require('../lib/utils');
 
 const router = Router();
 
@@ -28,7 +29,7 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
 
   try {
     const raw = await de.answer(query, sessionId || null, {
-      maxResults: _clamp(maxResults, 1, 20, 10),
+      maxResults: clamp(maxResults, 1, 20, 10),
       filter:     buildFilterExpression(filters),
     });
 
@@ -37,11 +38,5 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
     next(err);
   }
 });
-
-function _clamp(value, min, max, fallback) {
-  const n = parseInt(value, 10);
-  if (Number.isNaN(n)) return fallback;
-  return Math.min(Math.max(n, min), max);
-}
 
 module.exports = router;

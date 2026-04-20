@@ -1,6 +1,7 @@
 'use strict';
 
 const { buildCitations, _uriToDocId } = require('./citations');
+const { activeFilters } = require('../lib/utils');
 
 /**
  * Normalise a raw Discovery Engine :answer response into the stable API contract
@@ -56,7 +57,7 @@ function normalizeAnswer(raw, appliedFilters = null) {
       searchResultsCount:   Array.isArray(answerObj.references) ? answerObj.references.length : 0,
       uniqueDocumentsCount: uniqueDocCount,
       searchMode:           'CHUNKS',
-      appliedFilters:       _activeFilters(appliedFilters),
+      appliedFilters:       activeFilters(appliedFilters),
     },
   };
 }
@@ -142,14 +143,6 @@ function _extractStructMetadata(ref) {
   };
 }
 
-function _activeFilters(filters) {
-  if (!filters || typeof filters !== 'object') return null;
-  const active = Object.fromEntries(
-    Object.entries(filters).filter(([, v]) => v !== null && v !== undefined && v !== '')
-  );
-  return Object.keys(active).length > 0 ? active : null;
-}
-
 function _countUniqueDocuments(citations) {
   const seen = new Set();
   citations.forEach(c =>
@@ -161,4 +154,4 @@ function _countUniqueDocuments(citations) {
   return seen.size;
 }
 
-module.exports = { normalizeAnswer, buildEvidence, _activeFilters };
+module.exports = { normalizeAnswer, buildEvidence };

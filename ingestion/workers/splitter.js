@@ -28,6 +28,7 @@
  */
 
 const fs   = require('fs');
+const { parseGcsUri } = require('../lib/gcs');
 const path = require('path');
 const { BaseWorker } = require('./base');
 const { createJob }  = require('../state/job');
@@ -329,10 +330,5 @@ function _walkDir(dir, fn) {
 
 function _mb(bytes) { return (bytes / 1_000_000).toFixed(1); }
 function _stem(filename) { return filename.replace(/\.[^.]+$/, ''); }
-function _parseGcsUri(uri) {
-  const m = uri.match(/^gs:\/\/([^/]+)\/(.+)$/);
-  if (!m) throw new Error(`Invalid GCS URI: ${uri}`);
-  return { bucket: m[1], name: m[2] };
-}
 
 module.exports = { SplitterWorker, analyzeFile, splitTextIntoParts, scanDirectory };

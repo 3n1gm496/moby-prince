@@ -25,6 +25,7 @@ const { normalizeSearch } = require('../transformers/search');
 const { validateQuery, validateDocumentId } = require('../middleware/validate');
 const { validateFilters }       = require('../middleware/validateFilters');
 const { buildFilterExpression } = require('../filters/schema');
+const { clamp } = require('../lib/utils');
 
 const router = Router();
 
@@ -35,7 +36,7 @@ router.post('/search', [validateQuery, validateFilters], async (req, res, next) 
 
   try {
     const raw        = await de.search(query, {
-      maxResults: _clamp(maxResults, 1, 20, 10),
+      maxResults: clamp(maxResults, 1, 20, 10),
       filter:     buildFilterExpression(filters),
       searchMode: 'CHUNKS',
     });
@@ -87,12 +88,6 @@ router.get('/documents/:id/chunks', validateDocumentId, async (req, res, next) =
 });
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-
-function _clamp(value, min, max, fallback) {
-  const n = parseInt(value, 10);
-  if (Number.isNaN(n)) return fallback;
-  return Math.min(Math.max(n, min), max);
-}
 
 function _extractId(resourceName) {
   if (!resourceName) return null;
