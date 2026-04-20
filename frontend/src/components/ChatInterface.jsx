@@ -238,7 +238,7 @@ export default function ChatInterface() {
                            lg:bg-transparent lg:backdrop-blur-none
                            bg-surface-sidebar/80 backdrop-blur-md
                            border-b border-border/20 lg:border-transparent">
-          <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
+          <div className="max-w-[760px] mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
               <button
                 className={`lg:hidden p-1.5 rounded-lg transition-colors flex-shrink-0
@@ -317,7 +317,7 @@ export default function ChatInterface() {
               </p>
             </div>
 
-            <div className="max-w-2xl mx-auto px-5 py-8 print:max-w-none print:px-8 print:py-0">
+            <div className="max-w-[760px] mx-auto px-5 py-6 print:max-w-none print:px-8 print:py-0">
               <div className="space-y-8">
                 {messages.map((msg) => (
                   <MessageBubble
@@ -356,8 +356,8 @@ export default function ChatInterface() {
         )}
 
         {/* Input */}
-        <div className="flex-shrink-0 px-4 pb-5 pt-2 print:hidden">
-          <div className="max-w-2xl mx-auto space-y-2">
+        <div className="flex-shrink-0 px-4 pb-6 pt-3 print:hidden">
+          <div className="max-w-[760px] mx-auto space-y-2">
 
             {/* Filter panel — smooth accordion */}
             <div className={`overflow-hidden transition-all duration-200 ease-out
@@ -424,16 +424,16 @@ export default function ChatInterface() {
                 rows={1}
                 disabled={isBlocked}
                 maxLength={4000}
-                className="w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-sm
+                className="w-full resize-none bg-transparent px-4 pt-4 pb-2.5 text-sm
                            text-text-primary placeholder-text-muted
                            focus:outline-none disabled:opacity-40 leading-relaxed"
-                style={{ minHeight: "52px", maxHeight: "160px" }}
+                style={{ minHeight: "56px", maxHeight: "160px" }}
                 onInput={(e) => {
                   e.target.style.height = "auto";
                   e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
                 }}
               />
-              <div className="flex items-center justify-between px-3 pb-2.5">
+              <div className="flex items-center justify-between px-3 pb-3">
                 <div className="flex items-center gap-2.5">
                   <span className="text-[11px] text-text-muted select-none">
                     Enter ↵ &nbsp;·&nbsp; Shift+Enter per andare a capo
@@ -496,7 +496,7 @@ function WelcomeScreen() {
   return (
     <div className="text-center px-6 pb-10 max-w-md">
       {/* Moby Prince ferry illustration */}
-      <div className="inline-flex items-center justify-center mb-8">
+      <div className="inline-flex items-center justify-center mb-6">
         <svg viewBox="0 0 96 52" fill="none" className="w-24 h-14 text-accent/70"
              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           {/* Hull */}
