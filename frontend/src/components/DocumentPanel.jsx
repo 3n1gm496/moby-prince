@@ -28,37 +28,33 @@ function formatDate(iso) {
 }
 
 // ── ChunksSection ─────────────────────────────────────────────────────────────
-// Accepts a primary documentId plus optional candidateIds fallback list.
-// Tries each candidate in order until one returns chunks.
+// For GCS files: resolves via URI lookup (gcsPath → /chunks-by-gcs-path).
+// For DE documents: direct lookup via documentId.
 
-function ChunksSection({ documentId, candidateIds = [] }) {
+function ChunksSection({ documentId, gcsPath }) {
   const [phase,  setPhase]  = useState("idle");
   const [chunks, setChunks] = useState([]);
-
-  // Deduplicated ordered list of IDs to try
-  const candidates = [...new Set([documentId, ...candidateIds].filter(Boolean))];
 
   const load = useCallback(async () => {
     if (phase !== "idle") return;
     setPhase("loading");
-    for (const id of candidates) {
-      try {
-        const res = await fetch(
-          `/api/evidence/documents/${encodeURIComponent(id)}/chunks`
-        );
-        if (res.status === 501) { setPhase("unavailable"); return; }
-        if (res.status === 404) continue; // try next candidate
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setChunks(data.chunks || []);
-        setPhase("done");
-        return;
-      } catch (err) {
-        if (err.message?.startsWith("HTTP")) { setPhase("error"); return; }
-      }
+
+    const url = gcsPath
+      ? `/api/evidence/chunks-by-gcs-path?path=${encodeURIComponent(gcsPath)}`
+      : `/api/evidence/documents/${encodeURIComponent(documentId)}/chunks`;
+
+    try {
+      const res = await fetch(url);
+      if (res.status === 501) { setPhase("unavailable"); return; }
+      if (res.status === 404) { setPhase("notindexed"); return; }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setChunks(data.chunks || []);
+      setPhase("done");
+    } catch {
+      setPhase("error");
     }
-    setPhase("notindexed");
-  }, [candidates.join(","), phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gcsPath, documentId, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (phase === "idle") {
     return (
@@ -342,7 +338,7 @@ export default function DocumentPanel({ doc, onClose }) {
               </h3>
               <ChunksSection
                 documentId={doc.id}
-                candidateIds={doc.gcs?.deIdCandidates}
+                gcsPath={doc.gcs?.fullPath}
               />
             </section>
           )}

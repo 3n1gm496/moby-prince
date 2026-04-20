@@ -21,6 +21,7 @@
 
 const { Router } = require('express');
 const de          = require('../services/discoveryEngine');
+const config      = require('../config');
 const { normalizeSearch } = require('../transformers/search');
 const { validateQuery, validateDocumentId } = require('../middleware/validate');
 const { validateFilters }       = require('../middleware/validateFilters');
@@ -58,6 +59,33 @@ router.post('/search', [validateQuery, validateFilters], async (req, res, next) 
       evidence,
       meta: normalized.meta,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/evidence/chunks-by-gcs-path?path=... ──────────────────────────────
+// Resolves a GCS object path to a DE document ID via URI filter, then returns
+// its indexed chunks. Requires both DATA_STORE_ID and GCS_BUCKET to be set.
+
+router.get('/chunks-by-gcs-path', async (req, res, next) => {
+  const gcsPath = req.query.path;
+  if (!gcsPath) return res.status(400).json({ error: 'path query param required' });
+  if (!config.gcsBucket) return res.status(501).json({ error: 'GCS_BUCKET not configured' });
+
+  const uri = `gs://${config.gcsBucket}/${gcsPath}`;
+  try {
+    const docId = await de.getDocumentIdByUri(uri);
+    if (!docId) return res.status(404).json({ error: 'Document not found in Discovery Engine' });
+
+    const raw    = await de.getDocumentChunks(docId);
+    const chunks = (raw.chunks || []).map(chunk => ({
+      id:             chunk.id || _extractId(chunk.name),
+      content:        chunk.content || '',
+      pageIdentifier: chunk.pageSpan?.pageStart?.toString() || null,
+    }));
+
+    res.json({ documentId: docId, uri, chunks, meta: { total: chunks.length } });
   } catch (err) {
     next(err);
   }

@@ -288,4 +288,29 @@ async function listDocuments(pageToken = null, pageSize = 25) {
   return _get(url);
 }
 
-module.exports = { answer, search, getDocumentChunks, listDocuments, DiscoveryEngineError };
+/**
+ * Look up a DE document ID by its GCS URI.
+ * Uses listDocuments with a uri filter — returns null if not found.
+ *
+ * @param {string} uri  Full GCS URI, e.g. "gs://my-bucket/path/to/file.pdf"
+ */
+async function getDocumentIdByUri(uri) {
+  if (!config.dataStoreBase) {
+    throw new DiscoveryEngineError(
+      'DATA_STORE_ID is not configured — chunk lookup unavailable.',
+      501,
+    );
+  }
+  const params = new URLSearchParams({
+    pageSize: '1',
+    filter:   `uri = "${uri}"`,
+  });
+  const url  = `${config.dataStoreBase}/branches/0/documents?${params}`;
+  const data = await _get(url);
+  const doc  = data.documents?.[0];
+  if (!doc) return null;
+  const parts = (doc.name || '').split('/');
+  return parts[parts.length - 1] || null;
+}
+
+module.exports = { answer, search, getDocumentChunks, listDocuments, getDocumentIdByUri, DiscoveryEngineError };

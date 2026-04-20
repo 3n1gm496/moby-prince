@@ -40,9 +40,8 @@ const FILE_ICON_COLORS = {
 };
 
 function gcsFileToDoc(file) {
-  const nameWithoutExt = file.name.replace(/\.(pdf|docx?|xlsx?|txt|html?)$/i, "");
   return {
-    id:                nameWithoutExt,
+    id:                file.fullPath,
     title:             file.name,
     uri:               null,
     mimeType:          file.contentType,
@@ -57,13 +56,6 @@ function gcsFileToDoc(file) {
       size:        file.size,
       contentType: file.contentType,
       updated:     file.updated,
-      // Candidate DE document IDs to try in order (DE assigns IDs during indexing,
-      // exact format depends on how documents were imported).
-      deIdCandidates: [
-        nameWithoutExt,          // most common: filename without extension
-        file.name,               // filename with extension
-        file.fullPath,           // full GCS path (e.g. "folder/subfolder/file.pdf")
-      ],
     },
   };
 }
