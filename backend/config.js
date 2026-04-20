@@ -22,6 +22,13 @@ const projectId   = required('GOOGLE_CLOUD_PROJECT');
 const location    = optional('GCP_LOCATION', 'eu');
 const engineId    = required('ENGINE_ID');
 const dataStoreId = optional('DATA_STORE_ID');
+const apiKey      = optional('API_KEY');
+
+// Validate FRONTEND_ORIGIN is a real URL (misconfiguration in prod would silently break CORS)
+const frontendOriginRaw = optional('FRONTEND_ORIGIN', 'http://localhost:5173');
+try { new URL(frontendOriginRaw); } catch {
+  throw new Error(`Invalid FRONTEND_ORIGIN: "${frontendOriginRaw}" — must be a valid URL`);
+}
 
 const apiBase        = `https://${location}-discoveryengine.googleapis.com`;
 const collectionBase = `${apiBase}/v1/projects/${projectId}/locations/${location}/collections/default_collection`;
@@ -36,7 +43,8 @@ const config = {
   location,
   engineId,
   dataStoreId,
-  frontendOrigin: optional('FRONTEND_ORIGIN', 'http://localhost:5173'),
+  apiKey,
+  frontendOrigin: frontendOriginRaw,
 
   // BigQuery evidence layer (optional — not active in the current deployment)
   bigquery: {
@@ -83,11 +91,15 @@ config.printStartup = function printStartup(log) {
     engineId:       config.engineId,
     dataStoreId:    config.dataStoreId ?? '(not set)',
     frontendOrigin: config.frontendOrigin,
+    apiKeyEnabled:  !!config.apiKey,
     bqDataset:      `${config.bigquery.projectId}.${config.bigquery.datasetId}`,
   }, 'Server configuration loaded');
 
   if (!config.dataStoreId) {
     log.warn({}, 'DATA_STORE_ID is not set — chunk/document lookup endpoints will be disabled');
+  }
+  if (!config.apiKey && config.isProd) {
+    log.warn({}, 'API_KEY is not set — all API endpoints are publicly accessible');
   }
 };
 

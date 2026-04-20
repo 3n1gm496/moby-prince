@@ -60,6 +60,12 @@ async function main() {
     } catch (err) {
       log.warn({ error: err.message }, '@google-cloud/documentai not available — large PDFs will be quarantined');
     }
+  } else {
+    log.warn(
+      {},
+      'DOCAI_PROCESSOR_ID is not set — PDFs larger than 50 MB will be quarantined instead of processed. ' +
+      'Set DOCAI_PROCESSOR_ID to enable the Document AI pipeline for large files.',
+    );
   }
 
   // ── Initialise state store ────────────────────────────────────────────────

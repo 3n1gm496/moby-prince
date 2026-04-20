@@ -8,11 +8,12 @@ const cors      = require('cors');
 const helmet    = require('helmet');
 const rateLimit = require('express-rate-limit');
 
-const config        = require('./config');
-const { logger }    = require('./logger');
-const requestId     = require('./middleware/requestId');
-const requestLogger = require('./middleware/requestLogger');
-const errorHandler  = require('./middleware/errorHandler');
+const config             = require('./config');
+const { logger }         = require('./logger');
+const requestId          = require('./middleware/requestId');
+const requestLogger      = require('./middleware/requestLogger');
+const errorHandler       = require('./middleware/errorHandler');
+const { requireApiKey }  = require('./middleware/auth');
 
 const de             = require('./services/discoveryEngine');
 const answerRouter   = require('./routes/answer');
@@ -24,21 +25,27 @@ const app = express();
 
 // ── Rate limiters ─────────────────────────────────────────────────────────────
 
-// /api/answer is expensive (Vertex AI call) — cap at 20 req/min per IP
+// Rate-limit key: use API key when present so limits are per-client rather than
+// per-IP (which breaks behind load balancers where all traffic shares one IP).
+const _rateLimitKey = (req) => req.headers['x-api-key'] || req.ip;
+
+// /api/answer is expensive (Vertex AI call) — cap at 20 req/min per client
 const answerLimiter = rateLimit({
   windowMs: 60_000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: _rateLimitKey,
   message: { error: 'Troppe richieste. Riprova tra un minuto.' },
 });
 
-// General API cap — 120 req/min per IP (search, evidence, health)
+// General API cap — 120 req/min per client (search, evidence, health)
 const generalLimiter = rateLimit({
   windowMs: 60_000,
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: _rateLimitKey,
   message: { error: 'Troppe richieste. Riprova tra un minuto.' },
 });
 
@@ -55,11 +62,11 @@ app.use(express.json({ limit: '32kb' }));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-app.use('/api/answer',   answerLimiter,   answerRouter);
-app.use('/api/ask',      answerLimiter,   answerRouter); // backwards-compat alias
-app.use('/api/search',   generalLimiter,  searchRouter);
-app.use('/api/evidence', generalLimiter,  evidenceRouter);
-app.use('/api/health',                    healthRouter);
+app.use('/api/answer',   answerLimiter,  requireApiKey, answerRouter);
+app.use('/api/ask',      answerLimiter,  requireApiKey, answerRouter); // backwards-compat alias
+app.use('/api/search',   generalLimiter, requireApiKey, searchRouter);
+app.use('/api/evidence', generalLimiter, requireApiKey, evidenceRouter);
+app.use('/api/health',                                  healthRouter);  // health is always public
 
 // ── Error handler (must be last) ──────────────────────────────────────────────
 
