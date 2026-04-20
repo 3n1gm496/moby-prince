@@ -15,14 +15,16 @@ All configuration is read from environment variables at startup. The server thro
 | `LOG_LEVEL` | no | `debug` (dev) / `info` (prod) | Minimum log severity: `debug`, `info`, `warn`, `error` |
 | `FRONTEND_ORIGIN` | no | `http://localhost:5173` | Allowed CORS origin. Set to your frontend URL in production. |
 | `GOOGLE_CLOUD_PROJECT` | no | same as above | Used for Cloud Trace integration in log entries. Automatically available on Cloud Run. |
-| `BQ_PROJECT_ID` | no | `GOOGLE_CLOUD_PROJECT` | BigQuery project for the evidence dataset (Phase 5, not yet wired). |
+| `CHUNK_CONTEXT_PREV` | no | `1` | Adjacent chunks before each match in `:answer` responses. |
+| `CHUNK_CONTEXT_NEXT` | no | `1` | Adjacent chunks after each match in `:answer` responses. |
+| `BQ_PROJECT_ID` | no | `GOOGLE_CLOUD_PROJECT` | BigQuery project for the evidence dataset (optional, not active). |
 | `BQ_DATASET_ID` | no | `evidence` | BigQuery dataset name for the evidence layer. |
 
 ### Discovery Engine endpoints
 
 The backend derives API URLs from `GOOGLE_CLOUD_PROJECT`, `GCP_LOCATION`, and `ENGINE_ID`. You never set these URLs directly.
 
-- **Answer** (RAG): `https://{location}-discoveryengine.googleapis.com/v1alpha/…:answer`
+- **Answer** (RAG): `https://{location}-discoveryengine.googleapis.com/v1/…:answer`
 - **Search** (chunks): `https://{location}-discoveryengine.googleapis.com/v1/…:search`
 
 ---
