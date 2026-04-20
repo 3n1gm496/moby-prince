@@ -21,6 +21,7 @@ const searchRouter    = require('./routes/search');
 const evidenceRouter  = require('./routes/evidence');
 const analysisRouter  = require('./routes/analysis');
 const storageRouter   = require('./routes/storage');
+const timelineRouter  = require('./routes/timeline');
 const healthRouter    = require('./routes/health');
 
 const app = express();
@@ -70,6 +71,7 @@ app.use('/api/search',   generalLimiter, requireApiKey, searchRouter);
 app.use('/api/evidence', generalLimiter, requireApiKey, evidenceRouter);
 app.use('/api/analysis', generalLimiter, requireApiKey, analysisRouter);
 app.use('/api/storage',  generalLimiter, requireApiKey, storageRouter);
+app.use('/api/timeline', generalLimiter, requireApiKey, timelineRouter);
 app.use('/api/health',                                  healthRouter);  // health is always public
 
 // ── Error handler (must be last) ──────────────────────────────────────────────
