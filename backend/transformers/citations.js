@@ -59,8 +59,9 @@ function buildCitations(answerObj) {
             chunkInfo.pageSpan?.pageStart?.toString() ||
             null,
           // documentId enables GET /api/evidence/documents/:id/chunks drill-down.
-          // Decode to plain string; Discovery Engine often stores IDs with %20 etc.
-          documentId: _safeDecodeId(docMeta.id) || _uriToDocId(uri),
+          // Only use the DE-internal ID (docMeta.id); falling back to the URI
+          // filename gives an invalid ID that always returns 404 from DE.
+          documentId: _safeDecodeId(docMeta.id) || null,
         };
       })
       .filter(Boolean);

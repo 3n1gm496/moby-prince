@@ -111,7 +111,7 @@ function buildEvidence(answerObj, citations) {
         unstructured.chunkContents?.[0]?.pageIdentifier ||
         chunkInfo.pageSpan?.pageStart?.toString()       ||
         null,
-      documentId: _safeDecodeId(docMeta.id) || _uriToDocId(uri),
+      documentId: _safeDecodeId(docMeta.id) || null,
       citationIds: refToCitations.get(index) || [],
       // Struct metadata — populated once the datastore schema includes these fields
       metadata: _extractStructMetadata(ref),

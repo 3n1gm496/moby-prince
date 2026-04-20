@@ -1,144 +1,17 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AnchorAvatar from "./AnchorAvatar";
 import EvidenceSection from "./EvidenceSection";
 
-// ─── CitationTooltip ──────────────────────────────────────────────────────────
-
-function CitationTooltip({ citation }) {
-  const src = citation.sources?.[0];
-  if (!src) return null;
-  // Prefer explicit title; fall back to document ID or URI filename
-  const displayTitle =
-    (src.title && !/^Documento \d+$/.test(src.title))
-      ? src.title
-      : src.documentId
-        ?? src.uri?.split('/').pop()?.replace(/%20/g, ' ')
-        ?? `Citazione ${citation.id}`;
-  return (
-    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 z-50
-                    bg-surface-raised border border-border rounded-xl p-3
-                    shadow-2xl text-left pointer-events-none animate-fade-in surface-depth">
-      <p className="text-[12px] font-medium text-text-primary mb-1 line-clamp-2 leading-snug">
-        {displayTitle}
-      </p>
-      {src.pageIdentifier && (
-        <p className="text-[10px] text-text-muted font-mono mb-1.5">p. {src.pageIdentifier}</p>
-      )}
-      {src.snippet && (
-        <p className="text-[11px] text-text-secondary italic leading-relaxed line-clamp-3">
-          &ldquo;{src.snippet.slice(0, 160)}{src.snippet.length > 160 ? "…" : ""}&rdquo;
-        </p>
-      )}
-      {/* Arrow */}
-      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0
-                      border-l-4 border-r-4 border-t-4
-                      border-l-transparent border-r-transparent border-t-border" />
-    </div>
-  );
-}
-
 // ─── AnnotatedAnswer ──────────────────────────────────────────────────────────
+// Renders the answer as clean prose. Citations are surfaced via the "N fonti"
+// bar and EvidenceSection below — never by splitting the text mid-word.
 
-function AnnotatedAnswer({ text, citations, onInlineCite }) {
-  const [hoveredCitId, setHoveredCitId] = useState(null);
-  const hoverTimerRef = useRef(null);
-
-  const handleMouseEnter = (id) => {
-    hoverTimerRef.current = setTimeout(() => setHoveredCitId(id), 280);
-  };
-  const handleMouseLeave = () => {
-    clearTimeout(hoverTimerRef.current);
-    setHoveredCitId(null);
-  };
-
-  if (!citations || citations.length === 0) {
-    return (
-      <div className="prose-answer">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-      </div>
-    );
-  }
-
-  const annotations = citations
-    .filter((c) => c.startIndex != null && c.endIndex != null)
-    .map((c) => ({ ...c, start: Number(c.startIndex), end: Number(c.endIndex) }))
-    .filter((ann) => ann.start < text.length)
-    .sort((a, b) => a.start - b.start);
-
-  const segments = [];
-  let cursor = 0, idx = 0;
-  annotations.forEach((ann) => {
-    if (ann.start < cursor) return;
-    if (ann.start > cursor)
-      segments.push({ type: "text", key: `s${idx++}`, content: text.slice(cursor, ann.start) });
-    segments.push({ type: "text",     key: `s${idx++}`, content: text.slice(ann.start, ann.end) });
-    segments.push({ type: "citation", key: `c${ann.id}`, citation: ann });
-    cursor = ann.end;
-  });
-  if (cursor < text.length)
-    segments.push({ type: "text", key: `s${idx++}`, content: text.slice(cursor) });
-
+function AnnotatedAnswer({ text }) {
   return (
     <div className="prose-answer">
-      {segments.map((seg) =>
-        seg.type === "citation" ? (
-          <button
-            key={seg.key}
-            onClick={() => onInlineCite(seg.citation)}
-            onMouseEnter={() => handleMouseEnter(seg.citation.id)}
-            onMouseLeave={handleMouseLeave}
-            className="citation-badge mx-0.5 relative"
-            title={`Fonte ${seg.citation.id}`}
-          >
-            {seg.citation.id}
-            {hoveredCitId === seg.citation.id && (
-              <CitationTooltip citation={seg.citation} />
-            )}
-          </button>
-        ) : (
-          <ReactMarkdown key={seg.key} remarkPlugins={[remarkGfm]}>{seg.content}</ReactMarkdown>
-        )
-      )}
-    </div>
-  );
-}
-
-// ─── InlineCitationCard ───────────────────────────────────────────────────────
-
-function InlineCitationCard({ citation, onClose, onOpenPanel }) {
-  const src = citation.sources?.[0];
-  return (
-    <div className="rounded-xl border border-border bg-surface-raised p-3 mt-2 text-xs animate-fade-in surface-depth">
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-medium text-text-primary leading-snug flex-1">
-          {src?.title || `Citazione ${citation.id}`}
-        </span>
-        <button onClick={onClose} aria-label="Chiudi"
-                className="text-text-muted hover:text-text-secondary p-0.5 flex-shrink-0 transition-colors">
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      {src?.pageIdentifier && (
-        <p className="text-text-secondary font-mono mb-2">p.&nbsp;{src.pageIdentifier}</p>
-      )}
-      {src?.snippet && (
-        <p className="text-text-secondary italic leading-relaxed mb-2 line-clamp-3">
-          &ldquo;{src.snippet.slice(0, 220)}{src.snippet.length > 220 ? "…" : ""}&rdquo;
-        </p>
-      )}
-      {(citation.sources?.length ?? 0) > 0 && (
-        <button onClick={onOpenPanel}
-                className="text-accent hover:text-accent-hover transition-colors flex items-center gap-1">
-          Vedi tutte le fonti
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      )}
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </div>
   );
 }
@@ -148,18 +21,12 @@ function InlineCitationCard({ citation, onClose, onOpenPanel }) {
 export default function MessageBubble({ message, onCitationClick, onFollowUp, onRetry }) {
   const [showSteps, setShowSteps] = useState(false);
   const [copied,    setCopied]    = useState(false);
-  const [inlineCit, setInlineCit] = useState(null);
 
   const handleCopy = () =>
     navigator.clipboard.writeText(message.text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-
-  const handleInlineCite = (c) => setInlineCit((p) => (p?.id === c.id ? null : c));
-  const handleOpenPanel  = () => {
-    if (inlineCit) { onCitationClick(inlineCit); setInlineCit(null); }
-  };
 
   // ── User ─────────────────────────────────────────────────────────────────────
   if (message.role === "user") {
@@ -250,11 +117,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
             </button>
           )}
 
-          <AnnotatedAnswer
-            text={message.text}
-            citations={isStreaming ? null : message.citations}
-            onInlineCite={handleInlineCite}
-          />
+          <AnnotatedAnswer text={message.text} />
 
           {/* Streaming cursor */}
           {isStreaming && (
@@ -273,18 +136,12 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
           </p>
         )}
 
-        {/* Inline citation popover */}
-        {inlineCit && !isStreaming && (
-          <InlineCitationCard citation={inlineCit} onClose={() => setInlineCit(null)} onOpenPanel={handleOpenPanel} />
-        )}
-
         {/* Evidence drawer */}
         {!isStreaming && (
           <EvidenceSection
             evidence={message.evidence}
             citations={message.citations}
-            activeCitationId={inlineCit?.id}
-            onCitationClick={(cit) => { onCitationClick(cit); setInlineCit(null); }}
+            onCitationClick={onCitationClick}
           />
         )}
 

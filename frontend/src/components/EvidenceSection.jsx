@@ -203,7 +203,7 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
 
 // ─── EvidenceSection ──────────────────────────────────────────────────────────
 
-export default function EvidenceSection({ evidence, citations, activeCitationId, onCitationClick }) {
+export default function EvidenceSection({ evidence, citations, onCitationClick }) {
   const [open, setOpen] = useState(false);
 
   if (!evidence || evidence.length === 0) return null;
@@ -234,7 +234,7 @@ export default function EvidenceSection({ evidence, citations, activeCitationId,
               key={item.index}
               item={item}
               citations={citations || []}
-              isActive={activeCitationId != null && item.citationIds?.includes(activeCitationId)}
+              isActive={false}
               onCitationClick={onCitationClick}
             />
           ))}
