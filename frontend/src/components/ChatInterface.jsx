@@ -126,7 +126,10 @@ export default function ChatInterface() {
 
   const handleExport = useCallback(() => {
     const conv = history.activeConversation;
-    if (!conv?.messages.length) return;
+    if (!conv?.messages.length) {
+      showToast({ message: "Nessun messaggio da esportare", duration: 3000 });
+      return;
+    }
     const date = new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" });
     const lines = [
       `# ${conv.title}\n`,
@@ -211,6 +214,7 @@ export default function ChatInterface() {
                            hover:bg-surface-raised transition-colors flex-shrink-0"
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Apri menu"
+                aria-expanded={sidebarOpen}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -381,6 +385,7 @@ export default function ChatInterface() {
                 placeholder="Formulare un quesito relativo agli atti dell'inchiesta…"
                 rows={1}
                 disabled={isBlocked}
+                maxLength={4000}
                 className="w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-sm
                            text-text-primary placeholder-text-muted
                            focus:outline-none disabled:opacity-40 leading-relaxed"
@@ -393,7 +398,7 @@ export default function ChatInterface() {
               <div className="flex items-center justify-between px-3 pb-2.5">
                 <div className="flex items-center gap-2.5">
                   <span className="text-[11px] text-text-muted select-none">
-                    Enter ↵ &nbsp;·&nbsp; Shift+Enter per a capo
+                    Enter ↵ &nbsp;·&nbsp; Shift+Enter per andare a capo
                   </span>
                   <button
                     type="button"

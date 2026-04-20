@@ -107,6 +107,7 @@ export default function EvidenceSection({ evidence, citations, activeCitationId,
   return (
     <div className="mt-2 print:hidden">
       <button onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
               className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors">
         <svg className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`}
              fill="none" stroke="currentColor" viewBox="0 0 24 24">

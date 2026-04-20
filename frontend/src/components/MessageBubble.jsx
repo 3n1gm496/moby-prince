@@ -178,7 +178,8 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
           {!isStreaming && (
             <button onClick={handleCopy} aria-label={copied ? "Copiato" : "Copia"}
                     className="absolute -top-1 -right-1 p-1.5 rounded-lg
-                               opacity-0 group-hover:opacity-100 transition-opacity duration-150
+                               opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100
+                               transition-opacity duration-150
                                text-text-muted hover:text-text-secondary hover:bg-surface-raised
                                print:hidden">
               {copied
@@ -272,6 +273,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
         {!isStreaming && message.steps?.length > 0 && (
           <div className="print:hidden">
             <button onClick={() => setShowSteps((v) => !v)}
+                    aria-expanded={showSteps}
                     className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors">
               <svg className={`w-3 h-3 transition-transform ${showSteps ? "rotate-90" : ""}`}
                    fill="none" stroke="currentColor" viewBox="0 0 24 24">

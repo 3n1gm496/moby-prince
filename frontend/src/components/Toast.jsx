@@ -10,7 +10,7 @@ function ToastItem({ toast, onDismiss }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3 rounded-xl min-w-[260px] max-w-sm
                     bg-surface-raised border border-border shadow-2xl text-sm">
-      <span className="flex-1 text-text-secondary leading-snug">{toast.message}</span>
+      <span className="flex-1 text-text-secondary leading-snug line-clamp-3">{toast.message}</span>
       {toast.action && (
         <button
           onClick={() => { toast.action.onClick(); onDismiss(toast.id); }}
