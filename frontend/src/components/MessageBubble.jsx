@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AnchorAvatar from "./AnchorAvatar";
@@ -6,9 +6,48 @@ import EvidenceSection from "./EvidenceSection";
 
 const COLLAPSE_THRESHOLD = 1500;
 
+// ─── CitationTooltip ──────────────────────────────────────────────────────────
+
+function CitationTooltip({ citation }) {
+  const src = citation.sources?.[0];
+  if (!src) return null;
+  return (
+    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 z-50
+                    bg-surface-raised border border-border rounded-xl p-3
+                    shadow-2xl text-left pointer-events-none animate-fade-in surface-depth">
+      <p className="text-[12px] font-medium text-text-primary mb-1 line-clamp-2 leading-snug">
+        {src.title}
+      </p>
+      {src.pageIdentifier && (
+        <p className="text-[10px] text-text-muted font-mono mb-1.5">p. {src.pageIdentifier}</p>
+      )}
+      {src.snippet && (
+        <p className="text-[11px] text-text-secondary italic leading-relaxed line-clamp-3">
+          &ldquo;{src.snippet.slice(0, 160)}{src.snippet.length > 160 ? "…" : ""}&rdquo;
+        </p>
+      )}
+      {/* Arrow */}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0
+                      border-l-4 border-r-4 border-t-4
+                      border-l-transparent border-r-transparent border-t-border" />
+    </div>
+  );
+}
+
 // ─── AnnotatedAnswer ──────────────────────────────────────────────────────────
 
 function AnnotatedAnswer({ text, citations, onInlineCite }) {
+  const [hoveredCitId, setHoveredCitId] = useState(null);
+  const hoverTimerRef = useRef(null);
+
+  const handleMouseEnter = (id) => {
+    hoverTimerRef.current = setTimeout(() => setHoveredCitId(id), 280);
+  };
+  const handleMouseLeave = () => {
+    clearTimeout(hoverTimerRef.current);
+    setHoveredCitId(null);
+  };
+
   if (!citations || citations.length === 0) {
     return (
       <div className="prose-answer">
@@ -25,7 +64,7 @@ function AnnotatedAnswer({ text, citations, onInlineCite }) {
   const segments = [];
   let cursor = 0, idx = 0;
   annotations.forEach((ann) => {
-    if (ann.start < cursor) return; // skip overlapping annotations to avoid duplicate text
+    if (ann.start < cursor) return; // skip overlapping annotations
     if (ann.start > cursor)
       segments.push({ type: "text", key: `s${idx++}`, content: text.slice(cursor, ann.start) });
     segments.push({ type: "text",     key: `s${idx++}`, content: text.slice(ann.start, ann.end) });
@@ -39,9 +78,18 @@ function AnnotatedAnswer({ text, citations, onInlineCite }) {
     <div className="prose-answer">
       {segments.map((seg) =>
         seg.type === "citation" ? (
-          <button key={seg.key} onClick={() => onInlineCite(seg.citation)}
-                  className="citation-badge mx-0.5" title={`Fonte ${seg.citation.id}`}>
+          <button
+            key={seg.key}
+            onClick={() => onInlineCite(seg.citation)}
+            onMouseEnter={() => handleMouseEnter(seg.citation.id)}
+            onMouseLeave={handleMouseLeave}
+            className="citation-badge mx-0.5 relative"
+            title={`Fonte ${seg.citation.id}`}
+          >
             {seg.citation.id}
+            {hoveredCitId === seg.citation.id && (
+              <CitationTooltip citation={seg.citation} />
+            )}
           </button>
         ) : (
           <ReactMarkdown key={seg.key} remarkPlugins={[remarkGfm]}>{seg.content}</ReactMarkdown>
@@ -56,7 +104,7 @@ function AnnotatedAnswer({ text, citations, onInlineCite }) {
 function InlineCitationCard({ citation, onClose, onOpenPanel }) {
   const src = citation.sources?.[0];
   return (
-    <div className="rounded-xl border border-border bg-surface-raised p-3 mt-2 text-xs animate-fade-in">
+    <div className="rounded-xl border border-border bg-surface-raised p-3 mt-2 text-xs animate-fade-in surface-depth">
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="font-medium text-text-primary leading-snug flex-1">
           {src?.title || `Citazione ${citation.id}`}
@@ -92,10 +140,10 @@ function InlineCitationCard({ citation, onClose, onOpenPanel }) {
 // ─── MessageBubble ────────────────────────────────────────────────────────────
 
 export default function MessageBubble({ message, onCitationClick, onFollowUp, onRetry }) {
-  const [showSteps,    setShowSteps]    = useState(false);
-  const [copied,       setCopied]       = useState(false);
-  const [inlineCit,    setInlineCit]    = useState(null);
-  const [expanded,     setExpanded]     = useState(false);
+  const [showSteps, setShowSteps] = useState(false);
+  const [copied,    setCopied]    = useState(false);
+  const [inlineCit, setInlineCit] = useState(null);
+  const [expanded,  setExpanded]  = useState(false);
 
   const handleCopy = () =>
     navigator.clipboard.writeText(message.text).then(() => {
@@ -104,17 +152,16 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
     });
 
   const handleInlineCite = (c) => setInlineCit((p) => (p?.id === c.id ? null : c));
-
-  const handleOpenPanel = () => {
+  const handleOpenPanel  = () => {
     if (inlineCit) { onCitationClick(inlineCit); setInlineCit(null); }
   };
 
   // ── User ─────────────────────────────────────────────────────────────────────
   if (message.role === "user") {
     return (
-      <div className="flex justify-end animate-slide-up print:justify-start">
+      <div className="flex justify-end animate-slide-right print:justify-start">
         <div className="max-w-[72%] rounded-2xl rounded-tr-sm px-4 py-2.5
-                        bg-surface-raised text-text-primary text-sm leading-relaxed
+                        bg-surface-raised text-text-primary text-sm leading-relaxed surface-depth
                         print:max-w-full print:bg-transparent print:font-semibold print:px-0">
           {message.text}
         </div>
@@ -155,6 +202,11 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
     ? new Date(message.id).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
     : null;
 
+  // Heuristic: text > 600 chars ending without sentence punctuation may be truncated
+  const mightBeTruncated = !isStreaming
+    && message.text.length > 600
+    && !/[.!?»\u201d\u2019]$/.test(message.text.trimEnd());
+
   // Deduplicated sources for the summary bar
   const uniqueSources = (() => {
     const seen = new Set(), out = [];
@@ -173,7 +225,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
 
       <div className="flex-1 min-w-0 space-y-1.5">
 
-        {/* Answer text — flat, borderless */}
+        {/* Answer text */}
         <div className="relative">
           {/* Copy button */}
           {!isStreaming && (
@@ -222,6 +274,17 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
           </button>
         )}
 
+        {/* Truncation warning */}
+        {mightBeTruncated && (
+          <p className="flex items-center gap-1 text-[10px] text-text-muted italic">
+            <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            La risposta potrebbe essere incompleta.
+          </p>
+        )}
+
         {/* Inline citation popover */}
         {inlineCit && !isStreaming && (
           <InlineCitationCard citation={inlineCit} onClose={() => setInlineCit(null)} onOpenPanel={handleOpenPanel} />
@@ -237,31 +300,24 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
           />
         )}
 
-        {/* Metadata + actions bar — hover only */}
+        {/* Metadata + actions bar */}
         {!isStreaming && (
           <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 print:hidden"
                style={{ transitionDelay: "60ms" }}>
-
-            {/* Timestamp + word count */}
             <span className="text-[11px] text-text-muted tabular-nums">
               {timestamp && <>{timestamp} · </>}{wordCount} parole · ~{readTime} min
             </span>
-
-            {/* Divider */}
             {uniqueSources.length > 0 && <span className="text-text-muted text-[11px]">·</span>}
-
-            {/* Source count (opens panel on click) */}
             {uniqueSources.length > 0 && (
               <button onClick={() => onCitationClick(message.citations?.[0])}
                       className="text-[11px] text-text-muted hover:text-accent transition-colors">
                 {uniqueSources.length} {uniqueSources.length === 1 ? "fonte" : "fonti"}
               </button>
             )}
-
           </div>
         )}
 
-        {/* Source titles — subtle text, below metadata, print-visible */}
+        {/* Source titles — print only */}
         {!isStreaming && uniqueSources.length > 0 && (
           <div className="hidden print:flex flex-wrap gap-x-3 text-[11px] text-text-muted">
             {uniqueSources.map(({ src }, i) => (
@@ -310,6 +366,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

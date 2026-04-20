@@ -12,24 +12,30 @@ import AnchorAvatar from "./AnchorAvatar";
 import Toast from "./Toast";
 import { getFilterValueLabel, FILTER_SCHEMA } from "../filters/schema";
 
-function LoadingBubble() {
+// ─── SkeletonLoader ───────────────────────────────────────────────────────────
+
+function SkeletonLoader({ stage }) {
+  const label = stage === "retrying" ? "Nuovo tentativo…" : "Ricerca in corso…";
   return (
     <div className="flex justify-start gap-3 animate-fade-in">
       <AnchorAvatar />
-      <div className="flex items-center gap-1 py-1">
-        {[0, 150, 300].map((delay) => (
-          <span key={delay}
-                className="w-1 h-1 rounded-full bg-text-muted animate-bounce"
-                style={{ animationDelay: `${delay}ms` }} />
-        ))}
+      <div className="flex-1 min-w-0 pt-0.5 space-y-2.5">
+        <p className="text-[11px] text-text-muted animate-pulse">{label}</p>
+        <div className="space-y-2">
+          {[{ w: "w-3/4", d: "0ms" }, { w: "w-full", d: "80ms" }, { w: "w-5/6", d: "160ms" }, { w: "w-2/3", d: "240ms" }].map(({ w, d }, i) => (
+            <div key={i} className={`h-2.5 bg-surface-raised rounded-full animate-shimmer ${w}`}
+                 style={{ animationDelay: d }} />
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-// Discovery Engine sessions expire after ~60 min of idle. If the last session
-// activity was > 55 min ago we drop the session ID so DE starts a fresh session
-// rather than returning an error on a stale one.
+// ─── Session helpers ──────────────────────────────────────────────────────────
+
+// Discovery Engine sessions expire after ~60 min of idle. Drop the session ID
+// if > 55 min have passed so DE starts fresh rather than erroring on a stale one.
 const SESSION_MAX_IDLE_MS = 55 * 60 * 1000;
 
 function _effectiveSessionId(conv) {
@@ -38,10 +44,15 @@ function _effectiveSessionId(conv) {
   return conv.sessionId;
 }
 
+// ─── ChatInterface ────────────────────────────────────────────────────────────
+
 export default function ChatInterface() {
   const history = useChatHistory();
   const { filters, activeFilters, activeFilterCount, hasActiveFilters, setFilter, clearFilters } = useFilters();
-  const { messages, isLoading, loadingConvId, sendMessage, streamingMessage, stopStreaming } = useChat({
+  const {
+    messages, isLoading, loadingConvId, loadingStage,
+    sendMessage, streamingMessage, stopStreaming,
+  } = useChat({
     externalMessages:     history.activeConversation?.messages ?? [],
     externalSessionId:    _effectiveSessionId(history.activeConversation),
     activeConversationId: history.activeConversationId,
@@ -60,7 +71,7 @@ export default function ChatInterface() {
   const messagesContainerRef = useRef(null);
   const textareaRef          = useRef(null);
   const autoScrollRef        = useRef(true);
-  const [showScrollButton,   setShowScrollButton] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   const showLoadingBubble = loadingConvId !== null
     && loadingConvId === history.activeConversationId
@@ -93,7 +104,7 @@ export default function ChatInterface() {
     textareaRef.current?.focus();
   }, [history.activeConversationId, scrollToBottom]);
 
-  // ── Callbacks ───────────────────────────────────────────────────────────────
+  // ── Keyboard shortcuts ───────────────────────────────────────────────────────
 
   const handleNewChat = useCallback(() => {
     history.createConversation();
@@ -107,11 +118,14 @@ export default function ChatInterface() {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key === "n") { e.preventDefault(); handleNewChat(); }
       if (mod && e.key === "/") { e.preventDefault(); textareaRef.current?.focus(); }
-      if (mod && e.key === "p") { e.preventDefault(); window.print(); }
+      if (mod && e.key === "p") { e.preventDefault(); handlePrint(); }
+      if (mod && e.shiftKey && e.key === "f") { e.preventDefault(); setShowFilters(v => !v); }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [handleNewChat]);
+  }, [handleNewChat]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Actions ──────────────────────────────────────────────────────────────────
 
   const handleDeleteConversation = useCallback((id) => {
     const conv = history.conversations.find((c) => c.id === id);
@@ -123,6 +137,13 @@ export default function ChatInterface() {
       duration: 5000,
     });
   }, [history.conversations, history.deleteConversation, history.restoreConversation, showToast]);
+
+  const handlePrint = useCallback(() => {
+    const prev = document.title;
+    document.title = `Moby Prince — ${history.activeConversation?.title || "Archivio"}`;
+    window.print();
+    document.title = prev;
+  }, [history.activeConversation?.title]);
 
   const handleExport = useCallback(() => {
     const conv = history.activeConversation;
@@ -154,12 +175,18 @@ export default function ChatInterface() {
     a.href     = url;
     a.download = `moby-prince_${conv.title.replace(/[^a-z0-9àèéìòùÀÈÉÌÒÙ]/gi, "_").slice(0, 50)}.md`;
     document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   }, [history.activeConversation, showToast]);
 
   const handleSubmit = (e) => {
     e?.preventDefault();
     if (!input.trim() || isBlocked) return;
+    // Notify user if their Discovery Engine session expired silently
+    const conv = history.activeConversation;
+    if (conv?.sessionId && !_effectiveSessionId(conv)) {
+      showToast({ message: "Sessione scaduta — il contesto è stato resettato", duration: 4000 });
+    }
     const convId = history.ensureActiveConversation();
     sendMessage(input, convId);
     setInput("");
@@ -205,8 +232,12 @@ export default function ChatInterface() {
 
       <div className="flex flex-col flex-1 min-w-0">
 
-        {/* Header — minimal */}
-        <header className="flex-shrink-0 px-4 py-3 print:hidden">
+        {/* Header — glassmorphism on mobile, transparent on desktop */}
+        <header className="flex-shrink-0 px-4 py-3 print:hidden
+                           sticky top-0 z-10
+                           lg:bg-transparent lg:backdrop-blur-none
+                           bg-surface-sidebar/80 backdrop-blur-md
+                           border-b border-border/20 lg:border-transparent">
           <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
               <button
@@ -229,8 +260,8 @@ export default function ChatInterface() {
 
             {!isEmpty && (
               <div className="flex items-center gap-0.5 flex-shrink-0">
-                <button onClick={() => window.print()}
-                        title="Stampa (⌘P)" aria-label="Stampa"
+                <button onClick={handlePrint}
+                        title="Stampa / Salva PDF (⌘P)" aria-label="Stampa"
                         className="p-1.5 rounded-lg text-text-muted hover:text-text-secondary
                                    hover:bg-surface-raised transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -292,8 +323,8 @@ export default function ChatInterface() {
                     onRetry={handleRetry}
                   />
                 ))}
-                {showLoadingBubble  && <LoadingBubble />}
-                {streamingMessage   && (
+                {showLoadingBubble && <SkeletonLoader stage={loadingStage} />}
+                {streamingMessage && (
                   <MessageBubble key={`streaming-${streamingMessage.id}`} message={streamingMessage}
                                  onCitationClick={() => {}} onFollowUp={() => {}} onRetry={() => {}} />
                 )}
@@ -309,7 +340,7 @@ export default function ChatInterface() {
             <button
               onClick={() => { autoScrollRef.current = true; setShowScrollButton(false); scrollToBottom(); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs
-                         bg-surface-raised border border-border shadow-lg
+                         bg-surface-raised border border-border shadow-lg surface-depth
                          text-text-secondary hover:text-text-primary transition-colors"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -324,17 +355,20 @@ export default function ChatInterface() {
         <div className="flex-shrink-0 px-4 pb-5 pt-2 print:hidden">
           <div className="max-w-2xl mx-auto space-y-2">
 
-            {/* Filter panel */}
-            {showFilters && (
-              <FilterPanel
-                filters={filters}
-                onFilterChange={setFilter}
-                onClear={clearFilters}
-                activeFilterCount={activeFilterCount}
-              />
-            )}
+            {/* Filter panel — smooth accordion */}
+            <div className={`overflow-hidden transition-all duration-200 ease-out
+                             ${showFilters ? "max-h-[480px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"}`}>
+              <div className="pb-2">
+                <FilterPanel
+                  filters={filters}
+                  onFilterChange={setFilter}
+                  onClear={clearFilters}
+                  activeFilterCount={activeFilterCount}
+                />
+              </div>
+            </div>
 
-            {/* Active filter chips — shown when panel is closed */}
+            {/* Active filter chips */}
             {hasActiveFilters && !showFilters && (
               <div className="flex flex-wrap gap-1.5 px-1">
                 {Object.entries(activeFilters).map(([key, value]) => {
@@ -373,7 +407,7 @@ export default function ChatInterface() {
               </div>
             )}
 
-            <div className="ring-1 ring-border/60 rounded-2xl bg-surface-raised
+            <div className="ring-1 ring-border/60 rounded-2xl bg-surface-raised surface-depth
                             focus-within:ring-accent/30 transition-all duration-200">
               <textarea
                 ref={textareaRef}
@@ -403,6 +437,7 @@ export default function ChatInterface() {
                   <button
                     type="button"
                     onClick={() => setShowFilters(v => !v)}
+                    title="Filtri (⌘⇧F)"
                     aria-label={showFilters ? "Chiudi filtri" : "Apri filtri"}
                     className={`flex items-center gap-1 text-[11px] transition-colors ${
                       showFilters || hasActiveFilters
@@ -456,13 +491,34 @@ export default function ChatInterface() {
 function WelcomeScreen() {
   return (
     <div className="text-center px-6 pb-10 max-w-md">
-      <div className="inline-flex w-10 h-10 rounded-xl bg-surface-raised
-                      items-center justify-center mb-8">
-        <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-             strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="5" r="3" />
-          <line x1="12" y1="22" x2="12" y2="8" />
-          <path d="M5 12H2a10 10 0 0 0 20 0h-3" />
+      {/* Moby Prince ferry illustration */}
+      <div className="inline-flex items-center justify-center mb-8">
+        <svg viewBox="0 0 96 52" fill="none" className="w-24 h-14 text-accent/70"
+             stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          {/* Hull */}
+          <path d="M6 32 Q8 38 18 38 L78 38 Q88 38 90 32 L87 26 L9 26 Z" />
+          {/* Main deck structure */}
+          <rect x="22" y="16" width="52" height="10" rx="1.5" />
+          {/* Upper cabin */}
+          <rect x="32" y="8" width="32" height="8" rx="1.5" />
+          {/* Funnel */}
+          <path d="M57 8 L57 3" strokeWidth="2.5" />
+          <path d="M62 8 L63 3" strokeWidth="2" />
+          {/* Deck windows */}
+          <rect x="26" y="18.5" width="4" height="4" rx="0.8" />
+          <rect x="35" y="18.5" width="4" height="4" rx="0.8" />
+          <rect x="44" y="18.5" width="4" height="4" rx="0.8" />
+          <rect x="53" y="18.5" width="4" height="4" rx="0.8" />
+          <rect x="62" y="18.5" width="4" height="4" rx="0.8" />
+          {/* Cabin windows */}
+          <rect x="37" y="10.5" width="3.5" height="3.5" rx="0.7" />
+          <rect x="44.5" y="10.5" width="3.5" height="3.5" rx="0.7" />
+          <rect x="52" y="10.5" width="3.5" height="3.5" rx="0.7" />
+          {/* Water */}
+          <path d="M2 42 Q10 40 18 42 Q26 44 34 42 Q42 40 50 42 Q58 44 66 42 Q74 40 82 42 Q90 44 94 42"
+                strokeOpacity="0.5" />
+          <path d="M4 47 Q14 45 24 47 Q34 49 44 47 Q54 45 64 47 Q74 49 84 47"
+                strokeOpacity="0.25" />
         </svg>
       </div>
 

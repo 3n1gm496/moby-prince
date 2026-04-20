@@ -13,23 +13,14 @@
 
 L'applicazione permette di interrogare in linguaggio naturale l'intero corpus documentale della commissione — testimonianze, perizie, relazioni, verbali — e riceve risposte citate e verificabili, ancorate ai documenti originali.
 
-```
-Domanda in linguaggio naturale
-        │
-        ▼
-┌───────────────────┐     ┌─────────────────────────────┐
-│   Frontend        │────▶│   Backend (Express)          │
-│   React + nginx   │◀────│   /api/answer                │
-│   porta :5173     │     │   /api/search                │
-└───────────────────┘     │   /api/evidence              │
-                          └──────────┬──────────────────┘
-                                     │  ADC (Google credentials)
-                                     ▼
-                          ┌─────────────────────────────┐
-                          │   Vertex AI Search           │
-                          │   Discovery Engine v1        │
-                          │   CHUNKS mode + :answer      │
-                          └─────────────────────────────┘
+```mermaid
+graph LR
+    U([Utente]) -->|query| FE["Frontend\nReact + nginx\n:5173"]
+    FE -->|POST /api/answer\nSSE stream| BE["Backend\nExpress 4\n:3001"]
+    BE -->|ADC| DE["Vertex AI Search\nDiscovery Engine v1\n:answer API"]
+    DE -->|grounded answer\n+ citations| BE
+    BE -->|event: thinking\nevent: answer| FE
+    FE -->|risposta citata| U
 ```
 
 ---
@@ -58,36 +49,53 @@ Il frontend nginx fa da proxy per `/api/*` → backend sulla rete Docker interna
 
 ## Architettura
 
-```
-frontend/               React 18 · Vite · Tailwind CSS
-  src/
-    components/         ChatInterface · MessageBubble · CitationPanel
-                        EvidenceSection · Sidebar · FilterPanel
-    hooks/              useChat · useChatHistory · useFilters · useToast
-    filters/            schema.js — definizione filtri (frontend)
+```mermaid
+graph TD
+    subgraph frontend["Frontend (React 18 · Vite · Tailwind)"]
+        CI[ChatInterface]
+        MB[MessageBubble]
+        SB[Sidebar]
+        FP[FilterPanel]
+        CP[CitationPanel]
+        UC[useChat hook]
+        UCH[useChatHistory hook]
+        CI --> MB & SB & FP & CP
+        CI --> UC & UCH
+    end
 
-backend/                Node.js 20 · Express 4
-  routes/               answer · search · evidence · health
-  services/             discoveryEngine.js — client REST Vertex AI Search
-  transformers/         normalizzazione risposte DE → shape frontend
-  middleware/           requestId · requestLogger · validate · errorHandler
-  filters/              schema.js — definizione filtri (backend)
-  lib/                  utils.js — clamp, activeFilters
+    subgraph backend["Backend (Node.js 20 · Express 4)"]
+        AR[/api/answer]
+        SR[/api/search]
+        ER[/api/evidence]
+        HR[/api/health]
+        DE_SVC[discoveryEngine.js]
+        TR[transformers/answer]
+        AR --> DE_SVC --> TR
+        SR --> DE_SVC
+        ER --> DE_SVC
+    end
 
-ingestion/              Pipeline di indicizzazione (Cloud Run Job)
-  workers/              validator · splitter · indexer · documentai
-  pipeline/             state machine + retry
-  state/                InMemoryStore · FileStore · FirestoreStore
-  cloudrun/             entrypoint.js — comandi: ingest · scan · retry
-  scripts/              import-documents.js · patch-schema.js
+    subgraph ingestion["Ingestion (Cloud Run Job)"]
+        EP[entrypoint.js]
+        VAL[Validator]
+        SPL[Splitter]
+        DAI[DocumentAI Worker]
+        IDX[Indexer Worker]
+        EP --> VAL --> SPL --> IDX
+        SPL -->|PDF > 50 MB| DAI --> IDX
+    end
 
-deploy/
-  backend.sh            Cloud Run deploy
-  frontend.sh           GCS o Firebase Hosting deploy
-  schema.sh             Applica lo schema metadati al datastore
+    subgraph gcp["Google Cloud Platform"]
+        VTX["Vertex AI Search\n(Discovery Engine v1)"]
+        GCS["Cloud Storage\n(corpus PDF/TXT)"]
+        DOCAI["Document AI\n(OCR)"]
+    end
 
-scripts/
-  check-filter-schema.js  Verifica sincronizzazione schemi frontend/backend
+    UC -->|POST /api/answer| AR
+    DE_SVC -->|REST + ADC| VTX
+    IDX -->|PUT document| VTX
+    SPL -->|read| GCS
+    DAI -->|OCR| DOCAI
 ```
 
 ---
@@ -99,9 +107,17 @@ Tutti gli endpoint accettano e restituiscono JSON. Il backend è raggiungibile s
 ### `POST /api/answer`
 
 Risposta fondata con citazioni, powered by Vertex AI Search `:answer`.
+La risposta è in formato **Server-Sent Events** (`text/event-stream`).
+
+```
+event: thinking   data: {"stage":"searching"}
+event: answer     data: { answer: {...}, session: {...}, meta: {...} }
+-- oppure in caso di errore --
+event: error      data: {"message":"<messaggio in italiano>"}
+```
 
 ```json
-// Request
+// Request body
 {
   "query": "Quali furono le cause dell'incendio?",
   "sessionId": "123456789",        // opzionale — continua una sessione DE
@@ -111,7 +127,7 @@ Risposta fondata con citazioni, powered by Vertex AI Search `:answer`.
   }
 }
 
-// Response
+// Payload dell'evento answer
 {
   "answer": {
     "text": "Secondo le testimonianze…",
@@ -178,24 +194,18 @@ Vedere `ingestion/.env.example`. Le variabili principali sono le stesse del back
 
 ## Pipeline di ingestion
 
-La pipeline indicizza documenti PDF/TXT in Vertex AI Search tramite un Cloud Run Job (o localmente con il filesystem).
+```mermaid
+flowchart TD
+    GCS["gs://bucket/raw/*.pdf"] --> VAL["Validator\nverifica MIME e dimensioni"]
+    VAL -->|OK| SPL["Splitter\ndivide documenti > 2 MB"]
+    VAL -->|rifiutato| QUAR["Quarantine bucket"]
+    SPL -->|PDF ≤ 50 MB| IDX["IndexerWorker\nPUT → Vertex AI Search"]
+    SPL -->|PDF > 50 MB| DOCAI["DocumentAI Worker\nOCR + estrazione sezioni"]
+    DOCAI --> IDX
+    IDX --> DONE(["INDEXED ✓"])
 
-```
-gs://bucket/raw/*.pdf
-      │
-      ▼
-  Validator         — verifica dimensioni e tipo MIME
-      │
-      ▼
-  Splitter          — divide documenti > 2 MB in parti
-      │  (PDF > 50 MB)
-      ├──▶ DocumentAIWorker  — OCR + estrazione sezioni via Document AI
-      │
-      ▼
-  IndexerWorker     — PUT singolo documento su Vertex AI Search
-      │
-      ▼
-  INDEXED ✓
+    style DONE fill:#1a3a1a,stroke:#4a7c4a,color:#a3d9a3
+    style QUAR fill:#3a1a1a,stroke:#7c4a4a,color:#d9a3a3
 ```
 
 **Avvio locale (dry run):**
@@ -291,18 +301,37 @@ Il backend usa esclusivamente **Application Default Credentials (ADC)** — ness
 | docker-compose | Stesso file, montato come volume in `~/.config/gcloud` |
 | Cloud Run | Workload Identity del service account allegato |
 
-Per un deploy su rete privata (docker-compose su VM locale) non è necessaria alcuna ulteriore configurazione di autenticazione applicativa.
-
 ---
 
 ## Struttura della conversazione
+
+```mermaid
+sequenceDiagram
+    participant U as Utente
+    participant FE as Frontend
+    participant BE as Backend
+    participant DE as Vertex AI Search
+
+    U->>FE: invia domanda
+    FE->>BE: POST /api/answer (SSE)
+    BE-->>FE: event: thinking
+    FE->>FE: mostra SkeletonLoader
+    BE->>DE: answer API
+    DE-->>BE: grounded answer + citations
+    BE-->>FE: event: answer
+    FE->>FE: animazione reveal testo
+    FE-->>U: risposta con citazioni
+    note over FE: sessione DE scade dopo 55 min idle
+```
 
 Il frontend gestisce conversazioni multiple persistite in `localStorage` con:
 
 - **Debounce** (300 ms) sulle scritture per non saturare il browser
 - **Eviction** automatica delle conversazioni meno recenti se `localStorage` è pieno (le conversazioni bloccate vengono preservate)
-- **Scadenza sessione DE** dopo 55 minuti di inattività — nuova sessione trasparente all'utente
+- **Scadenza sessione DE** dopo 55 minuti di inattività — toast informativo all'utente
 - **Stato di caricamento per-conversazione** — si possono aprire più conversazioni senza blocchi reciproci
+- **Retry automatico** su errori 502/503 con backoff esponenziale (2s, 4s)
+- **Sync multi-tab** via `storage` event
 
 ---
 
