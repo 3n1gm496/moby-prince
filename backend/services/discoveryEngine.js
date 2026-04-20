@@ -268,4 +268,24 @@ async function getDocumentChunks(documentId) {
   return _get(url);
 }
 
-module.exports = { answer, search, getDocumentChunks, DiscoveryEngineError };
+/**
+ * GET paginated list of all documents from the datastore.
+ * Requires DATA_STORE_ID to be configured.
+ *
+ * @param {string|null} pageToken   Cursor token from a previous response
+ * @param {number}      pageSize    Max documents per page (1–100, default 25)
+ */
+async function listDocuments(pageToken = null, pageSize = 25) {
+  if (!config.dataStoreBase) {
+    throw new DiscoveryEngineError(
+      'DATA_STORE_ID is not configured — document listing unavailable.',
+      501,
+    );
+  }
+  const params = new URLSearchParams({ pageSize: String(pageSize) });
+  if (pageToken) params.set('pageToken', pageToken);
+  const url = `${config.dataStoreBase}/branches/0/documents?${params}`;
+  return _get(url);
+}
+
+module.exports = { answer, search, getDocumentChunks, listDocuments, DiscoveryEngineError };
