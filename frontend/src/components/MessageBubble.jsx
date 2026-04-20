@@ -290,18 +290,21 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
 
         {/* Metadata + actions bar */}
         {!isStreaming && (
-          <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 print:hidden"
-               style={{ transitionDelay: "60ms" }}>
-            <span className="text-[11px] text-text-muted tabular-nums">
-              {timestamp && <>{timestamp} · </>}{wordCount} parole · ~{readTime} min
-            </span>
-            {uniqueSources.length > 0 && <span className="text-text-muted text-[11px]">·</span>}
+          <div className="flex items-center gap-3 print:hidden">
+            {/* Fonti — always visible */}
             {uniqueSources.length > 0 && (
               <button onClick={() => onCitationClick(message.citations?.[0])}
-                      className="text-[11px] text-text-muted hover:text-accent transition-colors">
+                      className="text-[11px] text-text-secondary hover:text-accent transition-colors">
                 {uniqueSources.length} {uniqueSources.length === 1 ? "fonte" : "fonti"}
               </button>
             )}
+            {/* Timestamp + stats — visible only on hover */}
+            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                 style={{ transitionDelay: "60ms" }}>
+              <span className="text-[11px] text-text-muted tabular-nums">
+                {timestamp && <>{timestamp} · </>}{wordCount} parole · ~{readTime} min
+              </span>
+            </div>
           </div>
         )}
 
@@ -325,7 +328,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
             <div className="print:hidden">
               <button onClick={() => setShowSteps((v) => !v)}
                       aria-expanded={showSteps}
-                      className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors">
+                      className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors">
                 <svg className={`w-3 h-3 transition-transform ${showSteps ? "rotate-90" : ""}`}
                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -352,7 +355,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
             <div className="flex flex-col gap-0.5">
               {message.relatedQuestions.map((q, i) => (
                 <button key={i} onClick={() => onFollowUp(q)}
-                        className="text-left text-xs text-text-muted hover:text-accent
+                        className="text-left text-xs text-text-secondary hover:text-accent
                                    transition-colors flex items-start gap-1.5 group/q py-0.5">
                   <span className="mt-px opacity-50 group-hover/q:opacity-100 transition-opacity flex-shrink-0">→</span>
                   <span>{q}</span>
