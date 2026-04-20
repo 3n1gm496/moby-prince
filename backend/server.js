@@ -1,153 +1,100 @@
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const { GoogleAuth } = require("google-auth-library");
+'use strict';
+
+// Load .env before importing config (config reads process.env at module init)
+require('dotenv').config();
+
+const express   = require('express');
+const cors      = require('cors');
+const helmet    = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+const config        = require('./config');
+const { logger }    = require('./logger');
+const requestId     = require('./middleware/requestId');
+const requestLogger = require('./middleware/requestLogger');
+const errorHandler  = require('./middleware/errorHandler');
+
+const de             = require('./services/discoveryEngine');
+const answerRouter   = require('./routes/answer');
+const searchRouter   = require('./routes/search');
+const evidenceRouter = require('./routes/evidence');
+const healthRouter   = require('./routes/health');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
-const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT;
-const LOCATION = process.env.GCP_LOCATION || "eu";
-const ENGINE_ID = process.env.ENGINE_ID;
+// ── Rate limiters ─────────────────────────────────────────────────────────────
 
-const DISCOVERY_ENGINE_BASE = `https://${LOCATION}-discoveryengine.googleapis.com/v1alpha`;
-const ANSWER_ENDPOINT = `${DISCOVERY_ENGINE_BASE}/projects/${PROJECT_ID}/locations/${LOCATION}/collections/default_collection/engines/${ENGINE_ID}/servingConfigs/default_serving_config:answer`;
-
-const auth = new GoogleAuth({
-  scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+// /api/answer is expensive (Vertex AI call) — cap at 20 req/min per IP
+const answerLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Troppe richieste. Riprova tra un minuto.' },
 });
 
-app.use(express.json({ limit: "32kb" }));
-app.use(
-  cors({
-    origin: process.env.FRONTEND_ORIGIN || "http://localhost:5173",
-    methods: ["GET", "POST"],
-  })
-);
+// General API cap — 120 req/min per IP (search, evidence, health)
+const generalLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Troppe richieste. Riprova tra un minuto.' },
+});
 
-// Call Discovery Engine with a single retry on transient failures
-async function callAnswerApi(accessToken, payload, attempt = 1) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 55_000);
+// ── Middleware ────────────────────────────────────────────────────────────────
 
-  try {
-    const response = await fetch(ANSWER_ENDPOINT, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "X-Goog-User-Project": PROJECT_ID,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
+app.use(helmet({ contentSecurityPolicy: false })); // CSP managed by nginx
+app.use(requestId);
+app.use(requestLogger);
+app.use(express.json({ limit: '32kb' }));
+app.use(cors({
+  origin:  config.frontendOrigin,
+  methods: ['GET', 'POST'],
+}));
 
-    clearTimeout(timeoutId);
+// ── Routes ────────────────────────────────────────────────────────────────────
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(`Discovery Engine error (attempt ${attempt}):`, response.status, errorBody);
-      const err = new Error(`HTTP ${response.status}`);
-      err.status = response.status;
-      err.detail = errorBody;
-      throw err;
-    }
+app.use('/api/answer',   answerLimiter,   answerRouter);
+app.use('/api/ask',      answerLimiter,   answerRouter); // backwards-compat alias
+app.use('/api/search',   generalLimiter,  searchRouter);
+app.use('/api/evidence', generalLimiter,  evidenceRouter);
+app.use('/api/health',                    healthRouter);
 
-    const text = await response.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      // Some Discovery Engine responses use newline-delimited JSON — take first complete object
-      const firstLine = text.split("\n").find((l) => l.trim().startsWith("{"));
-      if (firstLine) return JSON.parse(firstLine);
-      throw new Error("Risposta non valida dal servizio di ricerca.");
-    }
-  } catch (err) {
-    clearTimeout(timeoutId);
+// ── Error handler (must be last) ──────────────────────────────────────────────
 
-    if (err.name === "AbortError") {
-      throw Object.assign(new Error("timeout"), { isTimeout: true });
-    }
+app.use(errorHandler);
 
-    // Retry once on transient network errors (not 4xx client errors)
-    const isTransient = !err.status || err.status >= 500;
-    if (attempt === 1 && isTransient) {
-      console.warn("Transient error, retrying after 2s…", err.message);
-      await new Promise((r) => setTimeout(r, 2000));
-      const client = await auth.getClient();
-      const { token } = await client.getAccessToken();
-      return callAnswerApi(token, payload, 2);
-    }
+// ── Start ─────────────────────────────────────────────────────────────────────
 
-    throw err;
-  }
+config.printStartup(logger);
+
+const server = app.listen(config.port, () => {
+  logger.info({ port: config.port }, `Server listening on port ${config.port}`);
+  // Soft startup probe — validates DE connectivity without blocking the server.
+  // Logs a warning on failure so ops can detect misconfiguration early, but
+  // does not crash because the engine may be temporarily unavailable.
+  de.search('_startup_probe_', { maxResults: 1 }).then(() => {
+    logger.info({}, 'Discovery Engine connectivity probe passed');
+  }).catch((err) => {
+    logger.warn({ error: err.message }, 'Discovery Engine connectivity probe failed — search may be unavailable');
+  });
+});
+
+// ── Graceful shutdown (Cloud Run sends SIGTERM before container stop) ─────────
+
+function shutdown(signal) {
+  logger.info({ signal }, 'Shutdown signal received — draining connections');
+  server.close(() => {
+    logger.info({}, 'All connections closed — exiting');
+    process.exit(0);
+  });
+  // Force exit if connections don't drain within 10 s
+  setTimeout(() => {
+    logger.error({}, 'Graceful shutdown timed out — forcing exit');
+    process.exit(1);
+  }, 10_000).unref();
 }
 
-app.post("/api/ask", async (req, res) => {
-  const { query, sessionId } = req.body;
-
-  if (!query || typeof query !== "string" || query.trim().length === 0) {
-    return res.status(400).json({ error: "Query non valida." });
-  }
-  if (query.trim().length > 2000) {
-    return res.status(400).json({ error: "La query supera il limite massimo di 2000 caratteri." });
-  }
-  if (sessionId !== undefined && (typeof sessionId !== "string" || sessionId.trim().length === 0)) {
-    return res.status(400).json({ error: "sessionId non valido." });
-  }
-
-  try {
-    const client = await auth.getClient();
-    const tokenResponse = await client.getAccessToken();
-    const accessToken = tokenResponse.token;
-
-    const payload = {
-      query: { text: query.trim() },
-      session: sessionId
-        ? `projects/${PROJECT_ID}/locations/${LOCATION}/collections/default_collection/engines/${ENGINE_ID}/sessions/${sessionId}`
-        : undefined,
-      answerGenerationSpec: {
-        modelSpec: { modelVersion: "stable" },
-        promptSpec: {
-          preamble:
-            "Sei un assistente storico specializzato nel disastro del Moby Prince (10 aprile 1991). " +
-            "Rispondi in italiano, in modo preciso e documentato, citando le fonti disponibili. " +
-            "Se l'informazione non è presente nei documenti, dichiaralo esplicitamente.",
-        },
-      },
-      relatedQuestionsSpec: { enable: true },
-      searchSpec: {
-        searchParams: {
-          searchResultMode: "CHUNKS",
-          maxReturnResults: 10,
-        },
-      },
-    };
-
-    const data = await callAnswerApi(accessToken, payload);
-    res.json(data);
-  } catch (err) {
-    if (err.isTimeout) {
-      return res.status(504).json({
-        error: "Il servizio di ricerca non ha risposto in tempo. Riprova tra qualche secondo.",
-      });
-    }
-    if (err.status && err.status < 500) {
-      return res.status(err.status).json({
-        error: "Errore nella richiesta al servizio di ricerca.",
-        detail: err.detail,
-      });
-    }
-    console.error("Internal server error:", err);
-    res.status(500).json({ error: "Errore interno del server." });
-  }
-});
-
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", project: PROJECT_ID, engine: ENGINE_ID });
-});
-
-app.listen(PORT, () => {
-  console.log(`Moby Prince backend running on http://localhost:${PORT}`);
-  console.log(`Discovery Engine endpoint: ${ANSWER_ENDPOINT}`);
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));

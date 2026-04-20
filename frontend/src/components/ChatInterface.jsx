@@ -2,12 +2,15 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useChat } from "../hooks/useChat";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { useToast } from "../hooks/useToast";
+import { useFilters } from "../hooks/useFilters";
 import MessageBubble from "./MessageBubble";
 import CitationPanel from "./CitationPanel";
+import FilterPanel from "./FilterPanel";
 import QuickSuggestions from "./QuickSuggestions";
 import Sidebar from "./Sidebar";
 import AnchorAvatar from "./AnchorAvatar";
 import Toast from "./Toast";
+import { getFilterValueLabel, FILTER_SCHEMA } from "../filters/schema";
 
 function LoadingBubble() {
   return (
@@ -24,20 +27,34 @@ function LoadingBubble() {
   );
 }
 
+// Discovery Engine sessions expire after ~60 min of idle. If the last session
+// activity was > 55 min ago we drop the session ID so DE starts a fresh session
+// rather than returning an error on a stale one.
+const SESSION_MAX_IDLE_MS = 55 * 60 * 1000;
+
+function _effectiveSessionId(conv) {
+  if (!conv?.sessionId || !conv?.sessionUpdatedAt) return null;
+  if (Date.now() - new Date(conv.sessionUpdatedAt).getTime() > SESSION_MAX_IDLE_MS) return null;
+  return conv.sessionId;
+}
+
 export default function ChatInterface() {
   const history = useChatHistory();
+  const { filters, activeFilters, activeFilterCount, hasActiveFilters, setFilter, clearFilters } = useFilters();
   const { messages, isLoading, loadingConvId, sendMessage, streamingMessage, stopStreaming } = useChat({
     externalMessages:     history.activeConversation?.messages ?? [],
-    externalSessionId:    history.activeConversation?.sessionId ?? null,
+    externalSessionId:    _effectiveSessionId(history.activeConversation),
     activeConversationId: history.activeConversationId,
     onAppend:             history.appendMessage,
     onSessionUpdate:      history.updateSessionId,
+    filters:              hasActiveFilters ? activeFilters : undefined,
   });
   const { toasts, showToast, dismissToast } = useToast();
 
   const [input,          setInput]          = useState("");
   const [activeCitation, setActiveCitation] = useState(null);
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
+  const [showFilters,    setShowFilters]    = useState(false);
 
   const messagesEndRef       = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -73,6 +90,7 @@ export default function ChatInterface() {
     autoScrollRef.current = true;
     setShowScrollButton(false);
     scrollToBottom("instant");
+    textareaRef.current?.focus();
   }, [history.activeConversationId, scrollToBottom]);
 
   // ── Callbacks ───────────────────────────────────────────────────────────────
@@ -108,7 +126,10 @@ export default function ChatInterface() {
 
   const handleExport = useCallback(() => {
     const conv = history.activeConversation;
-    if (!conv?.messages.length) return;
+    if (!conv?.messages.length) {
+      showToast({ message: "Nessun messaggio da esportare", duration: 3000 });
+      return;
+    }
     const date = new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" });
     const lines = [
       `# ${conv.title}\n`,
@@ -153,11 +174,6 @@ export default function ChatInterface() {
     sendMessage(query, history.activeConversationId, { silent: true });
   }, [isBlocked, history.activeConversationId, sendMessage]);
 
-  const handleFeedback = useCallback((msgId, sentiment) => {
-    if (history.activeConversationId)
-      history.updateMessageFeedback(history.activeConversationId, msgId, sentiment);
-  }, [history]);
-
   const isEmpty = messages.length === 0;
 
   const recentConversations = useMemo(() =>
@@ -198,6 +214,7 @@ export default function ChatInterface() {
                            hover:bg-surface-raised transition-colors flex-shrink-0"
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Apri menu"
+                aria-expanded={sidebarOpen}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -242,7 +259,7 @@ export default function ChatInterface() {
             <div className="w-full max-w-lg px-4">
               <QuickSuggestions
                 onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }}
-                disabled={isLoading}
+                disabled={isBlocked}
               />
               {recentConversations.length > 0 && (
                 <RecentConversations conversations={recentConversations} onSelect={history.selectConversation} />
@@ -273,7 +290,6 @@ export default function ChatInterface() {
                     onCitationClick={setActiveCitation}
                     onFollowUp={(q) => { setInput(q); textareaRef.current?.focus(); }}
                     onRetry={handleRetry}
-                    onFeedback={handleFeedback}
                   />
                 ))}
                 {showLoadingBubble  && <LoadingBubble />}
@@ -308,6 +324,40 @@ export default function ChatInterface() {
         <div className="flex-shrink-0 px-4 pb-5 pt-2 print:hidden">
           <div className="max-w-2xl mx-auto space-y-2">
 
+            {/* Filter panel */}
+            {showFilters && (
+              <FilterPanel
+                filters={filters}
+                onFilterChange={setFilter}
+                onClear={clearFilters}
+                activeFilterCount={activeFilterCount}
+              />
+            )}
+
+            {/* Active filter chips — shown when panel is closed */}
+            {hasActiveFilters && !showFilters && (
+              <div className="flex flex-wrap gap-1.5 px-1">
+                {Object.entries(activeFilters).map(([key, value]) => {
+                  const label = FILTER_SCHEMA.find(f => f.key === key)?.label ?? key;
+                  return (
+                    <span key={key}
+                          className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full
+                                     text-[10px] bg-accent/10 text-accent border border-accent/20">
+                      <span className="font-medium">{label}:</span>
+                      <span>{getFilterValueLabel(key, value)}</span>
+                      <button onClick={() => setFilter(key, null)} aria-label={`Rimuovi filtro ${label}`}
+                              className="hover:text-accent-hover transition-colors ml-0.5">
+                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Stop streaming */}
             {streamingMessage && (
               <div className="flex justify-center">
@@ -335,6 +385,7 @@ export default function ChatInterface() {
                 placeholder="Formulare un quesito relativo agli atti dell'inchiesta…"
                 rows={1}
                 disabled={isBlocked}
+                maxLength={4000}
                 className="w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-sm
                            text-text-primary placeholder-text-muted
                            focus:outline-none disabled:opacity-40 leading-relaxed"
@@ -345,9 +396,33 @@ export default function ChatInterface() {
                 }}
               />
               <div className="flex items-center justify-between px-3 pb-2.5">
-                <span className="text-[11px] text-text-muted select-none">
-                  Enter ↵ &nbsp;·&nbsp; Shift+Enter per a capo
-                </span>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-[11px] text-text-muted select-none">
+                    Enter ↵ &nbsp;·&nbsp; Shift+Enter per andare a capo
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters(v => !v)}
+                    aria-label={showFilters ? "Chiudi filtri" : "Apri filtri"}
+                    className={`flex items-center gap-1 text-[11px] transition-colors ${
+                      showFilters || hasActiveFilters
+                        ? "text-accent"
+                        : "text-text-muted hover:text-text-secondary"
+                    }`}
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                    </svg>
+                    Filtri
+                    {activeFilterCount > 0 && (
+                      <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full
+                                       bg-accent text-surface text-[8px] font-bold">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={handleSubmit}

@@ -1,5 +1,39 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { NavLink } from "react-router-dom";
 import AnchorAvatar from "./AnchorAvatar";
+
+const ANALYSIS_VIEWS = [
+  {
+    to: "/timeline",
+    label: "Timeline",
+    icon: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+  {
+    to: "/contradictions",
+    label: "Contraddizioni",
+    icon: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+      </svg>
+    ),
+  },
+  {
+    to: "/dossier",
+    label: "Dossier",
+    icon: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
+];
 
 const GROUP_LABELS = {
   today:    "Oggi",
@@ -280,6 +314,35 @@ export default function Sidebar({
             </>
           )}
         </nav>
+
+        {/* Analysis views */}
+        <div className="px-3 py-2 border-t border-border/30">
+          <h3 className="px-3 pt-1.5 pb-1 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
+            Analisi
+          </h3>
+          <div className="space-y-0.5">
+            {ANALYSIS_VIEWS.map(({ to, label, icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]
+                   transition-colors duration-100 select-none
+                   ${isActive
+                     ? "text-text-primary font-medium border-l-[2px] border-accent pl-[10px]"
+                     : "text-text-secondary hover:text-text-primary"
+                   }`
+                }
+              >
+                {icon}
+                <span className="flex-1 truncate">{label}</span>
+                {/* "coming soon" indicator — remove once BQ is wired */}
+                <span className="text-[9px] text-text-muted font-mono opacity-60">prossimamente</span>
+              </NavLink>
+            ))}
+          </div>
+        </div>
 
         {/* Footer */}
         <div className="px-4 py-3 border-t border-border/30">
