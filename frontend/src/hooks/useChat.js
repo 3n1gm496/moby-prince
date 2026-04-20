@@ -3,6 +3,13 @@ import { useState, useCallback, useRef, useEffect } from "react";
 const STREAM_CHUNK   = 6;   // characters revealed per tick
 const STREAM_TICK_MS = 14;  // ~70 chars/s reveal speed
 
+// Client-side abort timeout for /api/answer fetches.
+// Deliberately longer than the backend POST_TIMEOUT_MS (55 s) so that when
+// Discovery Engine is slow the backend 504 arrives before the client aborts,
+// giving the user a meaningful error message rather than a generic network
+// failure. If you change this, keep CLIENT_TIMEOUT_MS > backend POST_TIMEOUT_MS.
+const CLIENT_TIMEOUT_MS = 75_000;
+
 export function useChat({
   externalMessages,
   externalSessionId,
@@ -87,7 +94,7 @@ export function useChat({
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const timeoutId    = setTimeout(() => controller.abort("timeout"), 75_000);
+      const timeoutId    = setTimeout(() => controller.abort("timeout"), CLIENT_TIMEOUT_MS);
       const targetConvId = explicitConvId ?? activeConversationId;
 
       if (!silent) {

@@ -27,12 +27,23 @@ function LoadingBubble() {
   );
 }
 
+// Discovery Engine sessions expire after ~60 min of idle. If the last session
+// activity was > 55 min ago we drop the session ID so DE starts a fresh session
+// rather than returning an error on a stale one.
+const SESSION_MAX_IDLE_MS = 55 * 60 * 1000;
+
+function _effectiveSessionId(conv) {
+  if (!conv?.sessionId || !conv?.sessionUpdatedAt) return null;
+  if (Date.now() - new Date(conv.sessionUpdatedAt).getTime() > SESSION_MAX_IDLE_MS) return null;
+  return conv.sessionId;
+}
+
 export default function ChatInterface() {
   const history = useChatHistory();
   const { filters, activeFilters, activeFilterCount, hasActiveFilters, setFilter, clearFilters } = useFilters();
   const { messages, isLoading, loadingConvId, sendMessage, streamingMessage, stopStreaming } = useChat({
     externalMessages:     history.activeConversation?.messages ?? [],
-    externalSessionId:    history.activeConversation?.sessionId ?? null,
+    externalSessionId:    _effectiveSessionId(history.activeConversation),
     activeConversationId: history.activeConversationId,
     onAppend:             history.appendMessage,
     onSessionUpdate:      history.updateSessionId,
@@ -159,11 +170,6 @@ export default function ChatInterface() {
     sendMessage(query, history.activeConversationId, { silent: true });
   }, [isBlocked, history.activeConversationId, sendMessage]);
 
-  const handleFeedback = useCallback((msgId, sentiment) => {
-    if (history.activeConversationId)
-      history.updateMessageFeedback(history.activeConversationId, msgId, sentiment);
-  }, [history]);
-
   const isEmpty = messages.length === 0;
 
   const recentConversations = useMemo(() =>
@@ -248,7 +254,7 @@ export default function ChatInterface() {
             <div className="w-full max-w-lg px-4">
               <QuickSuggestions
                 onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }}
-                disabled={isLoading}
+                disabled={isBlocked}
               />
               {recentConversations.length > 0 && (
                 <RecentConversations conversations={recentConversations} onSelect={history.selectConversation} />
@@ -279,7 +285,6 @@ export default function ChatInterface() {
                     onCitationClick={setActiveCitation}
                     onFollowUp={(q) => { setInput(q); textareaRef.current?.focus(); }}
                     onRetry={handleRetry}
-                    onFeedback={handleFeedback}
                   />
                 ))}
                 {showLoadingBubble  && <LoadingBubble />}

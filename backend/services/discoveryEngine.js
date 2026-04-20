@@ -16,8 +16,11 @@ const { createLogger } = require('../logger');
 
 const log = createLogger('discovery-engine');
 
+// POST_TIMEOUT_MS must stay below the client-side fetch timeout (75 s defined
+// in frontend/src/hooks/useChat.js CLIENT_TIMEOUT_MS) so that backend 504
+// errors reach the client before the client aborts its own connection.
 const POST_TIMEOUT_MS = 55_000;
-const GET_TIMEOUT_MS  = 30_000;  // chunk lookup is a simple read; shorter timeout
+const GET_TIMEOUT_MS  = 30_000;  // chunk lookup is a simple read; shorter timeout is fine
 const RETRY_DELAY_MS  = 2_000;
 
 // ── Error type ───────────────────────────────────────────────────────────────
