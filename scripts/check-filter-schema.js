@@ -14,47 +14,35 @@
  * Usage:
  *   node scripts/check-filter-schema.js        # exit 0 = OK, exit 1 = drift
  *
- * Run this as a pre-deploy check or in CI:
+ * Run as a pre-deploy check or in CI:
  *   "scripts": { "check-schema": "node scripts/check-filter-schema.js" }
  */
 
-// Backend schema (CommonJS)
-const { SCHEMA: BACKEND } = require('../backend/filters/schema');
-
-// Frontend schema is ES module — extract the array via a lightweight parse
-// rather than importing (avoids needing a transpiler in this script).
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 
-const frontendSrc = fs.readFileSync(
-  path.join(__dirname, '../frontend/src/filters/schema.js'),
-  'utf8',
-);
+// ── Load backend schema (CommonJS — straightforward require) ──────────────────
 
-// Pull the FILTER_SCHEMA array literal from the ES module source.
-// We eval it in a minimal CommonJS shim so we don't need Babel/esbuild.
-const shimSrc = frontendSrc
-  .replace(/^export\s+const\s+/gm, 'const ')
-  .replace(/^export\s+function\s+/gm, 'function ')
-  .replace(/^export\s+default\s+/gm, 'module.exports = ');
-const m = { exports: {} };
-// eslint-disable-next-line no-new-func
-new Function('module', 'exports', shimSrc)(m, m.exports);
+const { SCHEMA: BACKEND } = require('../backend/filters/schema');
 
-// FILTER_SCHEMA is a named export; grab it from the shim scope via a regex
-// to avoid the full eval — safer and sufficient for this static check.
-const match = frontendSrc.match(/export\s+const\s+FILTER_SCHEMA\s*=\s*(\[[\s\S]*?\n\];)/m);
-if (!match) {
-  console.error('✗  Could not locate FILTER_SCHEMA export in frontend/src/filters/schema.js');
-  process.exit(1);
-}
+// ── Load frontend schema (ES module — transpiler-free bracket extraction) ─────
+//
+// We extract the FILTER_SCHEMA array by bracket-counting from the raw source
+// instead of eval/regex so the parser is robust against any valid JS formatting.
+
+const frontendPath = path.join(__dirname, '../frontend/src/filters/schema.js');
+const frontendSrc  = fs.readFileSync(frontendPath, 'utf8');
 
 let FRONTEND;
 try {
-  // eslint-disable-next-line no-eval
-  FRONTEND = eval(match[1]);
+  FRONTEND = _extractFilterSchema(frontendSrc);
 } catch (e) {
-  console.error('✗  Failed to parse FILTER_SCHEMA:', e.message);
+  console.error(`✗  Failed to parse FILTER_SCHEMA from ${frontendPath}:\n  ${e.message}`);
+  process.exit(1);
+}
+
+if (!Array.isArray(FRONTEND) || FRONTEND.length === 0) {
+  console.error('✗  FILTER_SCHEMA in frontend/src/filters/schema.js is empty or not an array');
   process.exit(1);
 }
 
@@ -67,13 +55,13 @@ const frontendKeys = new Set(FRONTEND.map(f => f.key));
 
 // 1. Key set parity
 for (const k of backendKeys) {
-  if (!frontendKeys.has(k)) errors.push(`Key "${k}" exists in backend schema but not in frontend schema`);
+  if (!frontendKeys.has(k)) errors.push(`Key "${k}" in backend but missing from frontend`);
 }
 for (const k of frontendKeys) {
-  if (!backendKeys.has(k)) errors.push(`Key "${k}" exists in frontend schema but not in backend schema`);
+  if (!backendKeys.has(k)) errors.push(`Key "${k}" in frontend but missing from backend`);
 }
 
-// 2–4. Per-field checks (only for keys present in both)
+// 2–4. Per-field checks
 for (const frontField of FRONTEND) {
   const key  = frontField.key;
   const back = BACKEND[key];
@@ -89,20 +77,20 @@ for (const frontField of FRONTEND) {
     const backValues  = new Set(back.values || []);
     const frontValues = new Set((frontField.options || []).map(o => o.value));
     for (const v of backValues) {
-      if (!frontValues.has(v)) errors.push(`Key "${key}" value "${v}" in backend but missing from frontend options`);
+      if (!frontValues.has(v))
+        errors.push(`Key "${key}": backend value "${v}" missing from frontend options`);
     }
     for (const v of frontValues) {
-      if (!backValues.has(v)) errors.push(`Key "${key}" value "${v}" in frontend options but missing from backend values`);
+      if (!backValues.has(v))
+        errors.push(`Key "${key}": frontend option "${v}" missing from backend values`);
     }
   }
 
   if (back.type === 'number') {
-    if (back.min !== undefined && frontField.min !== back.min) {
+    if (back.min !== undefined && frontField.min !== back.min)
       errors.push(`Key "${key}" min mismatch: backend=${back.min}, frontend=${frontField.min}`);
-    }
-    if (back.max !== undefined && frontField.max !== back.max) {
+    if (back.max !== undefined && frontField.max !== back.max)
       errors.push(`Key "${key}" max mismatch: backend=${back.max}, frontend=${frontField.max}`);
-    }
   }
 }
 
@@ -116,4 +104,92 @@ if (errors.length === 0) {
   errors.forEach(e => console.error(`  • ${e}`));
   console.error(`\n${errors.length} issue(s) found. Update both schemas to match.`);
   process.exit(1);
+}
+
+// ── Parser ────────────────────────────────────────────────────────────────────
+
+/**
+ * Extract and evaluate the FILTER_SCHEMA array from an ES module source string.
+ *
+ * Strategy:
+ *   1. Locate the `export const FILTER_SCHEMA = [` declaration.
+ *   2. Use bracket-counting to find the matching closing `]`, handling:
+ *        - nested arrays and objects
+ *        - single-quoted, double-quoted, and template strings
+ *        - escaped characters inside strings
+ *        - single-line and multi-line comments
+ *   3. Evaluate the isolated array literal in a sandboxed context.
+ *
+ * This is deliberately tolerant of whitespace, multiline, and mixed-indent
+ * formatting changes that would break a regex-based approach.
+ *
+ * @param {string} src
+ * @returns {Array}
+ */
+function _extractFilterSchema(src) {
+  // Step 1: find the start of the array literal
+  const declRe = /\bexport\s+const\s+FILTER_SCHEMA\s*=\s*(\[)/;
+  const declMatch = src.match(declRe);
+  if (!declMatch) throw new Error('Could not find "export const FILTER_SCHEMA = ["');
+
+  const arrayStart = declMatch.index + declMatch[0].length - 1; // index of the opening [
+
+  // Step 2: bracket-count to find the matching ]
+  let depth = 0;
+  let i = arrayStart;
+  let inString = false;
+  let stringChar = '';
+
+  while (i < src.length) {
+    const ch = src[i];
+
+    if (inString) {
+      if (ch === '\\') {
+        i += 2; // skip escaped character
+        continue;
+      }
+      if (ch === stringChar) inString = false;
+      i++;
+      continue;
+    }
+
+    // Entering a string
+    if (ch === '"' || ch === "'" || ch === '`') {
+      inString  = true;
+      stringChar = ch;
+      i++;
+      continue;
+    }
+
+    // Single-line comment
+    if (ch === '/' && src[i + 1] === '/') {
+      while (i < src.length && src[i] !== '\n') i++;
+      continue;
+    }
+
+    // Multi-line comment
+    if (ch === '/' && src[i + 1] === '*') {
+      i += 2;
+      while (i < src.length - 1 && !(src[i] === '*' && src[i + 1] === '/')) i++;
+      i += 2;
+      continue;
+    }
+
+    if (ch === '[' || ch === '{') depth++;
+    else if (ch === ']' || ch === '}') {
+      depth--;
+      if (depth === 0) {
+        const arrayLiteral = src.slice(arrayStart, i + 1);
+        // Step 3: evaluate in sandbox — only array/object/string/number/boolean literals
+        const vm = require('vm');
+        const sandbox = { __result: undefined };
+        vm.runInNewContext(`__result = ${arrayLiteral}`, sandbox);
+        return sandbox.__result;
+      }
+    }
+
+    i++;
+  }
+
+  throw new Error('Unmatched bracket — could not find end of FILTER_SCHEMA array');
 }

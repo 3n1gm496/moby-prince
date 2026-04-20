@@ -44,6 +44,8 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 
+const { getAccessToken } = require('../services/auth');
+
 const COLLECTION_ID = 'default_collection';
 const BRANCH_ID     = 'default_branch';
 
@@ -221,24 +223,7 @@ async function genManifest(outPath, projectId, dataStoreId, location) {
   console.log(`  node ingestion/scripts/import-documents.js --manifest ${outPath}`);
 }
 
-// ── Auth + HTTP helpers ───────────────────────────────────────────────────────
-
-async function getAccessToken() {
-  try {
-    const { GoogleAuth } = require('google-auth-library');
-    const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
-    const client = await auth.getClient();
-    const { token } = await client.getAccessToken();
-    if (token) return token;
-  } catch { /* fall through */ }
-
-  try {
-    const { execSync } = require('child_process');
-    return execSync('gcloud auth print-access-token', { encoding: 'utf8' }).trim();
-  } catch {
-    die('No GCP credentials. Run: gcloud auth application-default login');
-  }
-}
+// ── HTTP helpers ──────────────────────────────────────────────────────────────
 
 function putJson(url, token, body) {
   return new Promise((resolve, reject) => {

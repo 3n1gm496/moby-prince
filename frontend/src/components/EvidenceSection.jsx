@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { getFilterValueLabel } from "../filters/schema";
 
 const SNIPPET_LIMIT = 280;
@@ -6,12 +6,115 @@ const SNIPPET_LIMIT = 280;
 // Metadata badge keys shown on evidence items (in display order)
 const METADATA_BADGE_KEYS = ["documentType", "institution", "year", "legislature", "topic"];
 
+// ─── DocumentChunksPanel ──────────────────────────────────────────────────────
+// Lazily fetches all chunks for a document from GET /api/evidence/documents/:id/chunks.
+// Only rendered when a documentId is available and the user expands the item.
+
+function DocumentChunksPanel({ documentId }) {
+  const [phase,  setPhase]  = useState("idle");   // idle | loading | done | error | unavailable
+  const [chunks, setChunks] = useState([]);
+
+  const load = useCallback(async () => {
+    if (phase !== "idle") return;
+    setPhase("loading");
+    try {
+      const res = await fetch(`/api/evidence/documents/${encodeURIComponent(documentId)}/chunks`);
+      if (res.status === 501) { setPhase("unavailable"); return; }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setChunks(data.chunks || []);
+      setPhase("done");
+    } catch {
+      setPhase("error");
+    }
+  }, [documentId, phase]);
+
+  if (phase === "idle") {
+    return (
+      <button
+        onClick={load}
+        className="mt-1.5 flex items-center gap-1 text-[10px] text-accent/70
+                   hover:text-accent transition-colors"
+      >
+        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M9 5l7 7-7 7" />
+        </svg>
+        Tutti i frammenti del documento
+      </button>
+    );
+  }
+
+  if (phase === "loading") {
+    return (
+      <p className="mt-1.5 text-[10px] text-text-muted animate-pulse">
+        Caricamento frammenti…
+      </p>
+    );
+  }
+
+  if (phase === "unavailable") {
+    return (
+      <p className="mt-1.5 text-[10px] text-text-muted italic">
+        Drill-down non disponibile — DATA_STORE_ID non configurato.
+      </p>
+    );
+  }
+
+  if (phase === "error") {
+    return (
+      <p className="mt-1.5 text-[10px] text-red-400">
+        Impossibile caricare i frammenti.
+      </p>
+    );
+  }
+
+  // phase === "done"
+  if (chunks.length === 0) {
+    return <p className="mt-1.5 text-[10px] text-text-muted italic">Nessun frammento trovato.</p>;
+  }
+
+  return (
+    <div className="mt-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] text-text-muted">
+          {chunks.length} {chunks.length === 1 ? "frammento" : "frammenti"}
+        </span>
+        <button
+          onClick={() => setPhase("idle")}
+          className="text-[10px] text-text-muted hover:text-text-secondary transition-colors"
+        >
+          chiudi
+        </button>
+      </div>
+      <div className="space-y-1 max-h-52 overflow-y-auto pr-0.5">
+        {chunks.map((chunk, i) => (
+          <div key={chunk.id ?? i}
+               className="text-[11px] text-text-secondary bg-surface rounded-md p-2
+                          border border-border/30 leading-relaxed">
+            {chunk.pageIdentifier && (
+              <span className="text-text-muted font-mono text-[10px] mr-1.5">
+                p.&nbsp;{chunk.pageIdentifier}
+              </span>
+            )}
+            {chunk.content
+              ? chunk.content.length > 220
+                ? chunk.content.slice(0, 220) + "…"
+                : chunk.content
+              : <span className="italic text-text-muted">nessun testo</span>
+            }
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── EvidenceItem ─────────────────────────────────────────────────────────────
 
 function EvidenceItem({ item, citations, isActive, onCitationClick }) {
   const [expanded, setExpanded] = useState(false);
 
-  // Find full citation objects that reference this evidence item
   const relatedCits = citations.filter((c) => item.citationIds?.includes(c.id));
 
   const hostname = (() => {
@@ -85,9 +188,14 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
       {/* Source link */}
       {hostname && (
         <a href={item.uri} target="_blank" rel="noopener noreferrer"
-           className="text-accent hover:text-accent-hover transition-colors truncate block max-w-full">
+           className="text-accent hover:text-accent-hover transition-colors truncate block max-w-full mb-1">
           {hostname}
         </a>
+      )}
+
+      {/* Document chunk drill-down — only when documentId is available */}
+      {item.documentId && (
+        <DocumentChunksPanel documentId={item.documentId} />
       )}
     </div>
   );

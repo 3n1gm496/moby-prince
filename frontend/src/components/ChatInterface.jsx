@@ -252,10 +252,11 @@ export default function ChatInterface() {
                         d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <h1 className={`text-sm font-medium truncate transition-colors
-                              ${convTitle ? "text-text-primary" : "text-text-muted"}`}>
-                {convTitle ?? "Archivio Moby Prince"}
-              </h1>
+              {convTitle && (
+                <h1 className="text-sm font-medium truncate text-text-primary">
+                  {convTitle}
+                </h1>
+              )}
             </div>
 
             {!isEmpty && (

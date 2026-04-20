@@ -1,6 +1,6 @@
 'use strict';
 
-const { buildCitations, _uriToDocId } = require('./citations');
+const { buildCitations, _uriToDocId, _safeDecodeId } = require('./citations');
 const { activeFilters } = require('../lib/utils');
 
 /**
@@ -111,7 +111,7 @@ function buildEvidence(answerObj, citations) {
         unstructured.chunkContents?.[0]?.pageIdentifier ||
         chunkInfo.pageSpan?.pageStart?.toString()       ||
         null,
-      documentId: docMeta.id || _uriToDocId(uri),
+      documentId: _safeDecodeId(docMeta.id) || _uriToDocId(uri),
       citationIds: refToCitations.get(index) || [],
       // Struct metadata — populated once the datastore schema includes these fields
       metadata: _extractStructMetadata(ref),

@@ -15,11 +15,11 @@ L'applicazione permette di interrogare in linguaggio naturale l'intero corpus do
 
 ```mermaid
 graph LR
-    U([Utente]) -->|query| FE["Frontend\nReact + nginx\n:5173"]
-    FE -->|POST /api/answer\nSSE stream| BE["Backend\nExpress 4\n:3001"]
-    BE -->|ADC| DE["Vertex AI Search\nDiscovery Engine v1\n:answer API"]
-    DE -->|grounded answer\n+ citations| BE
-    BE -->|event: thinking\nevent: answer| FE
+    U([Utente]) -->|query| FE["Frontend — React + nginx — :5173"]
+    FE -->|"POST /api/answer — SSE"| BE["Backend — Express 4 — :3001"]
+    BE -->|ADC| DE["Vertex AI Search — Discovery Engine v1"]
+    DE -->|grounded answer + citations| BE
+    BE -->|"event: thinking / event: answer"| FE
     FE -->|risposta citata| U
 ```
 
@@ -51,49 +51,53 @@ Il frontend nginx fa da proxy per `/api/*` → backend sulla rete Docker interna
 
 ```mermaid
 graph TD
-    subgraph frontend["Frontend (React 18 · Vite · Tailwind)"]
+    subgraph frontend["Frontend — React 18, Vite, Tailwind"]
         CI[ChatInterface]
         MB[MessageBubble]
         SB[Sidebar]
         FP[FilterPanel]
         CP[CitationPanel]
-        UC[useChat hook]
-        UCH[useChatHistory hook]
-        CI --> MB & SB & FP & CP
-        CI --> UC & UCH
+        UC[useChat]
+        UCH[useChatHistory]
+        CI --> MB
+        CI --> SB
+        CI --> FP
+        CI --> CP
+        CI --> UC
+        CI --> UCH
     end
 
-    subgraph backend["Backend (Node.js 20 · Express 4)"]
-        AR[/api/answer]
-        SR[/api/search]
-        ER[/api/evidence]
-        HR[/api/health]
+    subgraph backend["Backend — Node.js 20, Express 4"]
+        AR["/api/answer"]
+        SR["/api/search"]
+        ER["/api/evidence"]
+        HR["/api/health"]
         DE_SVC[discoveryEngine.js]
-        TR[transformers/answer]
+        TR["transformers/answer"]
         AR --> DE_SVC --> TR
         SR --> DE_SVC
         ER --> DE_SVC
     end
 
-    subgraph ingestion["Ingestion (Cloud Run Job)"]
+    subgraph ingestion["Ingestion — Cloud Run Job"]
         EP[entrypoint.js]
         VAL[Validator]
         SPL[Splitter]
         DAI[DocumentAI Worker]
         IDX[Indexer Worker]
         EP --> VAL --> SPL --> IDX
-        SPL -->|PDF > 50 MB| DAI --> IDX
+        SPL -->|"PDF > 50 MB"| DAI --> IDX
     end
 
     subgraph gcp["Google Cloud Platform"]
-        VTX["Vertex AI Search\n(Discovery Engine v1)"]
-        GCS["Cloud Storage\n(corpus PDF/TXT)"]
-        DOCAI["Document AI\n(OCR)"]
+        VTX["Vertex AI Search"]
+        GCS["Cloud Storage"]
+        DOCAI["Document AI"]
     end
 
-    UC -->|POST /api/answer| AR
-    DE_SVC -->|REST + ADC| VTX
-    IDX -->|PUT document| VTX
+    UC -->|"POST /api/answer"| AR
+    DE_SVC -->|"REST + ADC"| VTX
+    IDX -->|"PUT document"| VTX
     SPL -->|read| GCS
     DAI -->|OCR| DOCAI
 ```
@@ -196,13 +200,13 @@ Vedere `ingestion/.env.example`. Le variabili principali sono le stesse del back
 
 ```mermaid
 flowchart TD
-    GCS["gs://bucket/raw/*.pdf"] --> VAL["Validator\nverifica MIME e dimensioni"]
-    VAL -->|OK| SPL["Splitter\ndivide documenti > 2 MB"]
+    GCS["gs://bucket/raw/*.pdf"] --> VAL["Validator — verifica MIME e dimensioni"]
+    VAL -->|OK| SPL["Splitter — divide documenti > 2 MB"]
     VAL -->|rifiutato| QUAR["Quarantine bucket"]
-    SPL -->|PDF ≤ 50 MB| IDX["IndexerWorker\nPUT → Vertex AI Search"]
-    SPL -->|PDF > 50 MB| DOCAI["DocumentAI Worker\nOCR + estrazione sezioni"]
+    SPL -->|"PDF <= 50 MB"| IDX["IndexerWorker — PUT su Vertex AI Search"]
+    SPL -->|"PDF > 50 MB"| DOCAI["DocumentAI Worker — OCR + estrazione sezioni"]
     DOCAI --> IDX
-    IDX --> DONE(["INDEXED ✓"])
+    IDX --> DONE(["INDEXED"])
 
     style DONE fill:#1a3a1a,stroke:#4a7c4a,color:#a3d9a3
     style QUAR fill:#3a1a1a,stroke:#7c4a4a,color:#d9a3a3
@@ -321,7 +325,7 @@ sequenceDiagram
     BE-->>FE: event: answer
     FE->>FE: animazione reveal testo
     FE-->>U: risposta con citazioni
-    note over FE: sessione DE scade dopo 55 min idle
+    Note over FE: sessione DE scade dopo 55 min idle
 ```
 
 Il frontend gestisce conversazioni multiple persistite in `localStorage` con:

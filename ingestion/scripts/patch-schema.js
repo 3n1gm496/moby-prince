@@ -22,6 +22,8 @@
 
 const https = require('https');
 
+const { getAccessToken } = require('../services/auth');
+
 async function main() {
   const projectId   = process.env.GOOGLE_CLOUD_PROJECT;
   const dataStoreId = process.env.DATA_STORE_ID;
@@ -118,52 +120,6 @@ async function main() {
   console.log('     node ingestion/scripts/import-documents.js');
   console.log('  2. Set available: true in backend/filters/schema.js');
   console.log('     and frontend/src/filters/schema.js');
-}
-
-// ── Auth helpers ──────────────────────────────────────────────────────────────
-
-async function getAccessToken() {
-  // 1. google-auth-library (installed in Cloud Run / locally with npm install)
-  try {
-    const { GoogleAuth } = require('google-auth-library');
-    const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
-    const client = await auth.getClient();
-    const { token } = await client.getAccessToken();
-    if (token) return token;
-  } catch { /* fall through */ }
-
-  // 2. GCE / Cloud Run metadata server
-  try {
-    return await _metadataToken();
-  } catch { /* fall through */ }
-
-  // 3. gcloud CLI fallback (works in Cloud Shell)
-  try {
-    const { execSync } = require('child_process');
-    return execSync('gcloud auth print-access-token', { encoding: 'utf8' }).trim();
-  } catch {
-    die('No GCP credentials found. Run: gcloud auth application-default login');
-  }
-}
-
-function _metadataToken() {
-  return new Promise((resolve, reject) => {
-    const req = https.get({
-      hostname: 'metadata.google.internal',
-      path: '/computeMetadata/v1/instance/service-accounts/default/token',
-      headers: { 'Metadata-Flavor': 'Google' },
-      timeout: 2000,
-    }, res => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data).access_token); }
-        catch { reject(new Error('Bad metadata response')); }
-      });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Metadata timeout')); });
-  });
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
