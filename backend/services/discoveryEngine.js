@@ -203,10 +203,18 @@ async function answer(queryText, sessionId = null, {
       includeCitations: true,
     },
     relatedQuestionsSpec: { enable: true },
+    queryExpansionSpec:   { condition: 'AUTO' },
+    spellCorrectionSpec:  { mode: 'AUTO' },
     searchSpec: {
       searchParams: {
         searchResultMode: 'CHUNKS',
         maxReturnResults: Math.min(maxResults, 20),
+        contentSearchSpec: {
+          chunkSpec: {
+            numPreviousChunks: config.chunkContextPrev,
+            numNextChunks:     config.chunkContextNext,
+          },
+        },
         ...(filter ? { filter } : {}),
       },
     },

@@ -57,6 +57,10 @@ class IngestionJob {
     return this._next({ status: 'SPLITTING' });
   }
 
+  setDocaiOperation(operationName) {
+    return this._next({ docaiOperationName: operationName });
+  }
+
   completeSplit(normalizedUris) {
     return this._next({
       status:         'SPLITTING',
@@ -154,9 +158,10 @@ function createJob(sourceUri, meta = {}, maxAttempts = 3) {
     maxAttempts,
     lastAttemptAt:    null,
 
-    isSplit:          false,
-    splitParts:       [],
-    parentJobId:      meta.parentJobId || null,
+    isSplit:           false,
+    splitParts:        [],
+    parentJobId:       meta.parentJobId || null,
+    docaiOperationName: null,
 
     originalFilename: meta.originalFilename || _basename(sourceUri),
     mimeType:         meta.mimeType || _guessMime(sourceUri),

@@ -44,9 +44,13 @@ const config = {
     datasetId: optional('BQ_DATASET_ID', 'evidence'),
   },
 
+  // Adjacent chunks to include per matched chunk in :answer responses.
+  // Increasing these values improves answer context at the cost of more tokens.
+  chunkContextPrev: parseInt(optional('CHUNK_CONTEXT_PREV', '1'), 10),
+  chunkContextNext: parseInt(optional('CHUNK_CONTEXT_NEXT', '1'), 10),
+
   // Endpoint URLs
-  // v1alpha is intentional for :answer — the v1 answer API lags behind on features
-  answerEndpoint: `${apiBase}/v1alpha/projects/${projectId}/locations/${location}/collections/default_collection/engines/${engineId}/servingConfigs/default_serving_config:answer`,
+  answerEndpoint: `${apiBase}/v1/projects/${projectId}/locations/${location}/collections/default_collection/engines/${engineId}/servingConfigs/default_serving_config:answer`,
   searchEndpoint: `${engineBase}/servingConfigs/default_serving_config:search`,
 
   // Datastore base for document/chunk lookup (requires DATA_STORE_ID)

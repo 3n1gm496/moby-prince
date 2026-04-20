@@ -67,7 +67,14 @@ async function main() {
   const store = createStore({ type: storeType, projectId: config.projectId });
   log.info({ storeType }, 'Store initialised');
 
-  const context = { storage, documentai, metrics };
+  // Checkpoint: mid-pipeline state save so workers can persist LRO names
+  // before long async operations (e.g. Document AI batch processing).
+  async function checkpoint(updatedJob) {
+    await store.save(updatedJob);
+    log.debug({ jobId: updatedJob.jobId, status: updatedJob.status }, 'Job checkpointed');
+  }
+
+  const context = { storage, documentai, metrics, checkpoint };
   const opts    = { logger: log, context };
 
   switch (cmd) {

@@ -46,7 +46,7 @@ class DocumentAIWorker extends BaseWorker {
   }
 
   async run(job, context = {}) {
-    const { storage, documentai } = context;
+    const { storage, documentai, checkpoint } = context;
     const processorId = process.env.DOCAI_PROCESSOR_ID;
 
     if (!documentai) {
@@ -75,38 +75,53 @@ class DocumentAIWorker extends BaseWorker {
     let splitting = job._next({ status: 'SPLITTING' });
 
     try {
-      // ── 1. Resolve a gs:// URI for the source PDF ───────────────────────────
-      let gcsInputUri = job.sourceUri;
-
-      if (!gcsInputUri.startsWith('gs://')) {
-        // Local file — upload to raw bucket so Document AI can reach it
-        const rawBucket = this._config.buckets.raw;
-        if (!rawBucket) {
-          return this.halt(job.fail('PDF_CRITICAL', 'BUCKET_RAW not configured for local→GCS upload'));
-        }
-        const remoteName = `moby-prince/pending/${job.jobId}/${path.basename(job.sourceUri)}`;
-        this.logger.info({ jobId: job.jobId, remoteName }, 'Uploading local PDF to raw bucket');
-        await storage.bucket(rawBucket).upload(job.sourceUri, { destination: remoteName });
-        gcsInputUri = `gs://${rawBucket}/${remoteName}`;
-      }
-
-      // ── 2. Submit async batch process request ───────────────────────────────
+      let operation;
       const outputPrefix = `docai-output/${job.jobId}/`;
       const outputGcsUri = `gs://${normalizedBucket}/${outputPrefix}`;
 
-      this.logger.info({ jobId: job.jobId, processorName, gcsInputUri }, 'Submitting Document AI batch');
+      if (job.docaiOperationName) {
+        // ── Resume: reattach to existing LRO (restart after crash/timeout) ────
+        this.logger.info(
+          { jobId: job.jobId, operationName: job.docaiOperationName },
+          'Reattaching to existing Document AI LRO',
+        );
+        [operation] = await documentai.checkBatchProcessDocumentsProgress(job.docaiOperationName);
+      } else {
+        // ── 1. Resolve a gs:// URI for the source PDF ─────────────────────────
+        let gcsInputUri = job.sourceUri;
 
-      const [operation] = await documentai.batchProcessDocuments({
-        name: processorName,
-        inputDocuments: {
-          gcsDocuments: {
-            documents: [{ gcsUri: gcsInputUri, mimeType: 'application/pdf' }],
+        if (!gcsInputUri.startsWith('gs://')) {
+          // Local file — upload to raw bucket so Document AI can reach it
+          const rawBucket = this._config.buckets.raw;
+          if (!rawBucket) {
+            return this.halt(job.fail('PDF_CRITICAL', 'BUCKET_RAW not configured for local→GCS upload'));
+          }
+          const remoteName = `moby-prince/pending/${job.jobId}/${path.basename(job.sourceUri)}`;
+          this.logger.info({ jobId: job.jobId, remoteName }, 'Uploading local PDF to raw bucket');
+          await storage.bucket(rawBucket).upload(job.sourceUri, { destination: remoteName });
+          gcsInputUri = `gs://${rawBucket}/${remoteName}`;
+        }
+
+        // ── 2. Submit async batch process request ──────────────────────────────
+        this.logger.info({ jobId: job.jobId, processorName, gcsInputUri }, 'Submitting Document AI batch');
+
+        [operation] = await documentai.batchProcessDocuments({
+          name: processorName,
+          inputDocuments: {
+            gcsDocuments: {
+              documents: [{ gcsUri: gcsInputUri, mimeType: 'application/pdf' }],
+            },
           },
-        },
-        documentOutputConfig: {
-          gcsOutputConfig: { gcsUri: outputGcsUri },
-        },
-      });
+          documentOutputConfig: {
+            gcsOutputConfig: { gcsUri: outputGcsUri },
+          },
+        });
+
+        // Checkpoint: persist operation name before the long wait so a
+        // restart can reattach rather than resubmit the same PDF.
+        splitting = splitting.setDocaiOperation(operation.name);
+        if (checkpoint) await checkpoint(splitting);
+      }
 
       // ── 3. Wait for long-running operation (up to 15 min) ──────────────────
       this.logger.info({ jobId: job.jobId, operationName: operation.name }, 'Waiting for Document AI');
