@@ -12,7 +12,7 @@ function FilterField({ field, value, onChange }) {
     text-text-primary placeholder-text-muted
     focus:outline-none focus:border-accent/40
     transition-colors
-    disabled:opacity-30 disabled:cursor-not-allowed
+    disabled:opacity-40 disabled:cursor-not-allowed
   `;
 
   return (

@@ -15,17 +15,19 @@ export default function QuickSuggestions({ onSelect, disabled }) {
       <p className="text-[11px] font-medium text-text-secondary uppercase tracking-[0.12em] mb-3">
         Domande frequenti
       </p>
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {SUGGESTIONS.map((s, i) => (
           <button
             key={i}
             onClick={() => onSelect(s)}
             disabled={disabled}
-            className="w-full text-left flex items-start gap-2.5 px-0 py-1.5 group
-                       disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-full text-left flex items-center gap-2.5 px-0 py-1.5 group
+                       disabled:opacity-30 disabled:cursor-not-allowed
+                       focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50
+                       rounded"
           >
             <span className="text-text-secondary group-hover:text-accent transition-colors
-                             mt-px text-xs leading-5 flex-shrink-0">→</span>
+                             text-xs flex-shrink-0">→</span>
             <span className="text-sm text-text-primary group-hover:text-accent
                              transition-colors leading-snug">
               {s}

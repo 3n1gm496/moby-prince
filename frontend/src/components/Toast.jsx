@@ -8,8 +8,8 @@ function ToastItem({ toast, onDismiss }) {
   }, [toast.id, toast.duration, onDismiss]);
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-xl min-w-[260px] max-w-sm
-                    bg-surface-raised border border-border shadow-2xl text-sm">
+    <div className="flex items-center gap-3 px-4 py-3 rounded-xl min-w-[300px] max-w-sm
+                    bg-surface-raised border border-border/80 shadow-2xl text-sm">
       <span className="flex-1 text-text-primary leading-snug line-clamp-3">{toast.message}</span>
       {toast.action && (
         <button

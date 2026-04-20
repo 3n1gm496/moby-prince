@@ -45,9 +45,9 @@ export default function CitationPanel({ citation, onClose }) {
         </div>
 
         {/* Sources */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {citation.sources.length === 0 && (
-            <p className="text-xs text-text-muted italic">Nessuna fonte disponibile.</p>
+            <p className="text-xs text-text-secondary italic">Nessuna fonte disponibile.</p>
           )}
           {citation.sources.map((src, i) => (
             <div key={i} className="space-y-2">

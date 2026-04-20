@@ -32,7 +32,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
   if (message.role === "user") {
     return (
       <div className="flex justify-end animate-slide-right print:justify-start">
-        <div className="max-w-[72%] rounded-2xl rounded-tr-sm px-4 py-2.5
+        <div className="max-w-[88%] sm:max-w-[72%] rounded-2xl rounded-tr-sm px-4 py-2.5
                         bg-surface-raised text-text-primary text-sm leading-relaxed surface-depth
                         print:max-w-full print:bg-transparent print:font-semibold print:px-0">
           {message.text}
@@ -102,7 +102,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
             <button onClick={handleCopy} aria-label={copied ? "Copiato" : "Copia"}
                     className="absolute -top-1 -right-1 p-1.5 rounded-lg
                                opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100
-                               transition-opacity duration-150
+                               transition-opacity duration-150 animate-fade-in
                                text-text-muted hover:text-text-secondary hover:bg-surface-raised
                                print:hidden">
               {copied
@@ -195,7 +195,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
               {showSteps && (
                 <div className="mt-1.5 space-y-1">
                   {visibleSteps.map((step, i) => (
-                    <div key={i} className="text-[11px] text-text-secondary font-mono
+                    <div key={i} className="text-xs text-text-secondary font-mono leading-relaxed
                                             bg-surface-raised rounded-lg px-2.5 py-1.5">
                       {step.description || JSON.stringify(step)}
                     </div>

@@ -2,7 +2,7 @@ export default function AnchorAvatar({ size = "sm" }) {
   const dim  = size === "sm" ? "w-6 h-6" : "w-8 h-8";
   const icon = size === "sm" ? "w-3 h-3"  : "w-4 h-4";
   return (
-    <div className={`flex-shrink-0 ${dim} rounded-lg bg-surface-raised
+    <div className={`flex-shrink-0 ${dim} rounded-lg bg-surface-raised border border-border/50
                      flex items-center justify-center`}>
       <svg className={`${icon} text-accent`} fill="none" stroke="currentColor"
            viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

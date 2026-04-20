@@ -20,7 +20,7 @@ function SkeletonLoader({ stage }) {
     <div className="flex justify-start gap-3 animate-fade-in">
       <AnchorAvatar />
       <div className="flex-1 min-w-0 pt-0.5 space-y-2.5">
-        <p className="text-[11px] text-text-secondary animate-pulse">{label}</p>
+        <p className="text-[11px] text-text-secondary">{label}</p>
         <div className="space-y-2">
           {[{ w: "w-3/4", d: "0ms" }, { w: "w-full", d: "80ms" }, { w: "w-5/6", d: "160ms" }, { w: "w-2/3", d: "240ms" }].map(({ w, d }, i) => (
             <div key={i} className={`h-2.5 bg-surface-raised rounded-full animate-shimmer ${w}`}
@@ -241,8 +241,11 @@ export default function ChatInterface() {
           <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
               <button
-                className="lg:hidden p-1.5 rounded-lg text-text-secondary hover:text-text-primary
-                           hover:bg-surface-raised transition-colors flex-shrink-0"
+                className={`lg:hidden p-1.5 rounded-lg transition-colors flex-shrink-0
+                           ${sidebarOpen
+                             ? "text-text-primary bg-surface-raised"
+                             : "text-text-secondary hover:text-text-primary hover:bg-surface-raised"
+                           }`}
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Apri menu"
                 aria-expanded={sidebarOpen}
@@ -288,7 +291,7 @@ export default function ChatInterface() {
         {isEmpty && (
           <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto">
             <WelcomeScreen />
-            <div className="w-full max-w-lg px-4">
+            <div className="w-full max-w-md px-4">
               <QuickSuggestions
                 onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }}
                 disabled={isBlocked}
@@ -371,7 +374,7 @@ export default function ChatInterface() {
 
             {/* Active filter chips */}
             {hasActiveFilters && !showFilters && (
-              <div className="flex flex-wrap gap-1.5 px-1">
+              <div className="flex flex-wrap gap-x-1.5 gap-y-1 px-1">
                 {Object.entries(activeFilters).map(([key, value]) => {
                   const label = FILTER_SCHEMA.find(f => f.key === key)?.label ?? key;
                   return (
@@ -409,7 +412,7 @@ export default function ChatInterface() {
             )}
 
             <div className="ring-1 ring-border/60 rounded-2xl bg-surface-raised surface-depth
-                            focus-within:ring-accent/30 transition-all duration-200">
+                            focus-within:ring-accent/50 transition-all duration-200">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -465,7 +468,7 @@ export default function ChatInterface() {
                   disabled={!input.trim() || isBlocked}
                   aria-label="Invia"
                   className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center
-                             hover:bg-accent-hover disabled:opacity-25 disabled:cursor-not-allowed
+                             hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed
                              transition-colors"
                 >
                   <svg className="w-3.5 h-3.5 text-surface" fill="none" stroke="currentColor" viewBox="0 0 24 24">

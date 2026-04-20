@@ -40,6 +40,9 @@
     background: rgba(201, 168, 76, 0.20);
     border-color: rgba(201, 168, 76, 0.40);
   }
+  .citation-badge:active {
+    background: rgba(201, 168, 76, 0.30);
+  }
 
   /* Prose — editorial-quality reading */
   .prose-answer {
@@ -47,8 +50,8 @@
     line-height: 1.82;
     font-feature-settings: "liga" 1, "kern" 1;
   }
-  .prose-answer p           { @apply mb-3.5 last:mb-0; }
-  .prose-answer p:last-child { @apply mb-0; }
+  .prose-answer p           { @apply mb-3.5; }
+  .prose-answer p:last-of-type { @apply mb-0; }
   .prose-answer strong      { @apply text-text-primary font-semibold; }
   .prose-answer em          { @apply italic; }
   .prose-answer ul          { @apply list-disc list-outside pl-4 mb-3 space-y-1.5; }

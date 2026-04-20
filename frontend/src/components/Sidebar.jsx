@@ -249,7 +249,7 @@ export default function Sidebar({
         fixed lg:relative inset-y-0 left-0 z-40
         w-60 flex-shrink-0 flex flex-col
         bg-surface-sidebar border-r border-border/50
-        transform transition-transform duration-250 ease-in-out
+        transform transition-transform duration-200 ease-in-out
         ${isOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 print:hidden
       `}>
 
@@ -330,7 +330,7 @@ export default function Sidebar({
               </h3>
               <div className="space-y-0.5">
                 {filtered.length === 0
-                  ? <p className="px-[10px] py-4 text-xs text-text-secondary text-center">Nessun risultato.</p>
+                  ? <p className="px-[10px] py-6 text-xs text-text-secondary text-center">Nessun risultato.</p>
                   : filtered.map(renderItem)
                 }
               </div>
@@ -361,7 +361,7 @@ export default function Sidebar({
               })}
 
               {allConvs.length === 0 && (
-                <p className="px-[10px] py-10 text-xs text-text-secondary text-center">
+                <p className="px-[10px] py-6 text-xs text-text-secondary text-center">
                   Nessuna conversazione salvata.
                 </p>
               )}

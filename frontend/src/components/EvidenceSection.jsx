@@ -71,7 +71,11 @@ function DocumentChunksPanel({ documentId }) {
 
   // phase === "done"
   if (chunks.length === 0) {
-    return <p className="mt-1.5 text-[10px] text-text-secondary italic">Nessun frammento trovato.</p>;
+    return (
+      <p className="mt-1.5 text-xs text-text-secondary italic bg-surface rounded-md px-2 py-1.5">
+        Nessun frammento trovato.
+      </p>
+    );
   }
 
   return (
@@ -87,7 +91,7 @@ function DocumentChunksPanel({ documentId }) {
           chiudi
         </button>
       </div>
-      <div className="space-y-1 max-h-52 overflow-y-auto pr-0.5">
+      <div className="space-y-1 max-h-52 overflow-y-auto pr-2">
         {chunks.map((chunk, i) => (
           <div key={chunk.id ?? i}
                className="text-[11px] text-text-primary bg-surface rounded-md p-2
@@ -216,7 +220,9 @@ export default function EvidenceSection({ evidence, citations, onCitationClick }
     <div className="mt-2 print:hidden">
       <button onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
-              className="flex items-center gap-1.5 text-xs text-text-primary hover:text-accent transition-colors">
+              className={`flex items-center gap-1.5 text-xs transition-colors ${
+                open ? "text-accent" : "text-text-primary hover:text-accent"
+              }`}>
         <svg className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`}
              fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
