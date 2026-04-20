@@ -1,17 +1,120 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AnchorAvatar from "./AnchorAvatar";
 import EvidenceSection from "./EvidenceSection";
 
-// ─── AnnotatedAnswer ──────────────────────────────────────────────────────────
-// Renders the answer as clean prose. Citations are surfaced via the "N fonti"
-// bar and EvidenceSection below — never by splitting the text mid-word.
+// ─── Citation helpers ─────────────────────────────────────────────────────────
 
-function AnnotatedAnswer({ text }) {
+// Convert UTF-8 byte offset to JS string character offset
+function byteToCharOffset(str, byteOff) {
+  let bytePos = 0;
+  let charPos = 0;
+  for (const ch of str) {
+    if (bytePos >= byteOff) break;
+    const cp = ch.codePointAt(0);
+    if      (cp < 0x80)    bytePos += 1;
+    else if (cp < 0x800)   bytePos += 2;
+    else if (cp < 0x10000) bytePos += 3;
+    else                   bytePos += 4;
+    charPos++;
+  }
+  return charPos;
+}
+
+// Insert `[cite:N]` markers at citation end-positions so ReactMarkdown
+// renders them as inline code → picked up by the custom code component.
+// We pre-compute all char offsets from the original text then insert
+// right-to-left so earlier positions are unaffected.
+function buildAnnotatedText(text, citations) {
+  if (!text || !citations?.length) return text;
+
+  const cits = citations.filter((c) => c.endIndex != null && c.endIndex > 0);
+  if (!cits.length) return text;
+
+  // Compute char positions from original (unmodified) text
+  const positions = cits.map((c) => ({
+    id:      c.id,
+    charPos: byteToCharOffset(text, c.endIndex),
+  }));
+
+  // Sort descending so right-to-left insertion preserves earlier positions
+  positions.sort((a, b) => b.charPos - a.charPos);
+
+  let result = text;
+  for (const { id, charPos } of positions) {
+    // Snap to next word boundary so marker doesn't split mid-word
+    let insertAt = Math.min(charPos, result.length);
+    while (insertAt < result.length && !/[\s,;.!?\n]/.test(result[insertAt])) {
+      insertAt++;
+    }
+    result = result.slice(0, insertAt) + `\`[cite:${id}]\`` + result.slice(insertAt);
+  }
+
+  return result;
+}
+
+// ─── CitationBadge ─────────────────────────────────────────────────────────────
+
+function CitationBadge({ id, sources }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <span
+      className="relative inline-block align-baseline"
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+    >
+      <span className="citation-badge cursor-help select-none">{id}</span>
+      {visible && sources?.length > 0 && (
+        <span
+          className="absolute bottom-full left-1/2 -translate-x-1/2 z-50 mb-1.5
+                     min-w-[180px] max-w-[280px] w-max
+                     bg-surface-raised border border-border/70 rounded-lg p-2.5
+                     text-xs text-text-primary shadow-xl pointer-events-none"
+        >
+          <span className="block text-[9px] text-text-muted uppercase tracking-wider mb-1.5 font-medium">
+            Fonte
+          </span>
+          {sources.map((src, i) => (
+            <span key={i} className="block text-[11px] leading-snug text-text-secondary mt-0.5 first:mt-0">
+              {src.title || src.uri || "—"}
+            </span>
+          ))}
+        </span>
+      )}
+    </span>
+  );
+}
+
+// ─── AnnotatedAnswer ──────────────────────────────────────────────────────────
+
+function AnnotatedAnswer({ text, citations }) {
+  const annotated = useMemo(
+    () => buildAnnotatedText(text, citations),
+    [text, citations]
+  );
+
   return (
     <div className="prose-answer">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          // Intercept inline code nodes — detect our citation markers
+          code({ children, className }) {
+            const str = String(children).trim();
+            const match = str.match(/^\[cite:(\d+)\]$/);
+            // Only process inline code (no language className) matching the pattern
+            if (match && !className) {
+              const id = parseInt(match[1], 10);
+              const cit = citations?.find((c) => c.id === id);
+              return <CitationBadge id={id} sources={cit?.sources ?? []} />;
+            }
+            return <code className={className}>{children}</code>;
+          },
+        }}
+      >
+        {annotated}
+      </ReactMarkdown>
     </div>
   );
 }
@@ -72,12 +175,10 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
     ? new Date(message.id).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
     : null;
 
-  // Heuristic: text > 600 chars ending without sentence punctuation may be truncated
   const mightBeTruncated = !isStreaming
     && message.text.length > 600
     && !/[.!?»\u201d\u2019]$/.test(message.text.trimEnd());
 
-  // Deduplicated sources for the summary bar
   const uniqueSources = (() => {
     const seen = new Set(), out = [];
     message.citations?.forEach((cit) =>
@@ -97,7 +198,6 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
 
         {/* Answer text */}
         <div className="relative">
-          {/* Copy button */}
           {!isStreaming && (
             <button onClick={handleCopy} aria-label={copied ? "Copiato" : "Copia"}
                     className="absolute -top-1 -right-1 p-1.5 rounded-lg
@@ -117,15 +217,13 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
             </button>
           )}
 
-          <AnnotatedAnswer text={message.text} />
+          <AnnotatedAnswer text={message.text} citations={isStreaming ? [] : message.citations} />
 
-          {/* Streaming cursor */}
           {isStreaming && (
             <span className="inline-block w-px h-[14px] bg-accent/80 animate-pulse ml-0.5 align-text-bottom" />
           )}
         </div>
 
-        {/* Truncation warning */}
         {mightBeTruncated && (
           <p className="flex items-center gap-1 text-[10px] text-text-secondary italic">
             <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,7 +234,6 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
           </p>
         )}
 
-        {/* Evidence drawer */}
         {!isStreaming && (
           <EvidenceSection
             evidence={message.evidence}
@@ -145,17 +242,14 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
           />
         )}
 
-        {/* Metadata + actions bar */}
         {!isStreaming && (
           <div className="flex items-center gap-3 print:hidden">
-            {/* Fonti — always visible */}
             {uniqueSources.length > 0 && (
               <button onClick={() => onCitationClick(message.citations?.[0])}
                       className="text-[11px] text-text-primary hover:text-accent transition-colors font-medium">
                 {uniqueSources.length} {uniqueSources.length === 1 ? "fonte" : "fonti"}
               </button>
             )}
-            {/* Timestamp + stats — visible only on hover */}
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                  style={{ transitionDelay: "60ms" }}>
               <span className="text-[11px] text-text-muted tabular-nums">
@@ -165,7 +259,6 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
           </div>
         )}
 
-        {/* Source titles — print only */}
         {!isStreaming && uniqueSources.length > 0 && (
           <div className="hidden print:flex flex-wrap gap-x-3 text-[11px] text-text-muted">
             {uniqueSources.map(({ src }, i) => (
@@ -174,7 +267,6 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
           </div>
         )}
 
-        {/* Reasoning steps */}
         {!isStreaming && message.steps?.length > 0 && (() => {
           const TRIVIAL = /rephrase|reformula|riformula|expand query/i;
           const visibleSteps = message.steps.filter(
@@ -206,7 +298,6 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
           );
         })()}
 
-        {/* Related questions */}
         {!isStreaming && message.relatedQuestions?.length > 0 && (
           <div className="pt-1 print:hidden">
             <div className="flex flex-col gap-0.5">

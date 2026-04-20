@@ -3,6 +3,12 @@ import { getFilterValueLabel } from "../filters/schema";
 
 const SNIPPET_LIMIT = 280;
 
+// Strip redundant "Moby Prince" prefix that appears on every document title
+function cleanTitle(title) {
+  if (!title) return title;
+  return title.replace(/^moby\s+prince\s*[-–—:·]\s*/i, "").trim() || title;
+}
+
 // Metadata badge keys shown on evidence items (in display order)
 const METADATA_BADGE_KEYS = ["documentType", "institution", "year", "legislature", "topic"];
 
@@ -146,7 +152,9 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
       )}
 
       {/* Title */}
-      <p className="font-medium text-text-primary leading-snug mb-1">{item.title}</p>
+      <p className="font-medium text-text-primary leading-snug mb-1 break-words">
+        {cleanTitle(item.title)}
+      </p>
 
       {/* Struct metadata badges — visible only when corpus has metadata populated */}
       {item.metadata && METADATA_BADGE_KEYS.some(k => item.metadata[k] != null) && (
@@ -183,17 +191,17 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
           {item.snippet.length > SNIPPET_LIMIT && (
             <button onClick={() => setExpanded((v) => !v)}
                     className="ml-1 not-italic text-accent hover:text-accent-hover transition-colors">
-              {expanded ? "meno" : "tutto"}
+              {expanded ? "Mostra meno" : "Mostra tutto"}
             </button>
           )}
         </p>
       )}
 
-      {/* Source link */}
-      {hostname && (
+      {/* Source link — only show if it's a navigable web URL (not a GCS bucket URI) */}
+      {hostname && !hostname.includes("storage.googleapis.com") && (
         <a href={item.uri} target="_blank" rel="noopener noreferrer"
-           className="text-accent hover:text-accent-hover transition-colors truncate block max-w-full mb-1">
-          {hostname}
+           className="text-accent hover:text-accent-hover transition-colors break-all block max-w-full mb-1 text-[10px]">
+          {item.uri}
         </a>
       )}
 

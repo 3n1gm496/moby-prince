@@ -122,6 +122,13 @@ export function useChatHistory() {
   );
 
   const createConversation = useCallback(() => {
+    // If an empty (unstarted) conversation already exists, select it instead of creating a duplicate
+    const emptyConv = state.conversations.find((c) => c.messages.length === 0);
+    if (emptyConv) {
+      setState((prev) => ({ ...prev, activeConversationId: emptyConv.id }));
+      return emptyConv.id;
+    }
+
     const id = makeId();
     const now = new Date().toISOString();
     setState((prev) => ({
@@ -141,7 +148,7 @@ export function useChatHistory() {
       activeConversationId: id,
     }));
     return id;
-  }, []);
+  }, [state.conversations]);
 
   const selectConversation = useCallback((id) => {
     setState((prev) => ({ ...prev, activeConversationId: id }));

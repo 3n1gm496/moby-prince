@@ -3,10 +3,12 @@ import { NavLink } from "react-router-dom";
 import AnchorAvatar from "./AnchorAvatar";
 
 const PAGE_SIZE = 10;
+const MIN_WIDTH  = 180;
+const MAX_WIDTH  = 420;
+const DEFAULT_WIDTH = 240;
 
 const ANALYSIS_VIEWS = [
   {
-    to: "/timeline",
     label: "Timeline",
     icon: (
       <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -16,7 +18,6 @@ const ANALYSIS_VIEWS = [
     ),
   },
   {
-    to: "/contradictions",
     label: "Contraddizioni",
     icon: (
       <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -26,7 +27,6 @@ const ANALYSIS_VIEWS = [
     ),
   },
   {
-    to: "/dossier",
     label: "Dossier",
     icon: (
       <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -81,8 +81,8 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogg
                   transition-colors duration-150
                   focus-visible:ring-1 focus-visible:ring-accent/40
                   ${isActive
-                    ? "border-accent text-text-primary font-medium"
-                    : "border-transparent text-text-secondary hover:text-text-primary"
+                    ? "border-accent text-text-primary font-medium bg-surface-raised/40"
+                    : "border-transparent text-text-secondary hover:text-text-primary hover:bg-surface-raised/30"
                   }`}
     >
       {renaming ? (
@@ -101,7 +101,6 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogg
         <>
           <span className="flex-1 truncate">{conv.title}</span>
 
-          {/* Citation count — appears on hover */}
           {citCount > 0 && (
             <span className="flex-shrink-0 text-[10px] font-mono text-text-muted
                              opacity-0 group-hover:opacity-50 transition-opacity">
@@ -109,14 +108,12 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogg
             </span>
           )}
 
-          {/* Pinned icon */}
           {conv.pinned && (
             <svg className="w-2.5 h-2.5 text-accent/50 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
               <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
             </svg>
           )}
 
-          {/* Actions — only on hover */}
           <span className="flex-shrink-0 flex items-center gap-0.5
                            opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
             <button onClick={(e) => { e.stopPropagation(); onTogglePin(conv.id); }}
@@ -157,11 +154,19 @@ export default function Sidebar({
   onRenameConversation, onTogglePin,
   isOpen, onClose,
 }) {
-  const [search, setSearch] = useState("");
-  // Groups whose full list is expanded beyond PAGE_SIZE
+  const [search,        setSearch]        = useState("");
   const [expandedGroups, setExpandedGroups] = useState({});
+  const [collapsed,     setCollapsed]     = useState(false);
+  const [sidebarWidth,  setSidebarWidth]  = useState(DEFAULT_WIDTH);
+  const [isResizing,    setIsResizing]    = useState(false);
+
   const searchRef = useRef(null);
   const navRef    = useRef(null);
+
+  // When mobile overlay opens, always expand
+  useEffect(() => {
+    if (isOpen) setCollapsed(false);
+  }, [isOpen]);
 
   const allConvs = [...(pinnedConversations || []), ...Object.values(groupedConversations).flat()];
   const isSearching = search.trim().length > 0;
@@ -196,6 +201,39 @@ export default function Sidebar({
     else if (idx <= 0)         searchRef.current?.focus();
     else                       items[Math.max(idx - 1, 0)]?.focus();
   }, []);
+
+  // ── Drag-to-resize ──────────────────────────────────────────────────────────
+
+  const handleResizeStart = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const startX     = e.clientX;
+    const startWidth = sidebarWidth;
+    setIsResizing(true);
+    document.body.style.cursor    = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onMove = (e) => {
+      const newW = startWidth + (e.clientX - startX);
+      if (newW < 100) {
+        setCollapsed(true);
+      } else {
+        setCollapsed(false);
+        setSidebarWidth(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newW)));
+      }
+    };
+    const onUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor    = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup",   onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup",   onUp);
+  };
+
+  // ── Render helpers ──────────────────────────────────────────────────────────
 
   const renderItem = (conv) => (
     <ConversationItem
@@ -245,169 +283,200 @@ export default function Sidebar({
              onClick={onClose} />
       )}
 
-      <aside className={`
-        fixed lg:relative inset-y-0 left-0 z-40
-        w-60 flex-shrink-0 flex flex-col
-        bg-surface-sidebar border-r border-border/50
-        transform transition-transform duration-200 ease-in-out
-        ${isOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 print:hidden
-      `}>
+      <aside
+        style={{ width: collapsed ? "56px" : `${sidebarWidth}px` }}
+        className={`
+          fixed lg:relative inset-y-0 left-0 z-40
+          flex-shrink-0 flex flex-col overflow-hidden
+          bg-surface-sidebar border-r border-border/50
+          ${isResizing ? "" : "transition-[width] duration-200 ease-in-out"}
+          ${isOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 print:hidden
+        `}
+      >
 
-        {/* Wordmark — click to start new chat */}
-        <button
-          onClick={() => { onNewChat(); onClose(); }}
-          className="flex items-center gap-2.5 px-4 py-4 border-b border-border/30
-                     w-full text-left hover:bg-surface-raised/50 transition-colors"
-          title="Nuova chat"
-        >
-          <AnchorAvatar size="md" />
-          <div>
-            <span className="block font-serif text-[13px] font-semibold text-text-primary leading-tight">
-              Archivio Moby Prince
-            </span>
-            <span className="block text-[10px] text-text-muted leading-tight mt-0.5">
-              Commissione Parlamentare
-            </span>
-          </div>
-        </button>
-
-        {/* New chat */}
-        <div className="px-3 pt-3 pb-1">
+        {/* ── Header ─────────────────────────────────────────────────────────── */}
+        <div className={`flex items-center border-b border-border/30
+                         ${collapsed ? "flex-col py-2.5 px-1.5 gap-2" : "gap-2.5 px-4 py-3.5"}`}>
+          {/* Logo / new-chat */}
           <button
             onClick={() => { onNewChat(); onClose(); }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]
-                       text-text-secondary hover:text-text-primary transition-colors duration-100"
+            title="Nuova chat"
+            className={`rounded-lg hover:bg-surface-raised/50 transition-colors flex-shrink-0
+                        ${collapsed ? "p-1" : ""}`}
+          >
+            <AnchorAvatar size="md" />
+          </button>
+
+          {/* Wordmark — hidden when collapsed */}
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <span className="block font-serif text-[13px] font-semibold text-text-primary leading-tight truncate">
+                Archivio Moby Prince
+              </span>
+              <span className="block text-[10px] text-text-muted leading-tight mt-0.5">
+                Commissione Parlamentare
+              </span>
+            </div>
+          )}
+
+          {/* Collapse / expand toggle — desktop only */}
+          <button
+            onClick={() => setCollapsed((v) => !v)}
+            title={collapsed ? "Espandi sidebar" : "Comprimi sidebar"}
+            aria-label={collapsed ? "Espandi sidebar" : "Comprimi sidebar"}
+            className="hidden lg:flex items-center justify-center w-6 h-6 rounded-md flex-shrink-0
+                       text-text-muted hover:text-text-secondary hover:bg-surface-raised/50
+                       transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d={collapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} />
             </svg>
-            Nuova chat
-            <span className="ml-auto text-[10px] text-text-muted font-mono">⌘N</span>
           </button>
         </div>
 
-        {/* Search */}
-        <div className="px-3 pb-2">
-          <div className="relative">
-            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-text-muted pointer-events-none"
-                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
-            </svg>
-            <input
-              ref={searchRef}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  navRef.current?.querySelector("[data-conv-item]")?.focus();
-                }
-              }}
-              placeholder="Cerca titoli e citazioni…"
-              className="w-full bg-transparent border border-border/40 rounded-lg
-                         pl-7 pr-3 py-1.5 text-[12px] text-text-primary placeholder-text-muted
-                         focus:outline-none focus:border-accent/30 transition-colors"
-            />
-            {search && (
-              <button onClick={() => { setSearch(""); searchRef.current?.focus(); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2
-                                 text-text-muted hover:text-text-secondary transition-colors">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        {/* ── Main content — hidden when collapsed (desktop) ─────────────────── */}
+        {!collapsed && (
+          <>
+            {/* New chat */}
+            <div className="px-3 pt-3 pb-1">
+              <button
+                onClick={() => { onNewChat(); onClose(); }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]
+                           text-text-secondary hover:text-text-primary transition-colors duration-100"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
+                Nuova chat
+                <span className="ml-auto text-[10px] text-text-muted font-mono">⌘N</span>
               </button>
-            )}
-          </div>
-        </div>
+            </div>
 
-        {/* Conversations */}
-        <nav ref={navRef} onKeyDown={handleNavKey} className="flex-1 overflow-y-auto px-3 pb-4 space-y-4">
-          {isSearching ? (
-            <section>
-              <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-secondary uppercase tracking-[0.12em]">
-                {filtered.length} risultati
+            {/* Search */}
+            <div className="px-3 pb-2">
+              <div className="relative">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-text-muted pointer-events-none"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+                </svg>
+                <input
+                  ref={searchRef}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      navRef.current?.querySelector("[data-conv-item]")?.focus();
+                    }
+                  }}
+                  placeholder="Cerca titoli e citazioni…"
+                  className="w-full bg-transparent border border-border/40 rounded-lg
+                             pl-7 pr-3 py-1.5 text-[12px] text-text-primary placeholder-text-muted
+                             focus:outline-none focus:border-accent/30 transition-colors"
+                />
+                {search && (
+                  <button onClick={() => { setSearch(""); searchRef.current?.focus(); }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2
+                                     text-text-muted hover:text-text-secondary transition-colors">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Conversations */}
+            <nav ref={navRef} onKeyDown={handleNavKey} className="flex-1 overflow-y-auto px-3 pb-4 space-y-4">
+              {isSearching ? (
+                <section>
+                  <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-secondary uppercase tracking-[0.12em]">
+                    {filtered.length} risultati
+                  </h3>
+                  <div className="space-y-0.5">
+                    {filtered.length === 0
+                      ? <p className="px-[10px] py-6 text-xs text-text-secondary text-center">Nessun risultato.</p>
+                      : filtered.map(renderItem)
+                    }
+                  </div>
+                </section>
+              ) : (
+                <>
+                  {pinnedConversations?.length > 0 && (
+                    <section>
+                      <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
+                        In evidenza
+                      </h3>
+                      {renderGroup("pinned", pinnedConversations)}
+                    </section>
+                  )}
+
+                  {Object.entries(GROUP_LABELS).map(([key, label]) => {
+                    const group = groupedConversations[key];
+                    if (!group?.length) return null;
+                    return (
+                      <section key={key}>
+                        <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
+                          {label}
+                        </h3>
+                        {renderGroup(key, group)}
+                      </section>
+                    );
+                  })}
+
+                  {allConvs.length === 0 && (
+                    <p className="px-[10px] py-6 text-xs text-text-secondary text-center">
+                      Nessuna conversazione salvata.
+                    </p>
+                  )}
+                </>
+              )}
+            </nav>
+
+            {/* Analysis views — prossimamente, non-interactive */}
+            <div className="px-3 py-2 border-t border-border/30">
+              <h3 className="px-[10px] pt-1.5 pb-1 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
+                Analisi
               </h3>
               <div className="space-y-0.5">
-                {filtered.length === 0
-                  ? <p className="px-[10px] py-6 text-xs text-text-secondary text-center">Nessun risultato.</p>
-                  : filtered.map(renderItem)
-                }
+                {ANALYSIS_VIEWS.map(({ label, icon }) => (
+                  <div
+                    key={label}
+                    className="flex items-center gap-2 px-[10px] py-2 rounded-lg text-[13px]
+                               border-l-[2px] border-transparent select-none
+                               opacity-40 cursor-not-allowed pointer-events-none
+                               text-text-secondary"
+                  >
+                    {icon}
+                    <span className="flex-1 truncate">{label}</span>
+                    <span className="text-[9px] text-text-muted font-mono">prossimamente</span>
+                  </div>
+                ))}
               </div>
-            </section>
-          ) : (
-            <>
-              {/* Pinned */}
-              {pinnedConversations?.length > 0 && (
-                <section>
-                  <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
-                    In evidenza
-                  </h3>
-                  {renderGroup("pinned", pinnedConversations)}
-                </section>
-              )}
+            </div>
 
-              {Object.entries(GROUP_LABELS).map(([key, label]) => {
-                const group = groupedConversations[key];
-                if (!group?.length) return null;
-                return (
-                  <section key={key}>
-                    <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
-                      {label}
-                    </h3>
-                    {renderGroup(key, group)}
-                  </section>
-                );
-              })}
+            {/* Footer */}
+            <div className="px-4 py-3 border-t border-border/30 flex items-center justify-between gap-2">
+              <p className="text-[10px] text-text-muted leading-tight">
+                Camera dei Deputati<br />
+                <span className="opacity-60">Uso riservato · v1.0</span>
+              </p>
+              <svg className="w-4 h-4 text-text-muted/30 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
+                      d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+              </svg>
+            </div>
+          </>
+        )}
 
-              {allConvs.length === 0 && (
-                <p className="px-[10px] py-6 text-xs text-text-secondary text-center">
-                  Nessuna conversazione salvata.
-                </p>
-              )}
-            </>
-          )}
-        </nav>
-
-        {/* Analysis views */}
-        <div className="px-3 py-2 border-t border-border/30">
-          <h3 className="px-[10px] pt-1.5 pb-1 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
-            Analisi
-          </h3>
-          <div className="space-y-0.5">
-            {ANALYSIS_VIEWS.map(({ to, label, icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={onClose}
-                className={({ isActive }) =>
-                  `flex items-center gap-2 px-[10px] py-2 rounded-lg text-[13px]
-                   border-l-[2px] transition-colors duration-150 select-none
-                   ${isActive
-                     ? "border-accent text-text-primary font-medium"
-                     : "border-transparent text-text-secondary hover:text-text-primary"
-                   }`
-                }
-              >
-                {icon}
-                <span className="flex-1 truncate">{label}</span>
-                <span className="text-[9px] text-text-muted font-mono opacity-60">prossimamente</span>
-              </NavLink>
-            ))}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-4 py-3 border-t border-border/30 flex items-center justify-between gap-2">
-          <p className="text-[10px] text-text-muted leading-tight">
-            Camera dei Deputati<br />
-            <span className="opacity-60">Uso riservato · v1.0</span>
-          </p>
-          <svg className="w-4 h-4 text-text-muted/30 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
-                  d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
-          </svg>
-        </div>
+        {/* ── Drag-to-resize handle — desktop only ───────────────────────────── */}
+        <div
+          className="absolute right-0 top-0 bottom-0 w-1 hidden lg:block cursor-col-resize
+                     hover:bg-accent/30 active:bg-accent/50 transition-colors"
+          onMouseDown={handleResizeStart}
+        />
       </aside>
     </>
   );
