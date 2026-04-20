@@ -4,19 +4,24 @@ import remarkGfm from "remark-gfm";
 import AnchorAvatar from "./AnchorAvatar";
 import EvidenceSection from "./EvidenceSection";
 
-const COLLAPSE_THRESHOLD = 1500;
-
 // ─── CitationTooltip ──────────────────────────────────────────────────────────
 
 function CitationTooltip({ citation }) {
   const src = citation.sources?.[0];
   if (!src) return null;
+  // Prefer explicit title; fall back to document ID or URI filename
+  const displayTitle =
+    (src.title && !/^Documento \d+$/.test(src.title))
+      ? src.title
+      : src.documentId
+        ?? src.uri?.split('/').pop()?.replace(/%20/g, ' ')
+        ?? `Citazione ${citation.id}`;
   return (
     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 z-50
                     bg-surface-raised border border-border rounded-xl p-3
                     shadow-2xl text-left pointer-events-none animate-fade-in surface-depth">
       <p className="text-[12px] font-medium text-text-primary mb-1 line-clamp-2 leading-snug">
-        {src.title}
+        {displayTitle}
       </p>
       {src.pageIdentifier && (
         <p className="text-[10px] text-text-muted font-mono mb-1.5">p. {src.pageIdentifier}</p>
@@ -144,7 +149,6 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
   const [showSteps, setShowSteps] = useState(false);
   const [copied,    setCopied]    = useState(false);
   const [inlineCit, setInlineCit] = useState(null);
-  const [expanded,  setExpanded]  = useState(false);
 
   const handleCopy = () =>
     navigator.clipboard.writeText(message.text).then(() => {
@@ -194,8 +198,6 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
 
   // ── Assistant ─────────────────────────────────────────────────────────────────
   const isStreaming = message.streaming === true;
-  const isLong      = !isStreaming && message.text.length > COLLAPSE_THRESHOLD;
-  const displayText = isLong && !expanded ? message.text.slice(0, COLLAPSE_THRESHOLD) : message.text;
 
   const wordCount = message.text.trim().split(/\s+/).filter(Boolean).length;
   const readTime  = Math.max(1, Math.ceil(wordCount / 200));
@@ -249,7 +251,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
           )}
 
           <AnnotatedAnswer
-            text={displayText}
+            text={message.text}
             citations={isStreaming ? null : message.citations}
             onInlineCite={handleInlineCite}
           />
@@ -259,21 +261,6 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
             <span className="inline-block w-px h-[14px] bg-accent/80 animate-pulse ml-0.5 align-text-bottom" />
           )}
         </div>
-
-        {/* Collapse toggle */}
-        {isLong && !isStreaming && (
-          <button onClick={() => setExpanded((v) => !v)}
-                  className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors">
-            {expanded
-              ? <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  </svg>Comprimi</>
-              : <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>Continua a leggere ({Math.ceil(message.text.length / 1000)}k car.)</>
-            }
-          </button>
-        )}
 
         {/* Truncation warning */}
         {mightBeTruncated && (
@@ -328,29 +315,36 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
         )}
 
         {/* Reasoning steps */}
-        {!isStreaming && message.steps?.length > 0 && (
-          <div className="print:hidden">
-            <button onClick={() => setShowSteps((v) => !v)}
-                    aria-expanded={showSteps}
-                    className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors">
-              <svg className={`w-3 h-3 transition-transform ${showSteps ? "rotate-90" : ""}`}
-                   fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              {showSteps ? "Nascondi" : "Mostra"} ragionamento ({message.steps.length} passi)
-            </button>
-            {showSteps && (
-              <div className="mt-1.5 space-y-1">
-                {message.steps.map((step, i) => (
-                  <div key={i} className="text-[11px] text-text-muted font-mono
-                                          bg-surface-raised rounded-lg px-2.5 py-1.5">
-                    {step.description || JSON.stringify(step)}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {!isStreaming && message.steps?.length > 0 && (() => {
+          const TRIVIAL = /rephrase|reformula|riformula|expand query/i;
+          const visibleSteps = message.steps.filter(
+            (s) => !TRIVIAL.test(s.description || s.type || "")
+          );
+          if (visibleSteps.length === 0) return null;
+          return (
+            <div className="print:hidden">
+              <button onClick={() => setShowSteps((v) => !v)}
+                      aria-expanded={showSteps}
+                      className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors">
+                <svg className={`w-3 h-3 transition-transform ${showSteps ? "rotate-90" : ""}`}
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                {showSteps ? "Nascondi" : "Mostra"} ragionamento ({visibleSteps.length} {visibleSteps.length === 1 ? "passo" : "passi"})
+              </button>
+              {showSteps && (
+                <div className="mt-1.5 space-y-1">
+                  {visibleSteps.map((step, i) => (
+                    <div key={i} className="text-[11px] text-text-muted font-mono
+                                            bg-surface-raised rounded-lg px-2.5 py-1.5">
+                      {step.description || JSON.stringify(step)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Related questions */}
         {!isStreaming && message.relatedQuestions?.length > 0 && (

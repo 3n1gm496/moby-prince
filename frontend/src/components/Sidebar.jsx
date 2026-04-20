@@ -253,8 +253,13 @@ export default function Sidebar({
         ${isOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 print:hidden
       `}>
 
-        {/* Wordmark */}
-        <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border/30">
+        {/* Wordmark — click to start new chat */}
+        <button
+          onClick={() => { onNewChat(); onClose(); }}
+          className="flex items-center gap-2.5 px-4 py-4 border-b border-border/30
+                     w-full text-left hover:bg-surface-raised/50 transition-colors"
+          title="Nuova chat"
+        >
           <AnchorAvatar size="md" />
           <div>
             <span className="block font-serif text-[13px] font-semibold text-text-primary leading-tight">
@@ -264,7 +269,7 @@ export default function Sidebar({
               Commissione Parlamentare
             </span>
           </div>
-        </div>
+        </button>
 
         {/* New chat */}
         <div className="px-3 pt-3 pb-1">
