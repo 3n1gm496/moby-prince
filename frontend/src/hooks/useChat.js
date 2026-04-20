@@ -81,7 +81,10 @@ export function useChat({
 
   const sendMessage = useCallback(
     async (queryText, explicitConvId, { silent = false } = {}) => {
-      if (!queryText.trim() || isLoading) return;
+      const targetConvId = explicitConvId ?? activeConversationId;
+      // Guard is per-conversation: a request in flight for conv A must not
+      // block a new message in conv B.
+      if (!queryText.trim() || loadingConvId === targetConvId) return;
 
       // Commit any in-progress streaming animation before starting a new request
       const currentStreaming = streamingMsgRef.current;
@@ -94,8 +97,7 @@ export function useChat({
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const timeoutId    = setTimeout(() => controller.abort("timeout"), CLIENT_TIMEOUT_MS);
-      const targetConvId = explicitConvId ?? activeConversationId;
+      const timeoutId = setTimeout(() => controller.abort("timeout"), CLIENT_TIMEOUT_MS);
 
       if (!silent) {
         addMessage({ id: Date.now(), role: "user", text: queryText.trim() }, targetConvId);
@@ -167,7 +169,7 @@ export function useChat({
         abortRef.current = null;
       }
     },
-    [isLoading, sessionId, filters, addMessage, setSession, activeConversationId],
+    [loadingConvId, sessionId, filters, addMessage, setSession, activeConversationId],
   );
 
   // Only expose the streaming message for the currently active conversation

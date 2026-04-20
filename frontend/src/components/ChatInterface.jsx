@@ -90,6 +90,7 @@ export default function ChatInterface() {
     autoScrollRef.current = true;
     setShowScrollButton(false);
     scrollToBottom("instant");
+    textareaRef.current?.focus();
   }, [history.activeConversationId, scrollToBottom]);
 
   // ── Callbacks ───────────────────────────────────────────────────────────────
