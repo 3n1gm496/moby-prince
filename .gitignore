@@ -14,3 +14,6 @@ service-account*.json
 
 *.local
 .DS_Store
+
+# Evaluation run outputs — results are reviewed locally, not committed by default
+eval/results/*.jsonl
