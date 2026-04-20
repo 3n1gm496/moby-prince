@@ -21,6 +21,14 @@ function errorHandler(err, req, res, next) {
   const method    = req.method;
   const path      = req.path;
 
+  // body-parser errors (PayloadTooLargeError, SyntaxError from malformed JSON)
+  if (err.type === 'entity.too.large' || err.status === 413) {
+    return res.status(413).json({ error: 'Richiesta troppo grande.' });
+  }
+  if (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && err.status === 400)) {
+    return res.status(400).json({ error: 'JSON non valido.' });
+  }
+
   if (err instanceof DiscoveryEngineError) {
     log.warn({ requestId, traceId, method, path, statusCode: err.statusCode, msg: err.message },
       'DiscoveryEngineError');
