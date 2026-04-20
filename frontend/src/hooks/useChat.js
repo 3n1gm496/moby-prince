@@ -41,6 +41,9 @@ export function useChat({
     else setInternalSessionId(id);
   }, [onSessionUpdate]);
 
+  // Abort any in-flight request when the component unmounts
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
+
   // Keep ref in sync so abort handlers can read current streaming state
   useEffect(() => {
     streamingMsgRef.current = streamingMessage;

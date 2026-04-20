@@ -113,6 +113,9 @@ class IngestionJob {
     if (this.status !== 'FAILED') {
       throw new Error(`Cannot reschedule job in state ${this.status}; only FAILED jobs can be rescheduled`);
     }
+    if (this.attempts >= this.maxAttempts) {
+      throw new Error(`Cannot reschedule job ${this.jobId}: attempts (${this.attempts}) >= maxAttempts (${this.maxAttempts})`);
+    }
     return this._next({
       status:          'PENDING',
       attempts:        this.attempts + 1,

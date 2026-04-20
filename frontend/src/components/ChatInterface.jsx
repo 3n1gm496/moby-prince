@@ -122,7 +122,7 @@ export default function ChatInterface() {
       action: { label: "Annulla", onClick: () => history.restoreConversation(conv) },
       duration: 5000,
     });
-  }, [history, showToast]);
+  }, [history.conversations, history.deleteConversation, history.restoreConversation, showToast]);
 
   const handleExport = useCallback(() => {
     const conv = history.activeConversation;
@@ -142,7 +142,7 @@ export default function ChatInterface() {
         lines.push(`\n**Risposta**\n\n${msg.text}\n`);
         if (msg.citations?.length) {
           const seen = new Set();
-          const titles = msg.citations.flatMap((c) => c.sources.map((s) => s.title))
+          const titles = msg.citations.flatMap((c) => (c.sources || []).map((s) => s.title))
             .filter((t) => t && !seen.has(t) && seen.add(t));
           if (titles.length) lines.push(`\n_Fonti: ${titles.join(" · ")}_\n`);
         }
@@ -155,7 +155,7 @@ export default function ChatInterface() {
     a.download = `moby-prince_${conv.title.replace(/[^a-z0-9àèéìòùÀÈÉÌÒÙ]/gi, "_").slice(0, 50)}.md`;
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
-  }, [history.activeConversation]);
+  }, [history.activeConversation, showToast]);
 
   const handleSubmit = (e) => {
     e?.preventDefault();
@@ -294,7 +294,7 @@ export default function ChatInterface() {
                 ))}
                 {showLoadingBubble  && <LoadingBubble />}
                 {streamingMessage   && (
-                  <MessageBubble key="streaming" message={streamingMessage}
+                  <MessageBubble key={`streaming-${streamingMessage.id}`} message={streamingMessage}
                                  onCitationClick={() => {}} onFollowUp={() => {}} onRetry={() => {}} />
                 )}
                 <div ref={messagesEndRef} />

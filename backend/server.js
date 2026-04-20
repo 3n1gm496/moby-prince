@@ -45,13 +45,13 @@ const generalLimiter = rateLimit({
 // ── Middleware ────────────────────────────────────────────────────────────────
 
 app.use(helmet({ contentSecurityPolicy: false })); // CSP managed by nginx
-app.use(requestId);
-app.use(requestLogger);
-app.use(express.json({ limit: '32kb' }));
 app.use(cors({
   origin:  config.frontendOrigin,
   methods: ['GET', 'POST'],
 }));
+app.use(requestId);
+app.use(requestLogger);
+app.use(express.json({ limit: '32kb' }));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
