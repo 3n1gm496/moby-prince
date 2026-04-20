@@ -119,4 +119,53 @@ async function getObject(name) {
   return res;
 }
 
-module.exports = { listObjects, uploadObject, getObject };
+/**
+ * Delete a GCS object.
+ *
+ * @param {string} name  Full GCS object name
+ */
+async function deleteObject(name) {
+  await _checkBucket();
+
+  const url = `${GCS_API}/b/${config.gcsBucket}/o/${encodeURIComponent(name)}`;
+  const res = await fetch(url, { method: 'DELETE', headers: await _headers() });
+
+  // 204 No Content = success; 404 = already gone (treat as success)
+  if (!res.ok && res.status !== 204 && res.status !== 404) {
+    const text = await res.text().catch(() => '');
+    log.error({ status: res.status, detail: text.slice(0, 300) }, 'GCS delete failed');
+    const err = new Error(`GCS delete failed: ${res.status}`);
+    err.statusCode = res.status;
+    throw err;
+  }
+}
+
+/**
+ * Copy a GCS object within the same bucket.
+ * GCS has no native move; move = copy + delete.
+ *
+ * @param {string} srcName  Source object name
+ * @param {string} dstName  Destination object name
+ */
+async function copyObject(srcName, dstName) {
+  await _checkBucket();
+
+  const bucket = config.gcsBucket;
+  const url    = `${GCS_API}/b/${bucket}/o/${encodeURIComponent(srcName)}/copyTo/b/${bucket}/o/${encodeURIComponent(dstName)}`;
+  const headers = await _headers();
+  headers['Content-Length'] = '0';
+
+  const res = await fetch(url, { method: 'POST', headers, body: '' });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    log.error({ status: res.status, detail: text.slice(0, 300) }, 'GCS copy failed');
+    const err = new Error(`GCS copy failed: ${res.status}`);
+    err.statusCode = res.status;
+    throw err;
+  }
+
+  return res.json();
+}
+
+module.exports = { listObjects, uploadObject, getObject, deleteObject, copyObject };

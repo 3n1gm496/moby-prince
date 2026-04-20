@@ -122,4 +122,40 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
   }
 });
 
+// ── DELETE /api/storage/file ──────────────────────────────────────────────────
+
+router.delete('/file', async (req, res, next) => {
+  const name = typeof req.query.name === 'string' ? req.query.name.trim() : null;
+  if (!name) return res.status(400).json({ error: 'Query parameter "name" is required.' });
+
+  try {
+    await gcs.deleteObject(name);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/storage/move ────────────────────────────────────────────────────
+// Body: { source: "path/to/file.pdf", destination: "other/path/to/file.pdf" }
+// GCS move = copy to destination + delete source.
+
+router.post('/move', async (req, res, next) => {
+  const { source, destination } = req.body || {};
+  if (!source || !destination) {
+    return res.status(400).json({ error: '"source" and "destination" are required.' });
+  }
+  if (source === destination) {
+    return res.status(400).json({ error: 'source and destination are the same.' });
+  }
+
+  try {
+    await gcs.copyObject(source, destination);
+    await gcs.deleteObject(source);
+    res.json({ success: true, destination });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
