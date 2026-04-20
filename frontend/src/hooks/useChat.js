@@ -1,14 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
-const STREAM_CHUNK   = 6;   // characters revealed per tick
-const STREAM_TICK_MS = 14;  // ~70 chars/s reveal speed
-
-// Client-side abort timeout for /api/answer fetches.
-// Deliberately longer than the backend POST_TIMEOUT_MS (55 s) so that when
-// Discovery Engine is slow the backend 504 arrives before the client aborts,
-// giving the user a meaningful error message rather than a generic network
-// failure. If you change this, keep CLIENT_TIMEOUT_MS > backend POST_TIMEOUT_MS.
-const CLIENT_TIMEOUT_MS = 75_000;
+const STREAM_CHUNK      = 6;     // characters revealed per tick
+const STREAM_TICK_MS    = 14;    // ~70 chars/s reveal speed
+const CLIENT_TIMEOUT_MS = 75_000; // must exceed backend POST_TIMEOUT_MS (55 s)
+const MAX_AUTO_RETRIES  = 2;
+const RETRY_DELAYS      = [2_000, 4_000]; // exponential backoff
 
 export function useChat({
   externalMessages,
@@ -16,16 +12,17 @@ export function useChat({
   activeConversationId,
   onAppend,
   onSessionUpdate,
-  filters,          // optional: active filter object sent to /api/answer
+  filters,
 } = {}) {
   const [internalMessages,  setInternalMessages]  = useState([]);
   const [internalSessionId, setInternalSessionId] = useState(null);
   const [loadingConvId,     setLoadingConvId]     = useState(null);
   const [streamingMessage,  setStreamingMessage]  = useState(null);
-  // streamingMessage shape: { convId, text (partial), target (full), msgData }
+  // 'searching' | 'retrying' | null — shown inside the skeleton loader
+  const [loadingStage,      setLoadingStage]      = useState(null);
 
-  const abortRef       = useRef(null);
-  const streamingMsgRef = useRef(null); // stays in sync with streamingMessage for non-stale reads
+  const abortRef        = useRef(null);
+  const streamingMsgRef = useRef(null);
 
   const messages  = externalMessages  !== undefined ? externalMessages  : internalMessages;
   const sessionId = externalSessionId !== undefined ? externalSessionId : internalSessionId;
@@ -41,10 +38,10 @@ export function useChat({
     else setInternalSessionId(id);
   }, [onSessionUpdate]);
 
-  // Abort any in-flight request when the component unmounts
+  // Abort any in-flight request on unmount
   useEffect(() => () => { abortRef.current?.abort(); }, []);
 
-  // Keep ref in sync so abort handlers can read current streaming state
+  // Keep ref in sync for non-stale reads inside abort handlers
   useEffect(() => {
     streamingMsgRef.current = streamingMessage;
   }, [streamingMessage]);
@@ -71,7 +68,7 @@ export function useChat({
     return () => clearTimeout(timerId);
   }, [streamingMessage, addMessage]);
 
-  // ── Stop streaming — commit full text immediately ──────────────────────────
+  // ── Stop streaming ─────────────────────────────────────────────────────────
 
   const stopStreaming = useCallback(() => {
     const current = streamingMsgRef.current;
@@ -80,16 +77,56 @@ export function useChat({
     setTimeout(() => addMessage(current.msgData, current.convId), 0);
   }, [addMessage]);
 
+  // ── SSE reader ─────────────────────────────────────────────────────────────
+
+  async function _readSSE(response, onThinking) {
+    const reader  = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let result = null;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+
+        for (const part of parts) {
+          if (!part.trim()) continue;
+          let eventType = "message";
+          let eventData = "";
+          for (const line of part.split("\n")) {
+            if (line.startsWith("event: "))     eventType = line.slice(7).trim();
+            else if (line.startsWith("data: ")) eventData = line.slice(6).trim();
+          }
+          if (eventType === "thinking") {
+            onThinking?.();
+          } else if (eventType === "answer") {
+            result = JSON.parse(eventData);
+          } else if (eventType === "error") {
+            const errData = JSON.parse(eventData);
+            throw new Error(errData.message || "Errore dal server");
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return result;
+  }
+
   // ── Send message ───────────────────────────────────────────────────────────
 
   const sendMessage = useCallback(
     async (queryText, explicitConvId, { silent = false } = {}) => {
       const targetConvId = explicitConvId ?? activeConversationId;
-      // Guard is per-conversation: a request in flight for conv A must not
-      // block a new message in conv B.
       if (!queryText.trim() || loadingConvId === targetConvId) return;
 
-      // Commit any in-progress streaming animation before starting a new request
+      // Commit any in-progress streaming animation immediately
       const currentStreaming = streamingMsgRef.current;
       if (currentStreaming) {
         setStreamingMessage(null);
@@ -98,41 +135,75 @@ export function useChat({
 
       abortRef.current?.abort();
       const controller = new AbortController();
-      abortRef.current = controller;
-
-      const timeoutId = setTimeout(() => controller.abort("timeout"), CLIENT_TIMEOUT_MS);
+      abortRef.current  = controller;
+      const timeoutId   = setTimeout(() => controller.abort("timeout"), CLIENT_TIMEOUT_MS);
 
       if (!silent) {
         addMessage({ id: Date.now(), role: "user", text: queryText.trim() }, targetConvId);
       }
       setLoadingConvId(targetConvId);
+      setLoadingStage("searching");
+
+      let attempt = 0;
 
       try {
-        const res = await fetch("/api/answer", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({
-            query:   queryText.trim(),
-            sessionId,
-            ...(filters && Object.keys(filters).length > 0 ? { filters } : {}),
-          }),
-          signal:  controller.signal,
-        });
+        let data = null;
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `HTTP ${res.status}`);
+        while (true) {
+          try {
+            const res = await fetch("/api/answer", {
+              method:  "POST",
+              headers: { "Content-Type": "application/json" },
+              body:    JSON.stringify({
+                query:     queryText.trim(),
+                sessionId,
+                ...(filters && Object.keys(filters).length > 0 ? { filters } : {}),
+              }),
+              signal: controller.signal,
+            });
+
+            if (!res.ok) {
+              const status  = res.status;
+              const errData = await res.json().catch(() => ({}));
+              if ((status === 502 || status === 503) && attempt < MAX_AUTO_RETRIES) {
+                attempt++;
+                setLoadingStage("retrying");
+                await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt - 1]));
+                setLoadingStage("searching");
+                continue;
+              }
+              throw new Error(errData.error || `HTTP ${status}`);
+            }
+
+            const contentType = res.headers.get("content-type") || "";
+            if (contentType.includes("text/event-stream")) {
+              data = await _readSSE(res, () => setLoadingStage("searching"));
+            } else {
+              // Fallback for plain JSON (backwards-compat with proxies that buffer SSE)
+              data = await res.json();
+            }
+            break;
+
+          } catch (fetchErr) {
+            if (fetchErr.name === "AbortError") throw fetchErr;
+            if (attempt < MAX_AUTO_RETRIES) {
+              attempt++;
+              setLoadingStage("retrying");
+              await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt - 1]));
+              setLoadingStage("searching");
+              continue;
+            }
+            throw fetchErr;
+          }
         }
 
-        const data = await res.json();
+        if (!data) throw new Error("Nessuna risposta ricevuta");
 
-        // Session ID is now a plain string in data.session.id (no parsing needed)
         if (data.session?.id) {
           setSession(data.session.id, targetConvId);
         }
 
-        // Citations and evidence are already normalised by the server
-        const answer = data.answer || {};
+        const answer  = data.answer || {};
         const msgData = {
           id:               Date.now() + 1,
           role:             "assistant",
@@ -144,15 +215,9 @@ export function useChat({
           meta:             data.meta || {},
         };
 
-        setStreamingMessage({
-          convId:  targetConvId,
-          text:    "",
-          target:  msgData.text,
-          msgData,
-        });
+        setStreamingMessage({ convId: targetConvId, text: "", target: msgData.text, msgData });
+
       } catch (err) {
-        // Distinguish user-triggered abort (switch conversation / new query)
-        // from the 75s timeout, which should show an error message.
         if (err.name === "AbortError" && err.message !== "timeout") return;
 
         addMessage(
@@ -169,13 +234,13 @@ export function useChat({
       } finally {
         clearTimeout(timeoutId);
         setLoadingConvId(null);
+        setLoadingStage(null);
         abortRef.current = null;
       }
     },
     [loadingConvId, sessionId, filters, addMessage, setSession, activeConversationId],
   );
 
-  // Only expose the streaming message for the currently active conversation
   const activeStreamingMessage = streamingMessage?.convId === activeConversationId
     ? { ...streamingMessage.msgData, text: streamingMessage.text, streaming: true }
     : null;
@@ -184,6 +249,7 @@ export function useChat({
     messages,
     isLoading,
     loadingConvId,
+    loadingStage,
     sendMessage,
     streamingMessage: activeStreamingMessage,
     stopStreaming,

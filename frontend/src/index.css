@@ -24,35 +24,40 @@
 }
 
 @layer components {
-  /* Citation badge — small, restrained gold superscript */
+  /* Citation badge — gold superscript with entrance pulse animation */
   .citation-badge {
     @apply inline-flex items-center justify-center text-[10px] font-mono font-semibold
-           rounded cursor-pointer transition-colors duration-100 align-super flex-shrink-0;
+           rounded cursor-pointer align-super flex-shrink-0 relative;
     width: 16px;
     height: 16px;
     background: rgba(201, 168, 76, 0.08);
     color: #c9a84c;
     border: 1px solid rgba(201, 168, 76, 0.22);
+    animation: badgePulse 0.7s ease-out forwards;
+    transition: background 100ms, border-color 100ms;
   }
   .citation-badge:hover {
-    background: rgba(201, 168, 76, 0.18);
+    background: rgba(201, 168, 76, 0.20);
+    border-color: rgba(201, 168, 76, 0.40);
   }
 
-  /* Prose — clean, comfortable reading */
+  /* Prose — editorial-quality reading */
   .prose-answer {
-    @apply text-text-primary text-sm leading-[1.75];
+    @apply text-text-primary text-sm;
+    line-height: 1.82;
+    font-feature-settings: "liga" 1, "kern" 1;
   }
-  .prose-answer p           { @apply mb-3 last:mb-0; }
+  .prose-answer p           { @apply mb-3.5 last:mb-0; }
   .prose-answer p:last-child { @apply mb-0; }
   .prose-answer strong      { @apply text-text-primary font-semibold; }
   .prose-answer em          { @apply italic; }
-  .prose-answer ul          { @apply list-disc list-outside pl-4 mb-3 space-y-1; }
-  .prose-answer ol          { @apply list-decimal list-outside pl-4 mb-3 space-y-1; }
+  .prose-answer ul          { @apply list-disc list-outside pl-4 mb-3 space-y-1.5; }
+  .prose-answer ol          { @apply list-decimal list-outside pl-4 mb-3 space-y-1.5; }
   .prose-answer li          { @apply text-text-primary; }
   .prose-answer h2          { @apply text-text-primary font-semibold text-base mt-5 mb-2; }
   .prose-answer h3          { @apply text-text-primary font-medium text-sm mt-4 mb-1.5; }
   .prose-answer blockquote  {
-    @apply border-l-2 border-border pl-3 italic text-text-secondary my-3;
+    @apply border-l-2 border-accent/40 pl-3.5 italic text-text-secondary my-3;
   }
   .prose-answer code {
     @apply font-mono text-[12px] bg-surface-raised px-1.5 py-0.5 rounded text-accent;
@@ -61,6 +66,13 @@
     @apply font-mono text-[12px] bg-surface-raised p-3 rounded-lg overflow-x-auto my-3;
   }
   .prose-answer hr { @apply border-border my-4; }
+
+  /* Surface depth — subtle inner glow to separate z-layers */
+  .surface-depth {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.04),
+      0 1px 4px rgba(0,0,0,0.45);
+  }
 }
 
 /* ── Print stylesheet ────────────────────────────────────────────────────── */

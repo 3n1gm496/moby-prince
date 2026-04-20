@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { NavLink } from "react-router-dom";
 import AnchorAvatar from "./AnchorAvatar";
 
+const PAGE_SIZE = 10;
+
 const ANALYSIS_VIEWS = [
   {
     to: "/timeline",
@@ -74,12 +76,13 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogg
           e.preventDefault(); onDelete(conv.id);
         }
       }}
-      className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]
-                  cursor-pointer transition-colors duration-100 select-none outline-none
+      className={`group relative flex items-center gap-2 px-[10px] py-2 rounded-lg text-[13px]
+                  border-l-[2px] cursor-pointer select-none outline-none
+                  transition-colors duration-150
                   focus-visible:ring-1 focus-visible:ring-accent/40
                   ${isActive
-                    ? "text-text-primary font-medium border-l-[2px] border-accent pl-[10px]"
-                    : "text-text-secondary hover:text-text-primary"
+                    ? "border-accent text-text-primary font-medium"
+                    : "border-transparent text-text-secondary hover:text-text-primary"
                   }`}
     >
       {renaming ? (
@@ -155,15 +158,31 @@ export default function Sidebar({
   isOpen, onClose,
 }) {
   const [search, setSearch] = useState("");
+  // Groups whose full list is expanded beyond PAGE_SIZE
+  const [expandedGroups, setExpandedGroups] = useState({});
   const searchRef = useRef(null);
   const navRef    = useRef(null);
 
   const allConvs = [...(pinnedConversations || []), ...Object.values(groupedConversations).flat()];
   const isSearching = search.trim().length > 0;
+  const q = search.toLowerCase();
+
   const filtered = isSearching
     ? allConvs.filter((c) =>
-        c.title.toLowerCase().includes(search.toLowerCase()) ||
-        c.messages.some((m) => m.text?.toLowerCase().includes(search.toLowerCase()))
+        c.title.toLowerCase().includes(q) ||
+        c.messages.some((m) =>
+          m.text?.toLowerCase().includes(q) ||
+          m.citations?.some((cit) =>
+            cit.sources?.some((s) =>
+              s.snippet?.toLowerCase().includes(q) ||
+              s.title?.toLowerCase().includes(q)
+            )
+          ) ||
+          m.evidence?.some((ev) =>
+            ev.snippet?.toLowerCase().includes(q) ||
+            ev.title?.toLowerCase().includes(q)
+          )
+        )
       )
     : null;
 
@@ -188,6 +207,36 @@ export default function Sidebar({
       onTogglePin={onTogglePin}
     />
   );
+
+  const renderGroup = (key, convs) => {
+    const isExpanded = expandedGroups[key];
+    const visible    = isExpanded ? convs : convs.slice(0, PAGE_SIZE);
+    const remaining  = convs.length - PAGE_SIZE;
+
+    return (
+      <div className="space-y-0.5">
+        {visible.map(renderItem)}
+        {!isExpanded && remaining > 0 && (
+          <button
+            onClick={() => setExpandedGroups((prev) => ({ ...prev, [key]: true }))}
+            className="w-full text-left px-[10px] py-1.5 text-[11px] text-text-muted
+                       hover:text-text-secondary transition-colors rounded-lg"
+          >
+            Mostra altre {remaining}…
+          </button>
+        )}
+        {isExpanded && convs.length > PAGE_SIZE && (
+          <button
+            onClick={() => setExpandedGroups((prev) => ({ ...prev, [key]: false }))}
+            className="w-full text-left px-[10px] py-1.5 text-[11px] text-text-muted
+                       hover:text-text-secondary transition-colors rounded-lg"
+          >
+            Mostra meno
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -250,7 +299,7 @@ export default function Sidebar({
                   navRef.current?.querySelector("[data-conv-item]")?.focus();
                 }
               }}
-              placeholder="Cerca…"
+              placeholder="Cerca titoli e citazioni…"
               className="w-full bg-transparent border border-border/40 rounded-lg
                          pl-7 pr-3 py-1.5 text-[12px] text-text-primary placeholder-text-muted
                          focus:outline-none focus:border-accent/30 transition-colors"
@@ -271,12 +320,12 @@ export default function Sidebar({
         <nav ref={navRef} onKeyDown={handleNavKey} className="flex-1 overflow-y-auto px-3 pb-4 space-y-4">
           {isSearching ? (
             <section>
-              <h3 className="px-3 pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
+              <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
                 {filtered.length} risultati
               </h3>
               <div className="space-y-0.5">
                 {filtered.length === 0
-                  ? <p className="px-3 py-4 text-xs text-text-muted text-center">Nessun risultato.</p>
+                  ? <p className="px-[10px] py-4 text-xs text-text-muted text-center">Nessun risultato.</p>
                   : filtered.map(renderItem)
                 }
               </div>
@@ -286,10 +335,10 @@ export default function Sidebar({
               {/* Pinned */}
               {pinnedConversations?.length > 0 && (
                 <section>
-                  <h3 className="px-3 pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
+                  <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
                     In evidenza
                   </h3>
-                  <div className="space-y-0.5">{pinnedConversations.map(renderItem)}</div>
+                  {renderGroup("pinned", pinnedConversations)}
                 </section>
               )}
 
@@ -298,16 +347,16 @@ export default function Sidebar({
                 if (!group?.length) return null;
                 return (
                   <section key={key}>
-                    <h3 className="px-3 pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
+                    <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
                       {label}
                     </h3>
-                    <div className="space-y-0.5">{group.map(renderItem)}</div>
+                    {renderGroup(key, group)}
                   </section>
                 );
               })}
 
               {allConvs.length === 0 && (
-                <p className="px-3 py-10 text-xs text-text-muted text-center">
+                <p className="px-[10px] py-10 text-xs text-text-muted text-center">
                   Nessuna conversazione salvata.
                 </p>
               )}
@@ -317,7 +366,7 @@ export default function Sidebar({
 
         {/* Analysis views */}
         <div className="px-3 py-2 border-t border-border/30">
-          <h3 className="px-3 pt-1.5 pb-1 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
+          <h3 className="px-[10px] pt-1.5 pb-1 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
             Analisi
           </h3>
           <div className="space-y-0.5">
@@ -327,11 +376,11 @@ export default function Sidebar({
                 to={to}
                 onClick={onClose}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]
-                   transition-colors duration-100 select-none
+                  `flex items-center gap-2 px-[10px] py-2 rounded-lg text-[13px]
+                   border-l-[2px] transition-colors duration-150 select-none
                    ${isActive
-                     ? "text-text-primary font-medium border-l-[2px] border-accent pl-[10px]"
-                     : "text-text-secondary hover:text-text-primary"
+                     ? "border-accent text-text-primary font-medium"
+                     : "border-transparent text-text-secondary hover:text-text-primary"
                    }`
                 }
               >
@@ -344,8 +393,15 @@ export default function Sidebar({
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-border/30">
-          <p className="text-[10px] text-text-muted">Camera dei Deputati · Uso riservato</p>
+        <div className="px-4 py-3 border-t border-border/30 flex items-center justify-between gap-2">
+          <p className="text-[10px] text-text-muted leading-tight">
+            Camera dei Deputati<br />
+            <span className="opacity-60">Uso riservato · v1.0</span>
+          </p>
+          <svg className="w-4 h-4 text-text-muted/30 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
+                  d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+          </svg>
         </div>
       </aside>
     </>

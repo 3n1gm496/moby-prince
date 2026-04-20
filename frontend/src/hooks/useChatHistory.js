@@ -89,6 +89,20 @@ export function useChatHistory() {
     return () => clearTimeout(debounceRef.current);
   }, [state]);
 
+  // Multi-tab sync: when another tab writes to localStorage, reload state here
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== STORAGE_KEY || !e.newValue) return;
+      try {
+        setState(JSON.parse(e.newValue));
+      } catch {
+        // ignore parse errors from other tabs
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   const activeConversation = useMemo(
     () => state.conversations.find((c) => c.id === state.activeConversationId) || null,
     [state.conversations, state.activeConversationId]
