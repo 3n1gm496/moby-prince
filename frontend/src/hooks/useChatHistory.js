@@ -22,7 +22,7 @@ function makeId() {
 
 function makeTitle(text) {
   const t = text.trim();
-  return t.length <= 42 ? t : t.slice(0, 42) + "…";
+  return t.length <= 80 ? t : t.slice(0, 80) + "…";
 }
 
 function groupByDate(conversations) {

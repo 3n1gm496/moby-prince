@@ -37,7 +37,7 @@ router.post('/search', [validateQuery, validateFilters], async (req, res, next) 
 
   try {
     const raw        = await de.search(query, {
-      maxResults: clamp(maxResults, 1, 20, 10),
+      maxResults: clamp(maxResults, 1, 20, 20),
       filter:     buildFilterExpression(filters),
       searchMode: 'CHUNKS',
     });

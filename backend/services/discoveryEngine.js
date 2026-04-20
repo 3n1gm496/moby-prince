@@ -289,8 +289,41 @@ async function listDocuments(pageToken = null, pageSize = 25) {
 }
 
 /**
+ * In-memory URI→ID cache populated by paginating all documents.
+ * The listDocuments API does not support a filter parameter, so we scan once
+ * and cache the result for the lifetime of the process.
+ */
+const _uriIdCache        = new Map();
+let   _uriCacheReady     = false;
+let   _uriCachePending   = null; // in-flight promise (avoid concurrent scans)
+
+async function _buildUriCache() {
+  if (_uriCacheReady) return;
+  if (_uriCachePending) return _uriCachePending;
+  _uriCachePending = (async () => {
+    let pageToken = null;
+    do {
+      const params = new URLSearchParams({ pageSize: '100' });
+      if (pageToken) params.set('pageToken', pageToken);
+      const url  = `${config.dataStoreBase}/branches/0/documents?${params}`;
+      const data = await _get(url);
+      for (const doc of (data.documents || [])) {
+        const docUri = doc.content?.uri;
+        const parts  = (doc.name || '').split('/');
+        const id     = parts[parts.length - 1] || null;
+        if (docUri && id) _uriIdCache.set(docUri, id);
+      }
+      pageToken = data.nextPageToken || null;
+    } while (pageToken);
+    _uriCacheReady   = true;
+    _uriCachePending = null;
+  })();
+  return _uriCachePending;
+}
+
+/**
  * Look up a DE document ID by its GCS URI.
- * Uses listDocuments with a uri filter — returns null if not found.
+ * Scans all documents on first call; O(1) afterwards.
  *
  * @param {string} uri  Full GCS URI, e.g. "gs://my-bucket/path/to/file.pdf"
  */
@@ -301,16 +334,9 @@ async function getDocumentIdByUri(uri) {
       501,
     );
   }
-  const params = new URLSearchParams({
-    pageSize: '1',
-    filter:   `uri = "${uri}"`,
-  });
-  const url  = `${config.dataStoreBase}/branches/0/documents?${params}`;
-  const data = await _get(url);
-  const doc  = data.documents?.[0];
-  if (!doc) return null;
-  const parts = (doc.name || '').split('/');
-  return parts[parts.length - 1] || null;
+  if (_uriIdCache.has(uri)) return _uriIdCache.get(uri);
+  await _buildUriCache();
+  return _uriIdCache.get(uri) ?? null;
 }
 
 module.exports = { answer, search, getDocumentChunks, listDocuments, getDocumentIdByUri, DiscoveryEngineError };

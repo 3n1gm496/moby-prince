@@ -240,4 +240,76 @@ router.post('/move', async (req, res, next) => {
   }
 });
 
+// ── DELETE /api/storage/folder?prefix= ───────────────────────────────────────
+// Deletes all objects under a given prefix (folder). Prefix must end with '/'.
+
+router.delete('/folder', async (req, res, next) => {
+  const prefix = typeof req.query.prefix === 'string' ? req.query.prefix : null;
+  if (!prefix) return res.status(400).json({ error: '"prefix" query param required.' });
+  if (!prefix.endsWith('/')) return res.status(400).json({ error: 'prefix must end with "/".' });
+
+  try {
+    const names = await gcs.listAllObjects(prefix);
+    await Promise.all(names.map(n => gcs.deleteObject(n)));
+    res.json({ success: true, deleted: names.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/storage/rename-folder ──────────────────────────────────────────
+// Body: { prefix: "old/path/", newName: "newFolderName" }
+
+router.post('/rename-folder', async (req, res, next) => {
+  const { prefix, newName } = req.body || {};
+  if (!prefix || !newName) return res.status(400).json({ error: '"prefix" and "newName" required.' });
+  if (!prefix.endsWith('/')) return res.status(400).json({ error: 'prefix must end with "/".' });
+
+  const safeName = String(newName).replace(/[/\\]/g, '_').trim();
+  if (!safeName) return res.status(400).json({ error: 'Invalid folder name.' });
+
+  const parts    = prefix.replace(/\/$/, '').split('/');
+  parts[parts.length - 1] = safeName;
+  const newPrefix = parts.join('/') + '/';
+
+  if (prefix === newPrefix) return res.status(400).json({ error: 'New name is the same.' });
+
+  try {
+    const names = await gcs.listAllObjects(prefix);
+    if (names.length === 0) {
+      await gcs.uploadObject(newPrefix + '.keep', 'application/x-directory', Buffer.alloc(0));
+    } else {
+      await Promise.all(names.map(n => gcs.copyObject(n, newPrefix + n.slice(prefix.length))));
+      await Promise.all(names.map(n => gcs.deleteObject(n)));
+    }
+    res.json({ success: true, newPrefix, count: names.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/storage/copy-folder ─────────────────────────────────────────────
+// Body: { prefix: "path/to/folder/" }
+
+router.post('/copy-folder', async (req, res, next) => {
+  const { prefix } = req.body || {};
+  if (!prefix) return res.status(400).json({ error: '"prefix" required.' });
+  if (!prefix.endsWith('/')) return res.status(400).json({ error: 'prefix must end with "/".' });
+
+  const base      = prefix.replace(/\/$/, '');
+  const newPrefix = `${base} (copia)/`;
+
+  try {
+    const names = await gcs.listAllObjects(prefix);
+    if (names.length === 0) {
+      await gcs.uploadObject(newPrefix + '.keep', 'application/x-directory', Buffer.alloc(0));
+    } else {
+      await Promise.all(names.map(n => gcs.copyObject(n, newPrefix + n.slice(prefix.length))));
+    }
+    res.json({ success: true, newPrefix, count: names.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

@@ -303,16 +303,18 @@ export default function ChatInterface() {
 
         {/* Empty state */}
         {isEmpty && (
-          <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto">
-            <WelcomeScreen />
-            <div className="w-full max-w-md px-4">
-              <QuickSuggestions
-                onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }}
-                disabled={isBlocked}
-              />
-              {recentConversations.length > 0 && (
-                <RecentConversations conversations={recentConversations} onSelect={history.selectConversation} />
-              )}
+          <div className="flex-1 overflow-y-auto">
+            <div className="min-h-full flex flex-col items-center justify-center py-8">
+              <WelcomeScreen />
+              <div className="w-full max-w-md px-4">
+                <QuickSuggestions
+                  onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }}
+                  disabled={isBlocked}
+                />
+                {recentConversations.length > 0 && (
+                  <RecentConversations conversations={recentConversations} onSelect={history.selectConversation} />
+                )}
+              </div>
             </div>
           </div>
         )}

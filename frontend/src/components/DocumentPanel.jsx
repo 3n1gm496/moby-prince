@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useReducer } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { getFilterValueLabel } from "../filters/schema";
 
 const META_FIELDS = [
@@ -28,33 +28,56 @@ function formatDate(iso) {
 }
 
 // ── InlinePdfPreview ──────────────────────────────────────────────────────────
+// Fetches the PDF as a blob to avoid browser localhost/CORS iframe restrictions.
 
 function InlinePdfPreview({ fullPath }) {
-  const [open, setOpen] = useState(false);
-  const src = `/api/storage/file?name=${encodeURIComponent(fullPath)}`;
+  const [open,    setOpen]    = useState(false);
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(false);
+  const urlRef = useRef(null);
+
+  useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current); }, []);
+
+  const handleToggle = useCallback(async () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (blobUrl) return;
+    setLoading(true); setError(false);
+    try {
+      const res = await fetch(`/api/storage/file?name=${encodeURIComponent(fullPath)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      urlRef.current = url;
+      setBlobUrl(url);
+    } catch { setError(true); }
+    finally  { setLoading(false); }
+  }, [open, blobUrl, fullPath]);
+
   return (
     <>
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={handleToggle}
+        disabled={loading}
         className="inline-flex items-center gap-1.5 text-[11px] text-text-secondary
-                   hover:text-text-primary transition-colors"
+                   hover:text-text-primary transition-colors disabled:opacity-50"
       >
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-        </svg>
-        {open ? "Chiudi anteprima" : "Anteprima"}
+        {loading
+          ? <span className="w-3 h-3 rounded-full border-2 border-text-muted/30 border-t-accent animate-spin" />
+          : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+        }
+        {loading ? "Caricamento…" : open ? "Chiudi anteprima" : "Anteprima"}
       </button>
       {open && (
         <div className="mt-3 -mx-5 border-t border-border/30">
-          <iframe
-            src={src}
-            title="Anteprima documento"
-            className="w-full"
-            style={{ height: "420px" }}
-          />
+          {error   && <p className="text-[11px] text-red-400 px-5 py-3">Impossibile caricare l&apos;anteprima.</p>}
+          {blobUrl && <iframe src={blobUrl} title="Anteprima documento" className="w-full" style={{ height: "420px" }} />}
         </div>
       )}
     </>

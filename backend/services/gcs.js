@@ -153,9 +153,9 @@ async function copyObject(srcName, dstName) {
   const bucket = config.gcsBucket;
   const url    = `${GCS_API}/b/${bucket}/o/${encodeURIComponent(srcName)}/copyTo/b/${bucket}/o/${encodeURIComponent(dstName)}`;
   const headers = await _headers();
-  headers['Content-Length'] = '0';
+  headers['Content-Type'] = 'application/json';
 
-  const res = await fetch(url, { method: 'POST', headers, body: '' });
+  const res = await fetch(url, { method: 'POST', headers, body: '{}' });
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -217,8 +217,40 @@ async function updateObjectMetadata(name, metadata) {
   return res.json();
 }
 
+/**
+ * List ALL object names under a prefix (paginates automatically).
+ * Returns a flat array of object name strings.
+ *
+ * @param {string} prefix  GCS prefix (e.g. "folder/")
+ */
+async function listAllObjects(prefix) {
+  await _checkBucket();
+  const names = [];
+  let pageToken = null;
+  do {
+    const params = new URLSearchParams({
+      prefix,
+      maxResults: '1000',
+      projection: 'noAcl',
+      fields:     'nextPageToken,items(name)',
+    });
+    if (pageToken) params.set('pageToken', pageToken);
+    const url = `${GCS_API}/b/${config.gcsBucket}/o?${params}`;
+    const res = await fetch(url, { headers: await _headers() });
+    if (!res.ok) {
+      const err = new Error(`GCS list failed: ${res.status}`);
+      err.statusCode = res.status;
+      throw err;
+    }
+    const data = await res.json();
+    (data.items || []).forEach(item => names.push(item.name));
+    pageToken = data.nextPageToken || null;
+  } while (pageToken);
+  return names;
+}
+
 module.exports = {
-  listObjects, uploadObject, getObject,
+  listObjects, listAllObjects, uploadObject, getObject,
   deleteObject, copyObject,
   getObjectMetadata, updateObjectMetadata,
 };
