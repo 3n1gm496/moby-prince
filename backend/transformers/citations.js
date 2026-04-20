@@ -58,8 +58,9 @@ function buildCitations(answerObj) {
             unstructured.chunkContents?.[0]?.pageIdentifier ||
             chunkInfo.pageSpan?.pageStart?.toString() ||
             null,
-          // documentId enables GET /api/evidence/documents/:id/chunks drill-down
-          documentId: docMeta.id || _uriToDocId(uri),
+          // documentId enables GET /api/evidence/documents/:id/chunks drill-down.
+          // Decode to plain string; Discovery Engine often stores IDs with %20 etc.
+          documentId: _safeDecodeId(docMeta.id) || _uriToDocId(uri),
         };
       })
       .filter(Boolean);
@@ -74,14 +75,20 @@ function buildCitations(answerObj) {
   });
 }
 
+function _safeDecodeId(id) {
+  if (!id) return null;
+  try { return decodeURIComponent(id); } catch { return id; }
+}
+
 function _uriToDocId(uri) {
   if (!uri) return null;
   try {
     const segments = new URL(uri).pathname.split('/').filter(Boolean);
-    return segments[segments.length - 1] || null;
+    const last = segments[segments.length - 1] || null;
+    return last ? _safeDecodeId(last) : null;
   } catch {
     return null;
   }
 }
 
-module.exports = { buildCitations, _uriToDocId };
+module.exports = { buildCitations, _uriToDocId, _safeDecodeId };

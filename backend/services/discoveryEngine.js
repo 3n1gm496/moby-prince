@@ -259,7 +259,12 @@ async function getDocumentChunks(documentId) {
       501,
     );
   }
-  const url = `${config.dataStoreBase}/branches/0/documents/${encodeURIComponent(documentId)}/chunks`;
+  // Normalise: decode first (handles IDs that are already percent-encoded by Discovery Engine),
+  // then re-encode cleanly to avoid double-encoding (%20 → %2520).
+  let encodedId;
+  try { encodedId = encodeURIComponent(decodeURIComponent(documentId)); }
+  catch { encodedId = encodeURIComponent(documentId); }
+  const url = `${config.dataStoreBase}/branches/0/documents/${encodedId}/chunks`;
   return _get(url);
 }
 
