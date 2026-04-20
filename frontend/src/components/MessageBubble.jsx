@@ -123,7 +123,7 @@ function InlineCitationCard({ citation, onClose, onOpenPanel }) {
         </button>
       </div>
       {src?.pageIdentifier && (
-        <p className="text-text-muted font-mono mb-2">p.&nbsp;{src.pageIdentifier}</p>
+        <p className="text-text-secondary font-mono mb-2">p.&nbsp;{src.pageIdentifier}</p>
       )}
       {src?.snippet && (
         <p className="text-text-secondary italic leading-relaxed mb-2 line-clamp-3">
@@ -264,7 +264,7 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
 
         {/* Truncation warning */}
         {mightBeTruncated && (
-          <p className="flex items-center gap-1 text-[10px] text-text-muted italic">
+          <p className="flex items-center gap-1 text-[10px] text-text-secondary italic">
             <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />

@@ -325,12 +325,12 @@ export default function Sidebar({
         <nav ref={navRef} onKeyDown={handleNavKey} className="flex-1 overflow-y-auto px-3 pb-4 space-y-4">
           {isSearching ? (
             <section>
-              <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-muted uppercase tracking-[0.12em]">
+              <h3 className="px-[10px] pt-1 pb-1.5 text-[10px] font-medium text-text-secondary uppercase tracking-[0.12em]">
                 {filtered.length} risultati
               </h3>
               <div className="space-y-0.5">
                 {filtered.length === 0
-                  ? <p className="px-[10px] py-4 text-xs text-text-muted text-center">Nessun risultato.</p>
+                  ? <p className="px-[10px] py-4 text-xs text-text-secondary text-center">Nessun risultato.</p>
                   : filtered.map(renderItem)
                 }
               </div>
@@ -361,7 +361,7 @@ export default function Sidebar({
               })}
 
               {allConvs.length === 0 && (
-                <p className="px-[10px] py-10 text-xs text-text-muted text-center">
+                <p className="px-[10px] py-10 text-xs text-text-secondary text-center">
                   Nessuna conversazione salvata.
                 </p>
               )}

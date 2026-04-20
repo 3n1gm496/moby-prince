@@ -20,7 +20,7 @@ function SkeletonLoader({ stage }) {
     <div className="flex justify-start gap-3 animate-fade-in">
       <AnchorAvatar />
       <div className="flex-1 min-w-0 pt-0.5 space-y-2.5">
-        <p className="text-[11px] text-text-muted animate-pulse">{label}</p>
+        <p className="text-[11px] text-text-secondary animate-pulse">{label}</p>
         <div className="space-y-2">
           {[{ w: "w-3/4", d: "0ms" }, { w: "w-full", d: "80ms" }, { w: "w-5/6", d: "160ms" }, { w: "w-2/3", d: "240ms" }].map(({ w, d }, i) => (
             <div key={i} className={`h-2.5 bg-surface-raised rounded-full animate-shimmer ${w}`}
@@ -263,7 +263,7 @@ export default function ChatInterface() {
               <div className="flex items-center gap-0.5 flex-shrink-0">
                 <button onClick={handlePrint}
                         title="Stampa / Salva PDF (⌘P)" aria-label="Stampa"
-                        className="p-1.5 rounded-lg text-text-muted hover:text-text-secondary
+                        className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary
                                    hover:bg-surface-raised transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -272,7 +272,7 @@ export default function ChatInterface() {
                 </button>
                 <button onClick={handleExport}
                         title="Esporta Markdown" aria-label="Esporta"
-                        className="p-1.5 rounded-lg text-text-muted hover:text-text-secondary
+                        className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary
                                    hover:bg-surface-raised transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -398,7 +398,7 @@ export default function ChatInterface() {
               <div className="flex justify-center">
                 <button onClick={stopStreaming}
                         className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs
-                                   text-text-muted hover:text-text-secondary
+                                   text-text-secondary hover:text-text-primary
                                    border border-border/50 hover:border-border transition-colors">
                   <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
                     <rect x="5" y="5" width="14" height="14" rx="1.5" />
@@ -443,7 +443,7 @@ export default function ChatInterface() {
                     className={`flex items-center gap-1 text-[11px] transition-colors ${
                       showFilters || hasActiveFilters
                         ? "text-accent"
-                        : "text-text-muted hover:text-text-secondary"
+                        : "text-text-secondary hover:text-text-primary"
                     }`}
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -541,7 +541,7 @@ function WelcomeScreen() {
 function RecentConversations({ conversations, onSelect }) {
   return (
     <div className="mt-8 px-4 pb-4">
-      <p className="text-[11px] font-medium text-text-muted uppercase tracking-[0.12em] mb-3">
+      <p className="text-[11px] font-medium text-text-secondary uppercase tracking-[0.12em] mb-3">
         Recenti
       </p>
       <div className="space-y-1">
@@ -559,7 +559,7 @@ function RecentConversations({ conversations, onSelect }) {
                 {conv.title}
               </p>
               {preview && (
-                <p className="text-[11px] text-text-muted truncate mt-0.5">{preview}</p>
+                <p className="text-[11px] text-text-secondary truncate mt-0.5">{preview}</p>
               )}
             </button>
           );

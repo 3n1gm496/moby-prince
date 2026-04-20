@@ -47,7 +47,7 @@ function DocumentChunksPanel({ documentId }) {
 
   if (phase === "loading") {
     return (
-      <p className="mt-1.5 text-[10px] text-text-muted animate-pulse">
+      <p className="mt-1.5 text-[10px] text-text-secondary animate-pulse">
         Caricamento frammenti…
       </p>
     );
@@ -55,7 +55,7 @@ function DocumentChunksPanel({ documentId }) {
 
   if (phase === "unavailable") {
     return (
-      <p className="mt-1.5 text-[10px] text-text-muted italic">
+      <p className="mt-1.5 text-[10px] text-text-secondary italic">
         Drill-down non disponibile — DATA_STORE_ID non configurato.
       </p>
     );
@@ -71,18 +71,18 @@ function DocumentChunksPanel({ documentId }) {
 
   // phase === "done"
   if (chunks.length === 0) {
-    return <p className="mt-1.5 text-[10px] text-text-muted italic">Nessun frammento trovato.</p>;
+    return <p className="mt-1.5 text-[10px] text-text-secondary italic">Nessun frammento trovato.</p>;
   }
 
   return (
     <div className="mt-2">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] text-text-muted">
+        <span className="text-[10px] text-text-secondary">
           {chunks.length} {chunks.length === 1 ? "frammento" : "frammenti"}
         </span>
         <button
           onClick={() => setPhase("idle")}
-          className="text-[10px] text-text-muted hover:text-text-secondary transition-colors"
+          className="text-[10px] text-text-secondary hover:text-text-primary transition-colors"
         >
           chiudi
         </button>
@@ -90,10 +90,10 @@ function DocumentChunksPanel({ documentId }) {
       <div className="space-y-1 max-h-52 overflow-y-auto pr-0.5">
         {chunks.map((chunk, i) => (
           <div key={chunk.id ?? i}
-               className="text-[11px] text-text-secondary bg-surface rounded-md p-2
+               className="text-[11px] text-text-primary bg-surface rounded-md p-2
                           border border-border/30 leading-relaxed">
             {chunk.pageIdentifier && (
-              <span className="text-text-muted font-mono text-[10px] mr-1.5">
+              <span className="text-text-secondary font-mono text-[10px] mr-1.5">
                 p.&nbsp;{chunk.pageIdentifier}
               </span>
             )}
@@ -101,7 +101,7 @@ function DocumentChunksPanel({ documentId }) {
               ? chunk.content.length > 220
                 ? chunk.content.slice(0, 220) + "…"
                 : chunk.content
-              : <span className="italic text-text-muted">nessun testo</span>
+              : <span className="italic text-text-secondary">nessun testo</span>
             }
           </div>
         ))}
@@ -156,7 +156,7 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
                     className={`inline-flex items-center px-1.5 py-px rounded text-[9px] font-medium
                                 border ${isAccent
                                   ? "bg-accent/10 text-accent border-accent/20"
-                                  : "bg-surface text-text-muted border-border"}`}>
+                                  : "bg-surface text-text-secondary border-border"}`}>
                 {getFilterValueLabel(key, val)}
               </span>
             );
