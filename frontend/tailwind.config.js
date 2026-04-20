@@ -15,9 +15,9 @@ export default {
           subtle:  "#1c1c1c",
         },
         text: {
-          primary:   "#e2e2e2",
-          secondary: "#868686",  // raised from #717171 — ~4.5:1 on #141414
-          muted:     "#5e5e5e",  // raised from #424242 — ~3:1 on #141414
+          primary:   "#f0f0f0",  // near-white for main content
+          secondary: "#c0c0c0",  // readable grey for secondary content
+          muted:     "#888888",  // decorative only — separators, timestamps
         },
         accent: {
           DEFAULT: "#c9a84c",

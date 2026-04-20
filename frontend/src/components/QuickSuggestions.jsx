@@ -12,7 +12,7 @@ const SUGGESTIONS = [
 export default function QuickSuggestions({ onSelect, disabled }) {
   return (
     <div className="px-4 pb-2">
-      <p className="text-[11px] font-medium text-text-muted uppercase tracking-[0.12em] mb-3">
+      <p className="text-[11px] font-medium text-text-secondary uppercase tracking-[0.12em] mb-3">
         Domande frequenti
       </p>
       <div className="space-y-0.5">
@@ -24,9 +24,9 @@ export default function QuickSuggestions({ onSelect, disabled }) {
             className="w-full text-left flex items-start gap-2.5 px-0 py-1.5 group
                        disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <span className="text-text-muted group-hover:text-accent transition-colors
+            <span className="text-text-secondary group-hover:text-accent transition-colors
                              mt-px text-xs leading-5 flex-shrink-0">→</span>
-            <span className="text-sm text-text-secondary group-hover:text-text-primary
+            <span className="text-sm text-text-primary group-hover:text-accent
                              transition-colors leading-snug">
               {s}
             </span>

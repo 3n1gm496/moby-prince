@@ -166,12 +166,12 @@ function EvidenceItem({ item, citations, isActive, onCitationClick }) {
 
       {/* Page identifier */}
       {item.pageIdentifier && (
-        <p className="text-text-muted font-mono mb-1.5">p.&nbsp;{item.pageIdentifier}</p>
+        <p className="text-text-secondary font-mono mb-1.5">p.&nbsp;{item.pageIdentifier}</p>
       )}
 
       {/* Verbatim snippet */}
       {item.snippet && (
-        <p className="text-text-secondary leading-relaxed italic mb-1.5">
+        <p className="text-text-primary leading-relaxed italic mb-1.5">
           &ldquo;
           {expanded ? item.snippet : item.snippet.slice(0, SNIPPET_LIMIT)}
           {!expanded && item.snippet.length > SNIPPET_LIMIT ? "…" : ""}
@@ -216,7 +216,7 @@ export default function EvidenceSection({ evidence, citations, activeCitationId,
     <div className="mt-2 print:hidden">
       <button onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
-              className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors">
+              className="flex items-center gap-1.5 text-xs text-text-primary hover:text-accent transition-colors">
         <svg className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`}
              fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

@@ -57,7 +57,7 @@ export default function CitationPanel({ citation, onClose }) {
                   {src.title}
                 </h4>
                 {src.pageIdentifier && (
-                  <span className="text-[11px] text-text-muted font-mono whitespace-nowrap flex-shrink-0 mt-0.5">
+                  <span className="text-[11px] text-text-secondary font-mono whitespace-nowrap flex-shrink-0 mt-0.5">
                     p.&thinsp;{src.pageIdentifier}
                   </span>
                 )}
@@ -65,7 +65,7 @@ export default function CitationPanel({ citation, onClose }) {
 
               {/* Snippet */}
               {src.snippet && (
-                <p className="text-xs text-text-secondary leading-relaxed italic
+                <p className="text-xs text-text-primary leading-relaxed italic
                                border-l border-border/60 pl-3">
                   &ldquo;{src.snippet.slice(0, 400)}{src.snippet.length > 400 ? "…" : ""}&rdquo;
                 </p>
