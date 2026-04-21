@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useDeferredValue } from "react";
 import { NavLink } from "react-router-dom";
 import AnchorAvatar from "./AnchorAvatar";
 
@@ -164,8 +164,10 @@ export default function Sidebar({
   }, [isOpen]);
 
   const allConvs = [...(pinnedConversations || []), ...Object.values(groupedConversations).flat()];
-  const isSearching = search.trim().length > 0;
-  const q = search.toLowerCase();
+  // Bug fix #10: defer the expensive deep-search filter so keystrokes feel instant.
+  const deferredSearch = useDeferredValue(search);
+  const isSearching = deferredSearch.trim().length > 0;
+  const q = deferredSearch.toLowerCase();
 
   const filtered = isSearching
     ? allConvs.filter((c) =>

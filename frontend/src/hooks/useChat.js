@@ -85,32 +85,41 @@ export function useChat({
     let buffer = "";
     let result = null;
 
+    // Bug fix #9: helper to process complete SSE frames accumulated in buffer.
+    const processBuffer = () => {
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() ?? "";
+      for (const part of parts) {
+        if (!part.trim()) continue;
+        let eventType = "message";
+        let eventData = "";
+        for (const line of part.split("\n")) {
+          if (line.startsWith("event: "))     eventType = line.slice(7).trim();
+          else if (line.startsWith("data: ")) eventData = line.slice(6).trim();
+        }
+        if (eventType === "thinking") {
+          onThinking?.();
+        } else if (eventType === "answer") {
+          result = JSON.parse(eventData);
+        } else if (eventType === "error") {
+          const errData = JSON.parse(eventData);
+          throw new Error(errData.message || "Errore dal server");
+        }
+      }
+    };
+
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() ?? "";
-
-        for (const part of parts) {
-          if (!part.trim()) continue;
-          let eventType = "message";
-          let eventData = "";
-          for (const line of part.split("\n")) {
-            if (line.startsWith("event: "))     eventType = line.slice(7).trim();
-            else if (line.startsWith("data: ")) eventData = line.slice(6).trim();
-          }
-          if (eventType === "thinking") {
-            onThinking?.();
-          } else if (eventType === "answer") {
-            result = JSON.parse(eventData);
-          } else if (eventType === "error") {
-            const errData = JSON.parse(eventData);
-            throw new Error(errData.message || "Errore dal server");
-          }
-        }
+        processBuffer();
+      }
+      // Flush decoder and process any remaining data after stream closes.
+      buffer += decoder.decode();
+      if (buffer.trim()) {
+        buffer += "\n\n";
+        processBuffer();
       }
     } finally {
       reader.releaseLock();

@@ -35,9 +35,18 @@ function InlinePdfPreview({ fullPath }) {
   const [blobUrl, setBlobUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(false);
-  const urlRef = useRef(null);
+  const urlRef     = useRef(null);
+  const mountedRef = useRef(true);
 
-  useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current); }, []);
+  // Bug fix #5: track mounted state so blob URLs created after unmount are
+  // immediately revoked instead of leaking.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    };
+  }, []);
 
   const handleToggle = useCallback(async () => {
     if (open) { setOpen(false); return; }
@@ -50,9 +59,10 @@ function InlinePdfPreview({ fullPath }) {
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       urlRef.current = url;
+      if (!mountedRef.current) { URL.revokeObjectURL(url); return; }
       setBlobUrl(url);
-    } catch { setError(true); }
-    finally  { setLoading(false); }
+    } catch { if (mountedRef.current) setError(true); }
+    finally  { if (mountedRef.current) setLoading(false); }
   }, [open, blobUrl, fullPath]);
 
   return (

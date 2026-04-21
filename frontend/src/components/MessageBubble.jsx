@@ -38,11 +38,18 @@ function buildAnnotatedText(text, citations) {
     charPos: byteToCharOffset(text, c.endIndex),
   }));
 
+  // Bug fix #6: deduplicate by charPos to avoid overlapping markers when two
+  // citations share the same endIndex. Keep the lowest citation id at each position.
+  const byPos = new Map();
+  for (const p of positions) {
+    if (!byPos.has(p.charPos) || p.id < byPos.get(p.charPos).id) byPos.set(p.charPos, p);
+  }
+
   // Sort descending so right-to-left insertion preserves earlier positions
-  positions.sort((a, b) => b.charPos - a.charPos);
+  const deduped = [...byPos.values()].sort((a, b) => b.charPos - a.charPos);
 
   let result = text;
-  for (const { id, charPos } of positions) {
+  for (const { id, charPos } of deduped) {
     // Snap to next word boundary so marker doesn't split mid-word
     let insertAt = Math.min(charPos, result.length);
     while (insertAt < result.length && !/[\s,;.!?\n]/.test(result[insertAt])) {

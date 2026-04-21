@@ -7,7 +7,11 @@ function resolveUri(uri) {
     const slash = withoutScheme.indexOf("/");
     if (slash < 0) return null;
     const path = withoutScheme.slice(slash + 1);
-    return `/api/storage/file?name=${encodeURIComponent(path)}`;
+    // Bug fix #4: decode first to avoid double-encoding paths that already
+    // contain percent-encoded characters (e.g. %20 → %2520).
+    let decoded;
+    try { decoded = decodeURIComponent(path); } catch { decoded = path; }
+    return `/api/storage/file?name=${encodeURIComponent(decoded)}`;
   }
   return uri;
 }

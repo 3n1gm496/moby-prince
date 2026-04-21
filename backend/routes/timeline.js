@@ -16,6 +16,10 @@ const config = require('../config');
 const router      = Router();
 const EVENTS_PATH = '_timeline/events.json';
 
+// Bug fix #3: simple in-process lock to prevent concurrent generate calls from
+// racing (both missing cache, both calling DE, both overwriting GCS).
+let _generating = false;
+
 // ── GET /api/timeline/documents ───────────────────────────────────────────────
 
 router.get('/documents', async (req, res, next) => {
@@ -91,20 +95,23 @@ function normaliseDate(raw) {
 }
 
 function parseEvents(answerText) {
-  const events = [];
-  let idx = 0;
+  const events  = [];
+  let idx       = 0;
+  let skipped   = 0;
+
   for (const line of answerText.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     const parts = trimmed.split('|').map(p => p.trim());
-    if (parts.length < 3) continue;
+    if (parts.length < 3) { skipped++; continue; }
 
     const [rawDate, rawType, rawTitle, ...descParts] = parts;
     const date  = normaliseDate(rawDate);
-    if (!date) continue;
+    // Bug fix #8: count and log skipped lines so callers can report them.
+    if (!date) { skipped++; continue; }
 
     const title = rawTitle?.trim();
-    if (!title) continue;
+    if (!title) { skipped++; continue; }
 
     const type        = VALID_TYPES.has(rawType?.toLowerCase()) ? rawType.toLowerCase() : 'evento';
     const description = descParts.join('|').trim();
@@ -120,11 +127,16 @@ function parseEvents(answerText) {
       _aiGenerated: true,
     });
   }
-  return events;
+  return { events, skipped };
 }
 
 router.post('/generate', async (req, res, next) => {
   if (!config.gcsBucket) return res.status(501).json({ error: 'GCS_BUCKET not configured.' });
+
+  // Bug fix #3: reject concurrent generate requests instead of racing.
+  if (_generating) {
+    return res.status(409).json({ error: 'Generazione già in corso. Riprova tra qualche secondo.' });
+  }
 
   const force = req.body?.force === true;
 
@@ -142,6 +154,8 @@ router.post('/generate', async (req, res, next) => {
     }
   }
 
+  _generating = true;
+
   const prompt = [
     'Basandoti esclusivamente sui documenti dell\'archivio del caso Moby Prince,',
     'elenca in ordine cronologico almeno 25 eventi storici, giudiziari e parlamentari.',
@@ -156,10 +170,12 @@ router.post('/generate', async (req, res, next) => {
   try {
     const raw        = await de.answer(prompt, null, { maxResults: 20, modelVersion: 'stable' });
     const answerText = (raw.answer ?? raw)?.answerText ?? '';
-    const aiEvents   = parseEvents(answerText);
+    const { events: aiEvents, skipped } = parseEvents(answerText);
 
     if (aiEvents.length === 0) {
-      return res.status(422).json({ error: 'AI non ha restituito eventi validi. Riprova.' });
+      return res.status(422).json({
+        error: `AI non ha restituito eventi validi (${skipped} righe scartate). Riprova.`,
+      });
     }
 
     // Load existing manually-curated events (preserve non-AI ones)
@@ -176,12 +192,14 @@ router.post('/generate', async (req, res, next) => {
       const buf = Buffer.from(JSON.stringify(merged, null, 2), 'utf-8');
       await gcs.uploadObject(EVENTS_PATH, 'application/json', buf);
     } catch (saveErr) {
-      return res.json({ events: merged, generated: aiEvents.length, cached: false, saveError: saveErr.message });
+      return res.json({ events: merged, generated: aiEvents.length, skipped, cached: false, saveError: saveErr.message });
     }
 
-    res.json({ events: merged, generated: aiEvents.length, cached: false });
+    res.json({ events: merged, generated: aiEvents.length, skipped, cached: false });
   } catch (err) {
     next(err);
+  } finally {
+    _generating = false;
   }
 });
 
