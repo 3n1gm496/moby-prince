@@ -135,6 +135,22 @@ class ClaimExtractorWorker extends BaseWorker {
 
     if (claims.length === 0) return this.ok(job);
 
+    // ── Purge stale claims for this document before re-inserting ──────────────
+    // Prevents duplicates when a document is re-ingested (e.g. corpus backfill).
+    const documentId = job.documentId || job.jobId;
+    try {
+      const dataset = process.env.BQ_DATASET_ID || 'evidence';
+      await bq.dml(
+        `DELETE FROM \`${dataset}.claims\` WHERE document_id = @documentId`,
+        { documentId },
+      );
+    } catch (err) {
+      this.logger.warn(
+        { jobId: job.jobId, error: err.message },
+        'Claim extraction: could not purge existing claims — proceeding anyway',
+      );
+    }
+
     // ── Insert into BQ ─────────────────────────────────────────────────────────
     try {
       await bq.insert('claims', claims);

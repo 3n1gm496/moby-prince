@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getFilterValueLabel } from "../filters/schema";
+import { apiFetch } from "../lib/apiFetch";
 
 const META_FIELDS = [
   { key: "documentType", label: "Tipo"         },
@@ -125,7 +126,7 @@ function GcsMetadataSection({ fullPath }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/storage/metadata", {
+      const res = await apiFetch("/api/storage/metadata", {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ name: fullPath, metadata: custom }),

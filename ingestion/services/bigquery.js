@@ -3,8 +3,9 @@
 /**
  * BigQuery streaming-insert client for ingestion workers.
  *
- * Only exposes `insert(tableId, rows)` — ingestion workers write data but
- * never query.  Query functionality lives in backend/services/bigquery.js.
+ * Exposes `insert(tableId, rows)` for streaming writes and `dml(sql, params)`
+ * for DML statements (DELETE/UPDATE) needed by workers that purge stale rows
+ * before re-inserting.  SELECT query functionality lives in backend/services/bigquery.js.
  *
  * Required env vars:
  *   GOOGLE_CLOUD_PROJECT   (falls back to config.projectId)
@@ -26,6 +27,52 @@ function _datasetId() {
 
 function isEnabled() {
   return !!(_projectId());
+}
+
+/**
+ * Execute a DML statement (INSERT, UPDATE, DELETE) via the synchronous query
+ * endpoint.  For ingestion workers that need to purge rows before re-inserting.
+ *
+ * @param {string} sql    Standard SQL DML with @namedParam placeholders
+ * @param {object} params Object mapping param names to string values
+ */
+async function dml(sql, params = {}) {
+  const projectId = _projectId();
+  if (!projectId) throw new Error('BQ not configured (GOOGLE_CLOUD_PROJECT missing)');
+
+  const token = await getAccessToken();
+  const queryParameters = Object.entries(params).map(([name, value]) => ({
+    name,
+    parameterType: { type: 'STRING' },
+    parameterValue: { value: String(value) },
+  }));
+
+  const body = {
+    query:        sql,
+    location:     process.env.BQ_LOCATION || 'EU',
+    timeoutMs:    30_000,
+    useLegacySql: false,
+    ...(queryParameters.length > 0 ? { queryParameters, parameterMode: 'NAMED' } : {}),
+  };
+
+  const res = await fetch(`${BQ_BASE}/projects/${projectId}/queries`, {
+    method:  'POST',
+    headers: {
+      Authorization:  `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`BQ DML failed (${res.status}): ${errText.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  if (!data.jobComplete) {
+    throw new Error(`BQ DML timed out (jobId: ${data.jobReference?.jobId ?? 'unknown'})`);
+  }
 }
 
 /**
@@ -71,4 +118,4 @@ async function insert(tableId, rows) {
   }
 }
 
-module.exports = { insert, isEnabled };
+module.exports = { insert, dml, isEnabled };

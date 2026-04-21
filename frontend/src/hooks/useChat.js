@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { apiFetch } from "../lib/apiFetch";
 
 const STREAM_CHUNK      = 6;     // characters revealed per tick
 const STREAM_TICK_MS    = 14;    // ~70 chars/s reveal speed
@@ -180,7 +181,7 @@ export function useChat({
 
         while (true) {
           try {
-            const res = await fetch("/api/answer", {
+            const res = await apiFetch("/api/answer", {
               method:  "POST",
               headers: { "Content-Type": "application/json" },
               body:    JSON.stringify({

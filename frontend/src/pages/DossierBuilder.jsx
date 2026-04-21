@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useGcsBrowser } from "../hooks/useGcsBrowser";
 import DocumentPanel from "../components/DocumentPanel";
+import { apiFetch } from "../lib/apiFetch";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -348,7 +349,7 @@ function UploadButton({ prefix, onUploaded }) {
       fd.append("file", file);
       fd.append("prefix", prefix);
       try {
-        const res = await fetch("/api/storage/upload", { method: "POST", body: fd });
+        const res = await apiFetch("/api/storage/upload", { method: "POST", body: fd });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || `HTTP ${res.status}`);
@@ -445,7 +446,7 @@ function NewFolderButton({ prefix, onCreated }) {
       const fd = new FormData();
       fd.append("file", new Blob([], { type: "application/x-directory" }), ".keep");
       fd.append("prefix", dest);
-      const res = await fetch("/api/storage/upload", { method: "POST", body: fd });
+      const res = await apiFetch("/api/storage/upload", { method: "POST", body: fd });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       cancel();
       onCreated?.();
@@ -559,7 +560,7 @@ export default function DossierBuilder() {
       const destination = `${targetPrefix}${filename}`;
       if (path === destination) continue;
       try {
-        const res = await fetch("/api/storage/move", {
+        const res = await apiFetch("/api/storage/move", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ source: path, destination }),
@@ -606,7 +607,7 @@ export default function DossierBuilder() {
   const handleRename = useCallback(async (file, newName) => {
     setActionError(null);
     try {
-      const res = await fetch("/api/storage/rename", {
+      const res = await apiFetch("/api/storage/rename", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ source: file.fullPath, newName }),
@@ -621,7 +622,7 @@ export default function DossierBuilder() {
   const handleCopy = useCallback(async (file) => {
     setActionError(null);
     try {
-      const res = await fetch("/api/storage/copy", {
+      const res = await apiFetch("/api/storage/copy", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ source: file.fullPath }),
@@ -650,7 +651,7 @@ export default function DossierBuilder() {
   const handleFolderRename = useCallback(async (folderPrefix, newName) => {
     setActionError(null);
     try {
-      const res = await fetch("/api/storage/rename-folder", {
+      const res = await apiFetch("/api/storage/rename-folder", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prefix: folderPrefix, newName }),
       });
@@ -664,7 +665,7 @@ export default function DossierBuilder() {
   const handleFolderCopy = useCallback(async (folderPrefix) => {
     setActionError(null);
     try {
-      const res = await fetch("/api/storage/copy-folder", {
+      const res = await apiFetch("/api/storage/copy-folder", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prefix: folderPrefix }),
       });
@@ -692,7 +693,7 @@ export default function DossierBuilder() {
     if (srcPath === destination) return;
     setActionError(null);
     try {
-      const res = await fetch("/api/storage/move", {
+      const res = await apiFetch("/api/storage/move", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ source: srcPath, destination }),

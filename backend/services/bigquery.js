@@ -145,7 +145,14 @@ async function query(sql, params = []) {
     throw new Error(`BigQuery query failed (${res.status}): ${errText.slice(0, 200)}`);
   }
 
-  const data   = await res.json();
+  const data = await res.json();
+
+  if (!data.jobComplete) {
+    const jobId = data.jobReference?.jobId ?? 'unknown';
+    log.error({ jobId }, 'BQ query did not complete within timeoutMs');
+    throw new Error(`BigQuery query timed out (jobId: ${jobId})`);
+  }
+
   const fields = data.schema?.fields || [];
   return (data.rows || []).map(row => _mapRow(fields, row));
 }

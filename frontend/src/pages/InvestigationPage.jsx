@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 import AnchorAvatar from "../components/AnchorAvatar";
+import { apiFetch } from "../lib/apiFetch";
 
 // ── Tool metadata ─────────────────────────────────────────────────────────────
 
@@ -166,7 +167,7 @@ export default function InvestigationPage() {
     let accSteps = [];
 
     try {
-      const res = await fetch("/api/agent/investigate", {
+      const res = await apiFetch("/api/agent/investigate", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ query: q }),

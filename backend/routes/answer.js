@@ -67,16 +67,11 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
     if (isBigQueryEnabled()) {
       try {
         const sourceUris = _extractSourceUris(raw);
-        let contradictions = [];
         if (sourceUris.length > 0) {
-          contradictions = await contradictionsRepo.listBySourceUris(sourceUris, 3);
-        }
-        if (contradictions.length === 0) {
-          // Fallback: surface any recent open contradictions
-          contradictions = await contradictionsRepo.list({ status: 'open', limit: 3 });
-        }
-        if (contradictions.length > 0) {
-          sendEvent('contradictions', { contradictions, total: contradictions.length });
+          const contradictions = await contradictionsRepo.listBySourceUris(sourceUris, 3);
+          if (contradictions.length > 0) {
+            sendEvent('contradictions', { contradictions, total: contradictions.length });
+          }
         }
       } catch (_) { /* BQ optional — silently skip */ }
     }

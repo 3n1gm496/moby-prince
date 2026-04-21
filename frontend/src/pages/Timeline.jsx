@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import DocumentPanel from "../components/DocumentPanel";
+import { apiFetch } from "../lib/apiFetch";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -206,7 +207,7 @@ function EventDrawer({ initial, onSave, onClose }) {
     timer.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const res  = await fetch("/api/evidence/search", {
+        const res  = await apiFetch("/api/evidence/search", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ query: q, maxResults: 8 }),
@@ -410,8 +411,8 @@ export default function Timeline() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/timeline/documents").then(r => r.json()).catch(() => ({ documents: [] })),
-      fetch("/api/timeline/events").then(r => r.json()).catch(() => ({ events: [] })),
+      apiFetch("/api/timeline/documents").then(r => r.json()).catch(() => ({ documents: [] })),
+      apiFetch("/api/timeline/events").then(r => r.json()).catch(() => ({ events: [] })),
     ]).then(([docsData, eventsData]) => {
       setDeDocs(docsData.documents || []);
       setCurated(eventsData.events || []);
@@ -422,7 +423,7 @@ export default function Timeline() {
   const saveEvents = useCallback(async (events) => {
     setSaveErr(null);
     try {
-      const res = await fetch("/api/timeline/events", {
+      const res = await apiFetch("/api/timeline/events", {
         method:  "PUT",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ events }),
@@ -450,7 +451,7 @@ export default function Timeline() {
     setGenerating(true);
     setGenErr(null);
     try {
-      const res  = await fetch("/api/timeline/generate", {
+      const res  = await apiFetch("/api/timeline/generate", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ force }),

@@ -12,4 +12,7 @@ export default defineConfig({
       },
     },
   },
+  // Expose VITE_API_KEY (and any other VITE_* vars) to the browser bundle.
+  // Set in .env or as a build-time environment variable:  VITE_API_KEY=<key>
+  envPrefix: "VITE_",
 });
