@@ -27,7 +27,7 @@ const { Router } = require('express');
 const { investigate } = require('../services/agentRunner');
 const fs             = require('../services/firestore');
 const { newId }      = require('../lib/utils');
-const { sseHeaders, makeSender } = require('../lib/sse');
+const { sseHeaders, makeSender, makeHeartbeat } = require('../lib/sse');
 const { createLogger } = require('../logger');
 
 const log    = createLogger('agent-route');
@@ -50,7 +50,8 @@ router.post('/investigate', async (req, res) => {
 
   // ── Set up Server-Sent Events ───────────────────────────────────────────────
   sseHeaders(res);
-  const sendEvent = makeSender(res);
+  const sendEvent   = makeSender(res);
+  const heartbeat   = makeHeartbeat(res); // prevent proxy/mobile timeout during long reasoning
 
   // ── Create or resume Firestore session ─────────────────────────────────────
   const now       = new Date().toISOString();
@@ -75,6 +76,10 @@ router.post('/investigate', async (req, res) => {
     sessionId = null;
   }
 
+  // Track client disconnect so we stop writing to a dead socket
+  let clientGone = false;
+  res.on('close', () => { clientGone = true; });
+
   // Announce sessionId as the first SSE event so the frontend can link to it
   sendEvent('session', { sessionId });
 
@@ -86,6 +91,7 @@ router.post('/investigate', async (req, res) => {
 
   // ── Wrap sendEvent to persist tool results and final answer ────────────────
   const sendEventAndPersist = (event, data) => {
+    if (clientGone) return; // client disconnected — skip writes
     sendEvent(event, data);
     if (!sessionId) return;
     if (event === 'tool_result') {
@@ -113,7 +119,9 @@ router.post('/investigate', async (req, res) => {
     await investigate(query.trim(), sendEventAndPersist);
   } catch (err) {
     log.error({ error: err.message }, 'Agent investigate error (SSE)');
-    sendEvent('error', { message: 'Errore interno dell\'agente. Riprova tra qualche secondo.' });
+    if (!clientGone) sendEvent('error', { message: 'Errore interno dell\'agente. Riprova tra qualche secondo.' });
+  } finally {
+    heartbeat.stop();
   }
 
   res.end();

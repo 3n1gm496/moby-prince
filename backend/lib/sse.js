@@ -27,4 +27,20 @@ function makeSender(res) {
   };
 }
 
-module.exports = { sseHeaders, makeSender };
+/**
+ * Start an SSE heartbeat: write a comment ping every `intervalMs` milliseconds
+ * to prevent proxies and mobile networks from dropping idle connections.
+ * Returns a `stop()` function — call it when the response ends.
+ *
+ * @param {import('http').ServerResponse} res
+ * @param {number} intervalMs  Default 25 000 ms (25 s — safely under typical 30 s proxy timeouts)
+ * @returns {{ stop: () => void }}
+ */
+function makeHeartbeat(res, intervalMs = 25_000) {
+  const timer = setInterval(() => {
+    try { res.write(': heartbeat\n\n'); } catch (_) { /* closed */ }
+  }, intervalMs);
+  return { stop: () => clearInterval(timer) };
+}
+
+module.exports = { sseHeaders, makeSender, makeHeartbeat };

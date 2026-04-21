@@ -26,6 +26,44 @@ const { createLogger } = require('../logger');
 const router = Router();
 const log    = createLogger('storage-route');
 
+// Allowed MIME types for uploads (magic-byte check not available without extra deps,
+// so we validate the Content-Type declared by the client and rely on GCS MIME handling)
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg', 'image/png', 'image/tiff', 'image/webp', 'image/gif', 'image/bmp',
+  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/aac', 'audio/x-wav',
+  'video/mp4', 'video/mpeg', 'video/quicktime', 'video/webm', 'video/x-msvideo',
+  'text/plain', 'text/html', 'text/csv', 'text/xml', 'application/xml',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/msword', 'application/vnd.ms-powerpoint', 'application/vnd.ms-excel',
+  'application/zip', 'application/x-zip-compressed',
+]);
+
+/**
+ * Validate a GCS object path/prefix supplied by the user.
+ * Returns { value: string } on success or { error: string } on failure.
+ *
+ * Rejects:
+ *   - empty / non-string values
+ *   - paths that start with "/" (absolute)
+ *   - paths that contain ".." as a segment (directory traversal)
+ */
+function _validateGcsPath(p, fieldName = 'name') {
+  if (typeof p !== 'string' || !p.trim()) {
+    return { error: `"${fieldName}" is required.` };
+  }
+  const s = p.trim();
+  if (s.startsWith('/')) {
+    return { error: `"${fieldName}" must not start with "/".` };
+  }
+  if (s.split('/').some(seg => seg === '..')) {
+    return { error: `"${fieldName}" contains invalid path traversal.` };
+  }
+  return { value: s };
+}
+
 // Fields from GCS custom metadata that map 1:1 to DE structData keys
 const SYNCABLE_META_KEYS = new Set([
   'persons_mentioned', 'organizations_mentioned', 'document_type',
@@ -55,7 +93,13 @@ const upload = multer({
 // ── GET /api/storage/browse ───────────────────────────────────────────────────
 
 router.get('/browse', async (req, res, next) => {
-  const prefix    = typeof req.query.prefix    === 'string' ? req.query.prefix    : '';
+  const rawPrefix = typeof req.query.prefix === 'string' ? req.query.prefix : '';
+  // Allow empty prefix (list root), but reject traversal in non-empty values
+  if (rawPrefix) {
+    const v = _validateGcsPath(rawPrefix, 'prefix');
+    if (v.error) return res.status(400).json({ error: v.error });
+  }
+  const prefix    = rawPrefix;
   const pageToken = typeof req.query.pageToken === 'string' ? req.query.pageToken : null;
   const pageSize  = Math.min(parseInt(req.query.pageSize, 10) || 200, 1000);
 
@@ -95,8 +139,10 @@ router.get('/browse', async (req, res, next) => {
 // ── GET /api/storage/file ─────────────────────────────────────────────────────
 
 router.get('/file', async (req, res, next) => {
-  const name = typeof req.query.name === 'string' ? req.query.name.trim() : null;
-  if (!name) return res.status(400).json({ error: 'Query parameter "name" is required.' });
+  const raw = typeof req.query.name === 'string' ? req.query.name : '';
+  const validated = _validateGcsPath(raw, 'name');
+  if (validated.error) return res.status(400).json({ error: validated.error });
+  const name = validated.value;
 
   try {
     const gcsRes = await gcs.getObject(name);
@@ -124,11 +170,24 @@ router.get('/file', async (req, res, next) => {
 // ── POST /api/storage/upload ──────────────────────────────────────────────────
 
 router.post('/upload', upload.single('file'), async (req, res, next) => {
-  const file   = req.file;
-  const prefix = typeof req.body?.prefix === 'string' ? req.body.prefix : '';
+  const file      = req.file;
+  const rawPrefix = typeof req.body?.prefix === 'string' ? req.body.prefix : '';
 
   if (!file) {
     return res.status(400).json({ error: 'Nessun file ricevuto (campo "file" mancante).' });
+  }
+
+  // Validate prefix if provided
+  if (rawPrefix) {
+    const v = _validateGcsPath(rawPrefix, 'prefix');
+    if (v.error) return res.status(400).json({ error: v.error });
+  }
+  const prefix = rawPrefix;
+
+  // Validate MIME type against server-side allowlist
+  const normalizedMime = (file.mimetype || '').toLowerCase().split(';')[0].trim();
+  if (!ALLOWED_MIME_TYPES.has(normalizedMime)) {
+    return res.status(415).json({ error: `Tipo di file non supportato: "${normalizedMime}".` });
   }
 
   // Sanitise filename: strip path traversal, normalise spaces
@@ -152,8 +211,10 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
 // ── GET /api/storage/metadata ─────────────────────────────────────────────────
 
 router.get('/metadata', async (req, res, next) => {
-  const name = typeof req.query.name === 'string' ? req.query.name.trim() : null;
-  if (!name) return res.status(400).json({ error: '"name" query param required.' });
+  const raw = typeof req.query.name === 'string' ? req.query.name : '';
+  const validated = _validateGcsPath(raw, 'name');
+  if (validated.error) return res.status(400).json({ error: validated.error });
+  const name = validated.value;
   try {
     const obj = await gcs.getObjectMetadata(name);
     res.json({
@@ -175,10 +236,13 @@ router.get('/metadata', async (req, res, next) => {
 // ── PATCH /api/storage/metadata ───────────────────────────────────────────────
 
 router.patch('/metadata', async (req, res, next) => {
-  const { name, metadata } = req.body || {};
-  if (!name || typeof metadata !== 'object' || metadata === null) {
+  const { name: rawName, metadata } = req.body || {};
+  if (typeof metadata !== 'object' || metadata === null) {
     return res.status(400).json({ error: '"name" and "metadata" (object) required.' });
   }
+  const validated = _validateGcsPath(rawName, 'name');
+  if (validated.error) return res.status(400).json({ error: validated.error });
+  const name = validated.value;
   try {
     const obj = await gcs.updateObjectMetadata(name, metadata);
 
@@ -197,10 +261,14 @@ router.patch('/metadata', async (req, res, next) => {
 // ── POST /api/storage/rename ──────────────────────────────────────────────────
 
 router.post('/rename', async (req, res, next) => {
-  const { source, newName } = req.body || {};
-  if (!source || !newName) return res.status(400).json({ error: '"source" and "newName" required.' });
+  const { source: rawSource, newName } = req.body || {};
+  if (!rawSource || !newName) return res.status(400).json({ error: '"source" and "newName" required.' });
 
-  // Bug fix #1: sanitise newName to prevent path traversal in the bucket.
+  const srcValidated = _validateGcsPath(rawSource, 'source');
+  if (srcValidated.error) return res.status(400).json({ error: srcValidated.error });
+  const source = srcValidated.value;
+
+  // Sanitise newName: strip slashes to keep the rename within the same folder
   const safeName = String(newName).replace(/[/\\]/g, '_').trim();
   if (!safeName) return res.status(400).json({ error: 'Invalid file name.' });
 
@@ -226,8 +294,10 @@ router.post('/rename', async (req, res, next) => {
 // ── POST /api/storage/copy ────────────────────────────────────────────────────
 
 router.post('/copy', async (req, res, next) => {
-  const { source } = req.body || {};
-  if (!source) return res.status(400).json({ error: '"source" required.' });
+  const { source: rawSource } = req.body || {};
+  const srcValidated = _validateGcsPath(rawSource, 'source');
+  if (srcValidated.error) return res.status(400).json({ error: srcValidated.error });
+  const source = srcValidated.value;
 
   const slash     = source.lastIndexOf('/');
   const dirPrefix = slash >= 0 ? source.slice(0, slash + 1) : '';
@@ -236,13 +306,16 @@ router.post('/copy', async (req, res, next) => {
   const base      = dotIdx >= 0 ? filename.slice(0, dotIdx) : filename;
   const ext       = dotIdx >= 0 ? filename.slice(dotIdx)    : '';
 
-  // Bug fix #7: find a non-colliding destination name before copying.
+  // Find a non-colliding destination name (max 100 attempts to prevent runaway loop)
   let destination = `${dirPrefix}${base} (copia)${ext}`;
   let counter = 2;
+  const MAX_COPY_SUFFIX = 100;
   while (true) {
     try {
       await gcs.getObjectMetadata(destination);
-      // Object exists — try next suffix
+      if (counter > MAX_COPY_SUFFIX) {
+        return res.status(409).json({ error: 'Impossibile trovare un nome libero per la copia.' });
+      }
       destination = `${dirPrefix}${base} (copia ${counter++})${ext}`;
     } catch (e) {
       if (e.statusCode === 404) break; // free name found
@@ -261,8 +334,10 @@ router.post('/copy', async (req, res, next) => {
 // ── DELETE /api/storage/file ──────────────────────────────────────────────────
 
 router.delete('/file', async (req, res, next) => {
-  const name = typeof req.query.name === 'string' ? req.query.name.trim() : null;
-  if (!name) return res.status(400).json({ error: 'Query parameter "name" is required.' });
+  const raw = typeof req.query.name === 'string' ? req.query.name : '';
+  const validated = _validateGcsPath(raw, 'name');
+  if (validated.error) return res.status(400).json({ error: validated.error });
+  const name = validated.value;
 
   try {
     await gcs.deleteObject(name);
@@ -277,10 +352,16 @@ router.delete('/file', async (req, res, next) => {
 // GCS move = copy to destination + delete source.
 
 router.post('/move', async (req, res, next) => {
-  const { source, destination } = req.body || {};
-  if (!source || !destination) {
-    return res.status(400).json({ error: '"source" and "destination" are required.' });
-  }
+  const { source: rawSource, destination: rawDest } = req.body || {};
+
+  const srcV = _validateGcsPath(rawSource, 'source');
+  if (srcV.error) return res.status(400).json({ error: srcV.error });
+  const source = srcV.value;
+
+  const dstV = _validateGcsPath(rawDest, 'destination');
+  if (dstV.error) return res.status(400).json({ error: dstV.error });
+  const destination = dstV.value;
+
   if (source === destination) {
     return res.status(400).json({ error: 'source and destination are the same.' });
   }
@@ -302,8 +383,10 @@ router.post('/move', async (req, res, next) => {
 // Deletes all objects under a given prefix (folder). Prefix must end with '/'.
 
 router.delete('/folder', async (req, res, next) => {
-  const prefix = typeof req.query.prefix === 'string' ? req.query.prefix : null;
-  if (!prefix) return res.status(400).json({ error: '"prefix" query param required.' });
+  const raw = typeof req.query.prefix === 'string' ? req.query.prefix : '';
+  const validated = _validateGcsPath(raw, 'prefix');
+  if (validated.error) return res.status(400).json({ error: validated.error });
+  const prefix = validated.value;
   if (!prefix.endsWith('/')) return res.status(400).json({ error: 'prefix must end with "/".' });
 
   try {
@@ -319,8 +402,12 @@ router.delete('/folder', async (req, res, next) => {
 // Body: { prefix: "old/path/", newName: "newFolderName" }
 
 router.post('/rename-folder', async (req, res, next) => {
-  const { prefix, newName } = req.body || {};
-  if (!prefix || !newName) return res.status(400).json({ error: '"prefix" and "newName" required.' });
+  const { prefix: rawPrefix, newName } = req.body || {};
+  if (!rawPrefix || !newName) return res.status(400).json({ error: '"prefix" and "newName" required.' });
+
+  const prefixV = _validateGcsPath(rawPrefix, 'prefix');
+  if (prefixV.error) return res.status(400).json({ error: prefixV.error });
+  const prefix = prefixV.value;
   if (!prefix.endsWith('/')) return res.status(400).json({ error: 'prefix must end with "/".' });
 
   const safeName = String(newName).replace(/[/\\]/g, '_').trim();
@@ -350,16 +437,22 @@ router.post('/rename-folder', async (req, res, next) => {
 // Body: { prefix: "path/to/folder/" }
 
 router.post('/copy-folder', async (req, res, next) => {
-  const { prefix } = req.body || {};
-  if (!prefix) return res.status(400).json({ error: '"prefix" required.' });
+  const { prefix: rawPrefix } = req.body || {};
+  const prefixV = _validateGcsPath(rawPrefix, 'prefix');
+  if (prefixV.error) return res.status(400).json({ error: prefixV.error });
+  const prefix = prefixV.value;
   if (!prefix.endsWith('/')) return res.status(400).json({ error: 'prefix must end with "/".' });
 
   const base = prefix.replace(/\/$/, '');
 
-  // Bug fix #7 (folder): find a non-colliding destination prefix.
+  // Find a non-colliding destination prefix (max 100 attempts)
   let newPrefix = `${base} (copia)/`;
   let counter   = 2;
+  const MAX_COPY_SUFFIX = 100;
   while ((await gcs.listAllObjects(newPrefix)).length > 0) {
+    if (counter > MAX_COPY_SUFFIX) {
+      return res.status(409).json({ error: 'Impossibile trovare un nome libero per la copia.' });
+    }
     newPrefix = `${base} (copia ${counter++})/`;
   }
 

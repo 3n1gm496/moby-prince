@@ -40,28 +40,33 @@ const app = express();
 
 // ── Rate limiters ─────────────────────────────────────────────────────────────
 
-// Rate-limit key: use API key when present so limits are per-client rather than
-// per-IP (which breaks behind load balancers where all traffic shares one IP).
+// Keyed by API key when present; unauthenticated requests are keyed by IP but
+// get a much tighter cap so a single NAT IP cannot starve legitimate API-key users.
 const _rateLimitKey = (req) => req.headers['x-api-key'] || req.ip;
 
-// /api/answer is expensive (Vertex AI call) — cap at 20 req/min per client
-const answerLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 20,
+const _RL_OPTS = {
   standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: _rateLimitKey,
-  message: { error: 'Troppe richieste. Riprova tra un minuto.' },
-});
+  legacyHeaders:   false,
+  keyGenerator:    _rateLimitKey,
+  message:         { error: 'Troppe richieste. Riprova tra un minuto.' },
+};
 
-// General API cap — 120 req/min per client (search, evidence, health)
-const generalLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 120,
+// /api/answer is expensive (Vertex AI call) — cap at 20 req/min per authenticated client
+const answerLimiter = rateLimit({ ..._RL_OPTS, windowMs: 60_000, max: 20 });
+
+// General API cap — 120 req/min per authenticated client (search, evidence, storage…)
+const generalLimiter = rateLimit({ ..._RL_OPTS, windowMs: 60_000, max: 120 });
+
+// Unauthenticated burst guard — 10 req/min per IP regardless of route.
+// Applied before requireApiKey so probe traffic is throttled early.
+const anonLimiter = rateLimit({
+  windowMs:      60_000,
+  max:           10,
   standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: _rateLimitKey,
-  message: { error: 'Troppe richieste. Riprova tra un minuto.' },
+  legacyHeaders:   false,
+  keyGenerator:  (req) => req.ip,
+  skip:          (req) => !!req.headers['x-api-key'], // only applies to unauthenticated requests
+  message:       { error: 'Troppe richieste. Riprova tra un minuto.' },
 });
 
 // ── Middleware ────────────────────────────────────────────────────────────────
@@ -93,6 +98,9 @@ app.use(requestLogger);
 app.use(express.json({ limit: '32kb' }));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
+
+// Unauthenticated burst guard applied globally (skips requests that carry an API key)
+app.use('/api', anonLimiter);
 
 app.use('/api/answer',   answerLimiter,  requireApiKey, answerRouter);
 app.use('/api/ask',      answerLimiter,  requireApiKey, answerRouter); // backwards-compat alias

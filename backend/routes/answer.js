@@ -28,7 +28,7 @@ const { validateQuery, validateSessionId } = require('../middleware/validate');
 const { validateFilters }       = require('../middleware/validateFilters');
 const { buildFilterExpression } = require('../filters/schema');
 const { clamp } = require('../lib/utils');
-const { sseHeaders, makeSender } = require('../lib/sse');
+const { sseHeaders, makeSender, makeHeartbeat } = require('../lib/sse');
 const { createLogger } = require('../logger');
 const contradictionsRepo        = require('../repos/contradictions');
 const { isBigQueryEnabled }     = require('../services/bigquery');
@@ -42,6 +42,7 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
 
   sseHeaders(res);
   const sendEvent = makeSender(res);
+  const heartbeat = makeHeartbeat(res);
 
   try {
     // Notify the client that Discovery Engine is being called
@@ -73,6 +74,7 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
       } catch (_) { /* BQ optional — silently skip on error or timeout */ }
     }
 
+    heartbeat.stop();
     res.end();
   } catch (err) {
     // Headers already sent — handle errors inline rather than via errorHandler middleware
@@ -93,6 +95,7 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
       }
     }
     sendEvent('error', { message });
+    heartbeat.stop();
     res.end();
   }
 });
