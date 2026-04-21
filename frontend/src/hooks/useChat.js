@@ -1,8 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { apiFetch } from "../lib/apiFetch";
 
-const STREAM_CHUNK      = 6;     // characters revealed per tick
-const STREAM_TICK_MS    = 14;    // ~70 chars/s reveal speed
+// Adaptive animation: short responses (<= 300 chars) appear instantly;
+// longer responses animate at ~20 chars/8ms so a 3000-char answer
+// completes in ~1.2 s instead of the previous 7 s.
+const STREAM_CHUNK_SHORT = 9999; // show entire short text in one tick
+const STREAM_CHUNK_LONG  = 20;
+const STREAM_TICK_SHORT  = 0;
+const STREAM_TICK_LONG   = 8;
+const ANIMATION_THRESHOLD = 300; // chars — below this: instant render
 const CLIENT_TIMEOUT_MS = 75_000; // must exceed backend POST_TIMEOUT_MS (55 s)
 const MAX_AUTO_RETRIES  = 2;
 const RETRY_DELAYS      = [2_000, 4_000]; // exponential backoff
@@ -74,13 +80,17 @@ export function useChat({
       return;
     }
 
+    const isLong   = streamingMessage.target.length > ANIMATION_THRESHOLD;
+    const chunk    = isLong ? STREAM_CHUNK_LONG  : STREAM_CHUNK_SHORT;
+    const tickMs   = isLong ? STREAM_TICK_LONG   : STREAM_TICK_SHORT;
+
     const timerId = setTimeout(() => {
       setStreamingMessage(prev => {
         if (!prev) return null;
-        const nextLen = Math.min(prev.text.length + STREAM_CHUNK, prev.target.length);
+        const nextLen = Math.min(prev.text.length + chunk, prev.target.length);
         return { ...prev, text: prev.target.slice(0, nextLen) };
       });
-    }, STREAM_TICK_MS);
+    }, tickMs);
 
     return () => clearTimeout(timerId);
   }, [streamingMessage, addMessage]);

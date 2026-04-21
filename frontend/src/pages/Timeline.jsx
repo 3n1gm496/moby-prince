@@ -444,6 +444,9 @@ export default function Timeline() {
   }, [curated, saveEvents]);
 
   const handleDelete = useCallback((id) => {
+    const event = curated.find(e => e.id === id);
+    const label = event?.title ? `"${event.title}"` : "questo evento";
+    if (!window.confirm(`Eliminare ${label}? L'operazione non è reversibile.`)) return;
     saveEvents(curated.filter(e => e.id !== id));
   }, [curated, saveEvents]);
 

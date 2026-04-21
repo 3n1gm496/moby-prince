@@ -112,6 +112,10 @@ router.patch('/:id', async (req, res, next) => {
   try {
     const session = await fs.patchDocument(COLLECTION, req.params.id, delta);
     if (!session) return res.status(404).json({ error: 'Session not found.' });
+    // Log message wipe (messages:[] is destructive)
+    if (Array.isArray(messages) && messages.length === 0) {
+      log.warn({ sessionId: req.params.id, ip: req.ip }, 'Session messages wiped via PATCH');
+    }
     res.json(session);
   } catch (err) {
     next(err);
@@ -158,6 +162,7 @@ router.post('/:id/messages', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     await fs.deleteDocument(COLLECTION, req.params.id);
+    log.info({ sessionId: req.params.id, ip: req.ip, ua: req.get('user-agent') }, 'Session deleted');
     res.json({ success: true });
   } catch (err) {
     next(err);

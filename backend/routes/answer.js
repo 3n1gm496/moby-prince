@@ -62,18 +62,22 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
     const normalized = normalizeAnswer(raw, filters || null);
     sendEvent('answer', normalized);
 
-    // Best-effort: surface open contradictions for documents cited in this answer.
-    // Fires async; never blocks or breaks the SSE stream on failure.
+    // Best-effort: surface contradictions for documents cited in this answer.
+    // Capped at 2s so a BQ cold-start never delays stream closure significantly.
     if (isBigQueryEnabled()) {
       try {
         const sourceUris = _extractSourceUris(raw);
         if (sourceUris.length > 0) {
-          const contradictions = await contradictionsRepo.listBySourceUris(sourceUris, 3);
+          const bqTimeout    = new Promise((_, rej) => setTimeout(() => rej(new Error('bq-timeout')), 2_000));
+          const contradictions = await Promise.race([
+            contradictionsRepo.listBySourceUris(sourceUris, 3),
+            bqTimeout,
+          ]);
           if (contradictions.length > 0) {
             sendEvent('contradictions', { contradictions, total: contradictions.length });
           }
         }
-      } catch (_) { /* BQ optional — silently skip */ }
+      } catch (_) { /* BQ optional — silently skip on error or timeout */ }
     }
 
     res.end();

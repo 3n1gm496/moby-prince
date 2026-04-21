@@ -406,8 +406,10 @@ export default function ChatInterface() {
                 ))}
                 {showLoadingBubble && <SkeletonLoader stage={loadingStage} retryCountdown={retryCountdown} />}
                 {streamingMessage && (
-                  <MessageBubble key={`streaming-${streamingMessage.id}`} message={streamingMessage}
-                                 onCitationClick={() => {}} onFollowUp={() => {}} onRetry={() => {}} />
+                  <div onClick={stopStreaming} className="cursor-pointer" title="Clicca per vedere la risposta completa">
+                    <MessageBubble key={`streaming-${streamingMessage.id}`} message={streamingMessage}
+                                   onCitationClick={() => {}} onFollowUp={() => {}} onRetry={() => {}} />
+                  </div>
                 )}
                 <div ref={messagesEndRef} />
               </div>

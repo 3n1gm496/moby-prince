@@ -115,6 +115,7 @@ router.patch('/:id', async (req, res, next) => {
   try {
     const updated = await contradictionsRepo.update(req.params.id, delta);
     if (!updated) return res.status(404).json({ error: 'Contradiction not found.' });
+    log.info({ contradictionId: req.params.id, delta, ip: req.ip }, 'Contradiction status updated');
     res.json(updated);
   } catch (err) {
     next(err);
