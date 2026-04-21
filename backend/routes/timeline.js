@@ -9,9 +9,11 @@
  */
 
 const { Router } = require('express');
-const de     = require('../services/discoveryEngine');
-const gcs    = require('../services/gcs');
-const config = require('../config');
+const de         = require('../services/discoveryEngine');
+const gcs        = require('../services/gcs');
+const config     = require('../config');
+const eventsRepo = require('../repos/events');
+const { isBigQueryEnabled } = require('../services/bigquery');
 
 const router      = Router();
 const EVENTS_PATH = '_timeline/events.json';
@@ -53,16 +55,32 @@ router.get('/documents', async (req, res, next) => {
 });
 
 // ── GET /api/timeline/events ──────────────────────────────────────────────────
+// Try BigQuery first (structured evidence layer); fall back to GCS JSON cache.
 
 router.get('/events', async (req, res, next) => {
-  if (!config.gcsBucket) return res.json({ events: [] });
+  // BigQuery path (authoritative when available)
+  if (isBigQueryEnabled()) {
+    try {
+      const from      = typeof req.query.from === 'string' ? req.query.from : undefined;
+      const to        = typeof req.query.to   === 'string' ? req.query.to   : undefined;
+      const bqEvents  = await eventsRepo.list({ from, to, limit: 500 });
+      if (bqEvents.length > 0) {
+        return res.json({ events: bqEvents, source: 'bigquery' });
+      }
+    } catch (bqErr) {
+      // BQ unavailable — fall through to GCS cache
+    }
+  }
+
+  // GCS JSON fallback
+  if (!config.gcsBucket) return res.json({ events: [], source: 'empty' });
   try {
     const obj    = await gcs.getObject(EVENTS_PATH);
     const text   = await obj.text();
     const events = JSON.parse(text);
-    res.json({ events: Array.isArray(events) ? events : [] });
+    res.json({ events: Array.isArray(events) ? events : [], source: 'gcs' });
   } catch (err) {
-    if (err.statusCode === 404) return res.json({ events: [] });
+    if (err.statusCode === 404) return res.json({ events: [], source: 'empty' });
     next(err);
   }
 });

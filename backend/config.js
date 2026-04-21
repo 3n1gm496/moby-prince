@@ -48,11 +48,15 @@ const config = {
   apiKey,
   frontendOrigin: frontendOriginRaw,
 
-  // BigQuery evidence layer (optional — not active in the current deployment)
+  // BigQuery evidence layer (optional)
   bigquery: {
     projectId: optional('BQ_PROJECT_ID', projectId),
     datasetId: optional('BQ_DATASET_ID', 'evidence'),
+    location:  optional('BQ_LOCATION', 'EU'),
   },
+
+  // Firestore session persistence (optional — uses default database if unset)
+  firestoreDb: optional('FIRESTORE_DB', '(default)'),
 
   // Adjacent chunks to include per matched chunk in :answer responses.
   // Increasing these values improves answer context at the cost of more tokens.

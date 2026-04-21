@@ -72,6 +72,15 @@ const config = {
 
   // Dry-run: skip actual Discovery Engine import (for local dev / CI)
   dryRun: optional('INDEX_DRY_RUN', 'false') === 'true',
+
+  // BigQuery evidence layer (optional — claim extraction skipped when absent)
+  bigquery: {
+    datasetId: optional('BQ_DATASET_ID', 'evidence'),
+    location:  optional('BQ_LOCATION', 'EU'),
+  },
+
+  // Gemini claim extractor (optional — Vertex AI region for Gemini 2.0 Flash)
+  geminiLocation: optional('GEMINI_LOCATION', 'us-central1'),
 };
 
 module.exports = config;

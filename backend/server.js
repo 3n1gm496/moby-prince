@@ -24,6 +24,9 @@ const storageRouter   = require('./routes/storage');
 const timelineRouter  = require('./routes/timeline');
 const filtersRouter   = require('./routes/filters');
 const mediaRouter     = require('./routes/media');
+const entitiesRouter  = require('./routes/entities');
+const eventsRouter    = require('./routes/events');
+const sessionsRouter  = require('./routes/sessions');
 const healthRouter    = require('./routes/health');
 
 const app = express();
@@ -59,7 +62,7 @@ const generalLimiter = rateLimit({
 app.use(helmet({ contentSecurityPolicy: false })); // CSP managed by nginx
 app.use(cors({
   origin:  config.frontendOrigin,
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT'],
 }));
 app.use(requestId);
 app.use(requestLogger);
@@ -75,8 +78,11 @@ app.use('/api/analysis', generalLimiter, requireApiKey, analysisRouter);
 app.use('/api/storage',  generalLimiter, requireApiKey, storageRouter);
 app.use('/api/timeline', generalLimiter, requireApiKey, timelineRouter);
 app.use('/api/filters',  generalLimiter, requireApiKey, filtersRouter);
-app.use('/api/media',    generalLimiter, requireApiKey, mediaRouter);
-app.use('/api/health',                                  healthRouter);  // health is always public
+app.use('/api/media',     generalLimiter, requireApiKey, mediaRouter);
+app.use('/api/entities',  generalLimiter, requireApiKey, entitiesRouter);
+app.use('/api/events',    generalLimiter, requireApiKey, eventsRouter);
+app.use('/api/sessions',  generalLimiter, requireApiKey, sessionsRouter);
+app.use('/api/health',                                   healthRouter);  // health is always public
 
 // ── Error handler (must be last) ──────────────────────────────────────────────
 

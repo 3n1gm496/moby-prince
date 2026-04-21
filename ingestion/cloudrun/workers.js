@@ -19,10 +19,11 @@ const { IndexerWorker }            = require('../workers/indexer');
 const { DocumentAIWorker }         = require('../workers/documentai');
 const { MediaProcessorWorker }     = require('../workers/mediaProcessor');
 const { EntityExtractionWorker }   = require('../workers/entities');
+const { ClaimExtractorWorker }     = require('../workers/claimExtractor');
 
 /**
- * Full worker chain (M1-M3):
- *   Validator → DocumentAI → MediaProcessor → Splitter → EntityExtractor → Indexer
+ * Full worker chain (M1-M4):
+ *   Validator → DocumentAI → MediaProcessor → Splitter → EntityExtractor → ClaimExtractor → Indexer
  *
  * @param {object} config
  * @param {object} [logger]
@@ -34,6 +35,7 @@ function buildWorkersWithDocumentAI(config, logger) {
     new MediaProcessorWorker(config, logger),
     new SplitterWorker(config, logger),
     new EntityExtractionWorker(config, logger),
+    new ClaimExtractorWorker(config, logger),
     new IndexerWorker(config, logger),
   ];
 }
