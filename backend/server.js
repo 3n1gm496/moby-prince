@@ -29,6 +29,7 @@ const eventsRouter    = require('./routes/events');
 const sessionsRouter       = require('./routes/sessions');
 const contradictionsRouter = require('./routes/contradictions');
 const claimsRouter         = require('./routes/claims');
+const agentRouter          = require('./routes/agent');
 const healthRouter         = require('./routes/health');
 
 const app = express();
@@ -86,6 +87,7 @@ app.use('/api/events',    generalLimiter, requireApiKey, eventsRouter);
 app.use('/api/sessions',        generalLimiter, requireApiKey, sessionsRouter);
 app.use('/api/contradictions',  generalLimiter, requireApiKey, contradictionsRouter);
 app.use('/api/claims',          generalLimiter, requireApiKey, claimsRouter);
+app.use('/api/agent',           answerLimiter,  requireApiKey, agentRouter);
 app.use('/api/health',                                   healthRouter);  // health is always public
 
 // ── Error handler (must be last) ──────────────────────────────────────────────

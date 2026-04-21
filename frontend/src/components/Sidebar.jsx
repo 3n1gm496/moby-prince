@@ -30,6 +30,28 @@ const ANALYSIS_VIEWS = [
       </svg>
     ),
   },
+  {
+    to:        "/contraddizioni",
+    label:     "Contraddizioni",
+    available: true,
+    icon: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+      </svg>
+    ),
+  },
+  {
+    to:        "/investigazione",
+    label:     "Investigazione",
+    available: true,
+    icon: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+      </svg>
+    ),
+  },
 ];
 
 const GROUP_LABELS = {
