@@ -122,6 +122,30 @@ function DocumentChunksPanel({ documentId }) {
   );
 }
 
+// ─── GroundingBadge ───────────────────────────────────────────────────────────
+
+function GroundingBadge({ score }) {
+  const pct = Math.round(score * 100);
+  const colorClass =
+    pct >= 80 ? "text-emerald-400 border-emerald-400/30 bg-emerald-400/10" :
+    pct >= 50 ? "text-amber-400 border-amber-400/30 bg-amber-400/10"       :
+                "text-red-400 border-red-400/30 bg-red-400/10";
+
+  return (
+    <span
+      title={`Attendibilità del frammento: ${pct}%`}
+      className={`inline-flex items-center gap-1 px-1.5 py-px rounded border text-[9px] font-mono mb-1.5 ${colorClass}`}
+    >
+      <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd"
+          d="M10 1l2.39 4.84L18 6.7l-4 3.9.94 5.5L10 13.77 5.06 16.1 6 10.6l-4-3.9 5.61-.86z"
+          clipRule="evenodd" />
+      </svg>
+      {pct}%
+    </span>
+  );
+}
+
 // ─── EvidenceItem ─────────────────────────────────────────────────────────────
 
 const EvidenceItem = forwardRef(function EvidenceItem({ item, citations, isActive, onCitationClick }, ref) {
@@ -175,6 +199,10 @@ const EvidenceItem = forwardRef(function EvidenceItem({ item, citations, isActiv
             );
           })}
         </div>
+      )}
+
+      {item.groundingScore != null && (
+        <GroundingBadge score={item.groundingScore} />
       )}
 
       {item.pageIdentifier && (

@@ -202,11 +202,16 @@ async function answer(queryText, sessionId = null, {
       promptSpec: { preamble: config.promptPreamble },
       includeCitations: true,
     },
+    groundingSpec: { includeGroundingSupports: true },
     relatedQuestionsSpec: { enable: true },
     searchSpec: {
       searchParams: {
         searchResultMode: 'CHUNKS',
         maxReturnResults: Math.min(maxResults, 20),
+        chunkSpec: {
+          numPreviousChunks: config.chunkContextPrev,
+          numNextChunks:     config.chunkContextNext,
+        },
         ...(filter ? { filter } : {}),
       },
     },
@@ -236,13 +241,23 @@ async function search(queryText, {
     contentSearchSpec: {
       searchResultMode: searchMode,
       ...(isChunks
-        ? { chunkSpec: { numPreviousChunks: 0, numNextChunks: 0 } }
+        ? {
+            chunkSpec: {
+              numPreviousChunks: config.chunkContextPrev,
+              numNextChunks:     config.chunkContextNext,
+            },
+          }
         : {
             extractiveContentSpec: { maxExtractiveAnswerCount: 1, maxExtractiveSegmentCount: 1 },
             snippetSpec: { returnSnippet: true },
           }
       ),
     },
+    facetSpecs: isChunks ? [
+      { facetKey: { key: 'institution' } },
+      { facetKey: { key: 'document_type' } },
+      { facetKey: { key: 'year' } },
+    ] : undefined,
     ...(filter ? { filter } : {}),
   };
 

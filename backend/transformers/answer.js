@@ -37,8 +37,10 @@ function normalizeAnswer(raw, appliedFilters = null) {
     ? sessionName.split('/sessions/')[1]
     : null;
 
+  const groundingMap   = _buildGroundingMap(answerObj);
   const citations      = buildCitations(answerObj);
-  const evidence       = buildEvidence(answerObj, citations);
+  const evidence       = buildEvidence(answerObj, citations, groundingMap);
+  const grounding      = _buildGrounding(answerObj);
   const uniqueDocCount = _countUniqueDocuments(citations);
 
   return {
@@ -46,6 +48,7 @@ function normalizeAnswer(raw, appliedFilters = null) {
       text:             answerObj.answerText || '',
       citations,
       evidence,
+      grounding,
       relatedQuestions: Array.isArray(answerObj.relatedQuestions) ? answerObj.relatedQuestions : [],
       steps:            Array.isArray(answerObj.steps)            ? answerObj.steps            : [],
     },
@@ -77,7 +80,7 @@ function normalizeAnswer(raw, appliedFilters = null) {
  *   citationIds:    number[],       1-based citation IDs that reference this evidence
  * }
  */
-function buildEvidence(answerObj, citations) {
+function buildEvidence(answerObj, citations, groundingMap = new Map()) {
   if (!Array.isArray(answerObj.references)) return [];
 
   // Build reverse map: referenceIndex → citationIds[]
@@ -96,6 +99,8 @@ function buildEvidence(answerObj, citations) {
 
     const uri = unstructured.uri || docMeta.uri || null;
 
+    const rawScore = groundingMap.get(index);
+
     return {
       index,
       title:
@@ -111,8 +116,9 @@ function buildEvidence(answerObj, citations) {
         unstructured.chunkContents?.[0]?.pageIdentifier ||
         chunkInfo.pageSpan?.pageStart?.toString()       ||
         null,
-      documentId: _safeDecodeId(docMeta.id) || null,
-      citationIds: refToCitations.get(index) || [],
+      documentId:    _safeDecodeId(docMeta.id) || null,
+      citationIds:   refToCitations.get(index) || [],
+      groundingScore: rawScore != null ? Math.round(rawScore * 100) / 100 : null,
       // Struct metadata — populated once the datastore schema includes these fields
       metadata: _extractStructMetadata(ref),
     };
@@ -134,13 +140,50 @@ function _extractStructMetadata(ref) {
   if (Object.keys(structData).length === 0) return null;
 
   return {
-    documentType: structData.document_type || null,
-    institution:  structData.institution   || null,
-    year:         structData.year          != null ? Number(structData.year) : null,
-    legislature:  structData.legislature   || null,
-    topic:        structData.topic         || null,
-    ocrQuality:   structData.ocr_quality   || null,
+    documentType:     structData.document_type       || null,
+    institution:      structData.institution         || null,
+    year:             structData.year != null ? Number(structData.year) : null,
+    legislature:      structData.legislature         || null,
+    topic:            structData.topic               || null,
+    ocrQuality:       structData.ocr_quality         || null,
+    personsMentioned: structData.persons_mentioned   || null,
+    layoutType:       structData.layout_type         || null,
   };
+}
+
+/**
+ * Build a referenceIndex → max groundingScore map from groundingSupports.
+ * Used to annotate each evidence item with its best-attested confidence.
+ */
+function _buildGroundingMap(answerObj) {
+  const map = new Map();
+  for (const gs of (answerObj.groundingSupports || [])) {
+    const score = gs.groundingScore ?? null;
+    if (score === null) continue;
+    for (const src of (gs.sources || [])) {
+      const idx = parseInt(src.referenceId, 10);
+      if (!Number.isNaN(idx) && (!map.has(idx) || score > map.get(idx))) {
+        map.set(idx, score);
+      }
+    }
+  }
+  return map;
+}
+
+/**
+ * Normalise groundingSupports into a flat grounding array for the frontend.
+ * Each entry describes one claim in the answer text and its confidence score.
+ */
+function _buildGrounding(answerObj) {
+  return (answerObj.groundingSupports || [])
+    .filter(gs => gs.claimText)
+    .map(gs => ({
+      claimText:        gs.claimText,
+      score:            gs.groundingScore != null ? Math.round(gs.groundingScore * 100) / 100 : null,
+      referenceIndices: (gs.sources || [])
+        .map(s => parseInt(s.referenceId, 10))
+        .filter(n => !Number.isNaN(n)),
+    }));
 }
 
 function _countUniqueDocuments(citations) {
@@ -154,4 +197,4 @@ function _countUniqueDocuments(citations) {
   return seen.size;
 }
 
-module.exports = { normalizeAnswer, buildEvidence };
+module.exports = { normalizeAnswer, buildEvidence, _buildGroundingMap, _buildGrounding };

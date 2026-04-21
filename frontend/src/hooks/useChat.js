@@ -237,6 +237,7 @@ export function useChat({
           text:             answer.text || "Nessuna risposta disponibile.",
           citations:        Array.isArray(answer.citations)        ? answer.citations        : [],
           evidence:         Array.isArray(answer.evidence)         ? answer.evidence         : [],
+          grounding:        Array.isArray(answer.grounding)        ? answer.grounding        : [],
           relatedQuestions: Array.isArray(answer.relatedQuestions) ? answer.relatedQuestions : [],
           steps:            Array.isArray(answer.steps)            ? answer.steps            : [],
           meta:             data.meta || {},

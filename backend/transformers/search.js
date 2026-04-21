@@ -43,6 +43,7 @@ function normalizeSearch(raw, query, appliedFilters = null) {
       totalResults:   typeof raw.totalSize === 'number' ? raw.totalSize : results.length,
       searchMode,
       appliedFilters: activeFilters(appliedFilters),
+      facets:         _normalizeFacets(raw),
     },
   };
 }
@@ -87,6 +88,17 @@ function _normalizeDocumentResult(result, idx) {
     },
     snippet: snippets[0]?.snippet || extracts[0]?.content || null,
   };
+}
+
+function _normalizeFacets(raw) {
+  if (!Array.isArray(raw.facets)) return [];
+  return raw.facets.map(f => ({
+    key: f.key,
+    values: (f.values || []).map(v => ({
+      value: v.value,
+      count: typeof v.count === 'string' ? parseInt(v.count, 10) : (v.count ?? 0),
+    })),
+  }));
 }
 
 module.exports = { normalizeSearch };
