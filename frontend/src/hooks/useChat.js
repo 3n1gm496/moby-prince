@@ -182,7 +182,7 @@ export function useChat({
       const timeoutId   = setTimeout(() => controller.abort("timeout"), CLIENT_TIMEOUT_MS);
 
       if (!silent) {
-        addMessage({ id: crypto.randomUUID(), role: "user", text: queryText.trim() }, targetConvId);
+        addMessage({ id: crypto.randomUUID(), role: "user", text: queryText.trim(), ts: new Date().toISOString() }, targetConvId);
       }
       setLoadingConvId(targetConvId);
       setLoadingStage("searching");
@@ -252,6 +252,7 @@ export function useChat({
         const msgData = {
           id:               crypto.randomUUID(),
           role:             "assistant",
+          ts:               new Date().toISOString(),
           text:             answer.text || "Nessuna risposta disponibile.",
           citations:        Array.isArray(answer.citations)        ? answer.citations        : [],
           evidence:         Array.isArray(answer.evidence)         ? answer.evidence         : [],

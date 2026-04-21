@@ -286,7 +286,7 @@ const EvidenceSection = forwardRef(function EvidenceSection(
       }
     }, 80);
     return () => clearTimeout(timer);
-  }, [activeCitationId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeCitationId, evidence]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!evidence || evidence.length === 0) return null;
 

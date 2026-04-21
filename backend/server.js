@@ -59,13 +59,14 @@ const generalLimiter = rateLimit({ ..._RL_OPTS, windowMs: 60_000, max: 120 });
 
 // Unauthenticated burst guard — 10 req/min per IP regardless of route.
 // Applied before requireApiKey so probe traffic is throttled early.
+// Skipped for authenticated requests and for /api/health (load balancer probes).
 const anonLimiter = rateLimit({
   windowMs:      60_000,
   max:           10,
   standardHeaders: true,
   legacyHeaders:   false,
   keyGenerator:  (req) => req.ip,
-  skip:          (req) => !!req.headers['x-api-key'], // only applies to unauthenticated requests
+  skip:          (req) => !!req.headers['x-api-key'] || req.path === '/health',
   message:       { error: 'Troppe richieste. Riprova tra un minuto.' },
 });
 

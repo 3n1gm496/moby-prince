@@ -164,6 +164,8 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // Clipboard API unavailable (HTTP context, Firefox private mode, etc.) — silently ignore
     });
   };
 
@@ -207,8 +209,14 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
 
   const wordCount = message.text.trim().split(/\s+/).filter(Boolean).length;
   const readTime  = Math.max(1, Math.ceil(wordCount / 200));
-  const timestamp = message.id
-    ? new Date(message.id).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+  // Use message.ts (ISO string) for the timestamp — message.id is a UUID, not a date
+  const timestamp = message.ts
+    ? (() => {
+        const d = new Date(message.ts);
+        return isNaN(d.getTime())
+          ? null
+          : d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+      })()
     : null;
 
   const mightBeTruncated = !isStreaming

@@ -29,13 +29,15 @@ export default function Onboarding() {
   const [step,    setStep]    = useState(0);
 
   useEffect(() => {
-    if (!localStorage.getItem(STORAGE_KEY)) {
-      setVisible(true);
+    try {
+      if (!localStorage.getItem(STORAGE_KEY)) setVisible(true);
+    } catch {
+      // localStorage blocked (private mode, security policy) — skip onboarding silently
     }
   }, []);
 
   function dismiss() {
-    localStorage.setItem(STORAGE_KEY, "1");
+    try { localStorage.setItem(STORAGE_KEY, "1"); } catch { /* ignore */ }
     setVisible(false);
   }
 

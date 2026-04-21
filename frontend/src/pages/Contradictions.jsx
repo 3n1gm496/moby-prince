@@ -78,7 +78,9 @@ export default function Contradictions() {
       setContradictions(prev => prev.map(c =>
         c.id === id ? { ...c, status: newStatus } : c,
       ));
-    } catch (_) { /* silent */ }
+    } catch (err) {
+      console.warn("handleStatusChange failed:", err.message);
+    }
   }, []);
 
   const major = contradictions.filter(c => c.severity === "major");
