@@ -16,13 +16,23 @@ const config             = require('../config');
 const { getAccessToken } = require('./auth');
 const { createLogger }   = require('../logger');
 
-const log     = createLogger('gemini');
-const MODEL   = 'gemini-2.0-flash-001';
-const TIMEOUT = 60_000;
+const log              = createLogger('gemini');
+const MODEL            = 'gemini-2.0-flash-001';
+const EMBEDDING_MODEL  = 'text-embedding-004';
+const TIMEOUT          = 60_000;
+
+function _location() {
+  return process.env.GEMINI_LOCATION || 'us-central1';
+}
 
 function _endpoint() {
-  const location = process.env.GEMINI_LOCATION || 'us-central1';
-  return `https://${location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${location}/publishers/google/models/${MODEL}:generateContent`;
+  const loc = _location();
+  return `https://${loc}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${loc}/publishers/google/models/${MODEL}:generateContent`;
+}
+
+function _embeddingEndpoint() {
+  const loc = _location();
+  return `https://${loc}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${loc}/publishers/google/models/${EMBEDDING_MODEL}:predict`;
 }
 
 /**
@@ -74,4 +84,48 @@ async function generateJson(prompt, maxOutputTokens = 2048) {
   return JSON.parse(text);
 }
 
-module.exports = { generateJson };
+/**
+ * Fetch text embeddings for an array of strings (batch call).
+ * Returns a parallel array of float arrays; throws on API failure so callers
+ * can decide whether to fall back or abort.
+ *
+ * @param {string[]} texts
+ * @returns {Promise<number[][]>}
+ */
+async function getEmbeddings(texts) {
+  if (!texts || texts.length === 0) return [];
+  const token      = await getAccessToken();
+  const controller = new AbortController();
+  const timerId    = setTimeout(() => controller.abort(), TIMEOUT);
+
+  let res;
+  try {
+    res = await fetch(_embeddingEndpoint(), {
+      method:  'POST',
+      headers: {
+        Authorization:  `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        instances: texts.map(content => ({ content })),
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timerId);
+    if (err.name === 'AbortError') throw new Error('Embeddings API timed out');
+    throw err;
+  }
+  clearTimeout(timerId);
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    log.error({ status: res.status, detail: errText.slice(0, 200) }, 'Embeddings API error');
+    throw new Error(`Embeddings API HTTP ${res.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  return (data.predictions || []).map(p => p.embeddings?.values || []);
+}
+
+module.exports = { generateJson, getEmbeddings };

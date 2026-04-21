@@ -191,6 +191,67 @@ async function listDocuments(collection, pageSize = 20, pageToken = null) {
   };
 }
 
+/**
+ * Atomically append values to an array field using Firestore FieldTransform.
+ *
+ * Uses `appendMissingElements` (array-union semantics) — values that are
+ * already present are not duplicated.  Each value should include a unique `_mid`
+ * so that distinct messages are never suppressed.  The `updatedAt` field is set
+ * to server request time in the same atomic commit.
+ *
+ * Returns null if the document does not exist (caller may treat as 404).
+ *
+ * @param {string}   collection
+ * @param {string}   id
+ * @param {string}   fieldPath   e.g. "messages"
+ * @param {any[]}    values      Values to append
+ */
+async function appendToArray(collection, id, fieldPath, values) {
+  if (!values || values.length === 0) return getDocument(collection, id);
+
+  const db      = config.firestoreDb || '(default)';
+  const docName = `projects/${config.projectId}/databases/${db}/documents/${collection}/${id}`;
+  const url     = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/${encodeURIComponent(db)}/documents:commit`;
+
+  const token = await getAccessToken();
+  const body  = {
+    writes: [{
+      transform: {
+        document: docName,
+        fieldTransforms: [
+          {
+            fieldPath,
+            appendMissingElements: { values: values.map(_toFirestoreValue) },
+          },
+          {
+            fieldPath: 'updatedAt',
+            setToServerValue: 'REQUEST_TIME',
+          },
+        ],
+      },
+    }],
+  };
+
+  const res = await fetch(url, {
+    method:  'POST',
+    headers: {
+      Authorization:  `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 404) return null;
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    log.error({ status: res.status, detail: errText.slice(0, 300) }, 'Firestore appendToArray failed');
+    throw new Error(`Firestore commit failed (${res.status}): ${errText.slice(0, 200)}`);
+  }
+
+  return getDocument(collection, id);
+}
+
 module.exports = {
   createDocument,
   getDocument,
@@ -198,4 +259,5 @@ module.exports = {
   setDocument,
   deleteDocument,
   listDocuments,
+  appendToArray,
 };

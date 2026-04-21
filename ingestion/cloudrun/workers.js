@@ -35,8 +35,8 @@ function buildWorkersWithDocumentAI(config, logger) {
     new MediaProcessorWorker(config, logger),
     new SplitterWorker(config, logger),
     new EntityExtractionWorker(config, logger),
-    new ClaimExtractorWorker(config, logger),
     new IndexerWorker(config, logger),
+    new ClaimExtractorWorker(config, logger),
   ];
 }
 

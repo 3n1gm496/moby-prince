@@ -118,6 +118,41 @@ router.patch('/:id', async (req, res, next) => {
   }
 });
 
+// ── POST /api/sessions/:id/messages ──────────────────────────────────────────
+// Atomically appends a single message using Firestore FieldTransform so
+// concurrent calls from different browser tabs cannot overwrite each other.
+
+router.post('/:id/messages', async (req, res, next) => {
+  const { role, text, citations, steps } = req.body || {};
+
+  const VALID_ROLES = new Set(['user', 'assistant', 'error']);
+  if (!role || !VALID_ROLES.has(role)) {
+    return res.status(400).json({ error: '"role" must be user, assistant, or error.' });
+  }
+  if (typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: '"text" is required.' });
+  }
+
+  // Each message gets a unique _mid so appendMissingElements never deduplicates
+  // two structurally similar messages sent within the same millisecond.
+  const message = {
+    _mid: require('crypto').randomUUID(),
+    role,
+    text: text.trim(),
+    ts:   _now(),
+  };
+  if (citations !== undefined) message.citations = citations;
+  if (steps     !== undefined) message.steps     = steps;
+
+  try {
+    const session = await fs.appendToArray(COLLECTION, req.params.id, 'messages', [message]);
+    if (!session) return res.status(404).json({ error: 'Session not found.' });
+    res.status(201).json({ message, session });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── DELETE /api/sessions/:id ──────────────────────────────────────────────────
 
 router.delete('/:id', async (req, res, next) => {

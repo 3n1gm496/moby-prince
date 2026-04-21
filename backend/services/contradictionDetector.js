@@ -21,6 +21,11 @@ const { createLogger } = require('../logger');
 
 const log = createLogger('contradiction-detector');
 
+// Minimum cosine similarity for a pair to be sent to Gemini.
+// Contradiction claims share a topic (moderate similarity) but diverge in
+// conclusions; 0.45 is intentionally permissive to avoid false negatives.
+const SIM_THRESHOLD = 0.45;
+
 const MAX_PAIRS = 8;   // Gemini calls per detect invocation
 const VALID_TYPES     = new Set(['factual', 'temporal', 'testimonial', 'interpretive', 'procedural']);
 const VALID_SEVERITIES = new Set(['minor', 'significant', 'major']);
@@ -48,10 +53,31 @@ Rispondi SOLO con un oggetto JSON (nessun testo aggiuntivo):
 // ── Candidate pair finder ─────────────────────────────────────────────────────
 
 /**
- * Build pairs of claims that share at least one entity_id.
- * Returns up to MAX_PAIRS pairs, deduped.
+ * Dot-product cosine similarity between two float vectors.
+ * Returns 0 for empty or mismatched vectors.
  */
-function _buildCandidatePairs(claims) {
+function _cosineSimilarity(a, b) {
+  if (!a || !b || a.length !== b.length || a.length === 0) return 0;
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot   += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dot / denom;
+}
+
+/**
+ * Build pairs of claims that share at least one entity_id or event_id.
+ * When embeddings are supplied, pairs with cosine similarity < SIM_THRESHOLD
+ * are skipped before queuing a Gemini call.
+ * Returns up to MAX_PAIRS pairs, deduped.
+ *
+ * @param {object[]}        claims
+ * @param {number[][]|null} embeddings  Parallel array of embedding vectors, or null
+ */
+function _buildCandidatePairs(claims, embeddings = null) {
   const pairs = [];
   const seen  = new Set();
 
@@ -69,6 +95,13 @@ function _buildCandidatePairs(claims) {
       const sharedEvent    = a.eventId && a.eventId === b.eventId;
 
       if (sharedEntities.length === 0 && !sharedEvent) continue;
+
+      // Cosine similarity pre-filter — skip semantically unrelated pairs to
+      // reduce wasted Gemini calls and false positive detections.
+      if (embeddings) {
+        const sim = _cosineSimilarity(embeddings[i], embeddings[j]);
+        if (sim < SIM_THRESHOLD) continue;
+      }
 
       const pairKey = [a.id, b.id].sort().join('|');
       if (seen.has(pairKey)) continue;
@@ -92,7 +125,16 @@ function _buildCandidatePairs(claims) {
 async function detectAmong(claims) {
   if (!claims || claims.length < 2) return [];
 
-  const pairs       = _buildCandidatePairs(claims);
+  // Fetch embeddings for all claims in one batch call so _buildCandidatePairs
+  // can skip pairs that are semantically too distant to plausibly contradict.
+  let embeddings = null;
+  try {
+    embeddings = await gemini.getEmbeddings(claims.map(c => c.text || ''));
+  } catch (err) {
+    log.warn({ error: err.message }, 'Embeddings unavailable — falling back to entity-overlap only');
+  }
+
+  const pairs       = _buildCandidatePairs(claims, embeddings);
   const now         = new Date().toISOString();
   const newContradictions = [];
 

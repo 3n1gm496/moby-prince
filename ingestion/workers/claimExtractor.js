@@ -69,7 +69,10 @@ class ClaimExtractorWorker extends BaseWorker {
     if (!bq.isEnabled()) return false;
     return (
       TEXT_MIMES.has(job.mimeType) &&
-      ['VALIDATING', 'INDEXING'].includes(job.status)
+      // INDEXED is the normal path (runs after IndexerWorker so job.documentId
+      // is already set to the real DE document ID).  VALIDATING/INDEXING kept
+      // for pipelines that skip Document AI (e.g. local dev without data store).
+      ['VALIDATING', 'INDEXING', 'INDEXED'].includes(job.status)
     );
   }
 
@@ -115,7 +118,7 @@ class ClaimExtractorWorker extends BaseWorker {
         id:                _newId(),
         text:              c.text.trim().slice(0, 500),
         claim_type:        _sanitizeClaimType(c.claimType),
-        document_id:       job.jobId,
+        document_id:       job.documentId || job.jobId,
         chunk_id:          null,
         page_reference:    null,
         entity_ids:        [],
