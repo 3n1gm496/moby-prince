@@ -10,15 +10,22 @@ All configuration is read from environment variables at startup. The server thro
 | `ENGINE_ID` | **yes** | — | Vertex AI Search engine ID |
 | `GCP_LOCATION` | no | `eu` | Discovery Engine region (`eu`, `global`, `us`) |
 | `DATA_STORE_ID` | no | — | Datastore ID for chunk-level evidence lookup. If unset, `/api/evidence/documents/:id/chunks` returns 501. |
+| `GCS_BUCKET` | no | — | GCS bucket name for the corpus. Enables `/api/storage/*` endpoints. |
+| `API_KEY` | no | — | Shared secret for `/api/*` endpoints. Pass via `X-API-Key` header. Strongly recommended in production. |
 | `PORT` | no | `3001` | TCP port the HTTP server listens on. Cloud Run sets this automatically. |
 | `NODE_ENV` | no | `development` | `production` enables NDJSON structured logging and disables coloured TTY output. |
 | `LOG_LEVEL` | no | `debug` (dev) / `info` (prod) | Minimum log severity: `debug`, `info`, `warn`, `error` |
 | `FRONTEND_ORIGIN` | no | `http://localhost:5173` | Allowed CORS origin. Set to your frontend URL in production. |
-| `GOOGLE_CLOUD_PROJECT` | no | same as above | Used for Cloud Trace integration in log entries. Automatically available on Cloud Run. |
 | `CHUNK_CONTEXT_PREV` | no | `1` | Adjacent chunks before each match in `:answer` responses. |
 | `CHUNK_CONTEXT_NEXT` | no | `1` | Adjacent chunks after each match in `:answer` responses. |
-| `BQ_PROJECT_ID` | no | `GOOGLE_CLOUD_PROJECT` | BigQuery project for the evidence dataset (optional, not active). |
+| `BQ_PROJECT_ID` | no | `GOOGLE_CLOUD_PROJECT` | BigQuery project for the evidence dataset. |
 | `BQ_DATASET_ID` | no | `evidence` | BigQuery dataset name for the evidence layer. |
+| `BQ_LOCATION` | no | `EU` | BigQuery dataset location. |
+| `FIRESTORE_DB` | no | `(default)` | Firestore database ID for session persistence. |
+| `GEMINI_LOCATION` | no | `us-central1` | Vertex AI region for Gemini 2.0 Flash calls. `us-central1` has the broadest model availability. |
+| `DOCAI_LOCATION` | no | `GCP_LOCATION` | Document AI region (defaults to `GCP_LOCATION`). |
+| `DAILY_GEMINI_LIMIT` | no | `500` | Max Gemini API calls per day before returning 429. Resets at midnight UTC. |
+| `DAILY_BQ_LIMIT` | no | `2000` | Max BigQuery calls per day before returning 429. Resets at midnight UTC. |
 
 ### Discovery Engine endpoints
 

@@ -55,7 +55,7 @@ function InlinePdfPreview({ fullPath }) {
     if (blobUrl) return;
     setLoading(true); setError(false);
     try {
-      const res = await fetch(`/api/storage/file?name=${encodeURIComponent(fullPath)}`);
+      const res = await apiFetch(`/api/storage/file?name=${encodeURIComponent(fullPath)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
@@ -109,7 +109,7 @@ function GcsMetadataSection({ fullPath }) {
   const load = useCallback(async () => {
     setPhase("loading");
     try {
-      const res = await fetch(`/api/storage/metadata?name=${encodeURIComponent(fullPath)}`);
+      const res = await apiFetch(`/api/storage/metadata?name=${encodeURIComponent(fullPath)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setSysMeta(data);
@@ -296,7 +296,7 @@ function ChunksSection({ documentId, gcsPath }) {
       : `/api/evidence/documents/${encodeURIComponent(documentId)}/chunks`;
 
     try {
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (res.status === 501) { setPhase("unavailable"); return; }
       if (res.status === 404) { setPhase("notindexed"); return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -512,10 +512,21 @@ export default function DocumentPanel({ doc, onClose }) {
 
               {/* Download + Preview links */}
               <div className="mt-3 flex items-center gap-3 flex-wrap">
-                <a
-                  href={`/api/storage/file?name=${encodeURIComponent(doc.gcs.fullPath)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => {
+                    const filename = doc.gcs.name || doc.gcs.fullPath.split("/").pop() || "file";
+                    apiFetch(`/api/storage/file?name=${encodeURIComponent(doc.gcs.fullPath)}`)
+                      .then(r => r.blob())
+                      .then(blob => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = filename;
+                        a.click();
+                        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+                      })
+                      .catch(() => {});
+                  }}
                   className="inline-flex items-center gap-1.5 text-[11px] text-accent hover:text-accent-hover transition-colors"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -523,7 +534,7 @@ export default function DocumentPanel({ doc, onClose }) {
                           d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   Apri / scarica
-                </a>
+                </button>
                 {doc.mimeType?.includes("pdf") && <InlinePdfPreview fullPath={doc.gcs.fullPath} />}
               </div>
             </section>

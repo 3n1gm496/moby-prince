@@ -41,7 +41,7 @@ const TIMEOUT   = 90_000;  // per Gemini call
 // ── Model endpoint ────────────────────────────────────────────────────────────
 
 function _endpoint() {
-  const location = process.env.GEMINI_LOCATION || 'us-central1';
+  const location = config.geminiLocation;
   const model    = 'gemini-2.0-flash-001';
   return `https://${location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${location}/publishers/google/models/${model}:generateContent`;
 }

@@ -11,12 +11,13 @@
  * rather than silently racking up cloud charges.
  */
 
+const config = require('../config');
 const { createLogger } = require('../logger');
 
 const log = createLogger('rate-limiter');
 
-const DAILY_GEMINI_LIMIT = parseInt(process.env.DAILY_GEMINI_LIMIT || '500',  10);
-const DAILY_BQ_LIMIT     = parseInt(process.env.DAILY_BQ_LIMIT     || '2000', 10);
+const DAILY_GEMINI_LIMIT = config.dailyGeminiLimit;
+const DAILY_BQ_LIMIT     = config.dailyBqLimit;
 
 function _nextMidnightUtc() {
   const d = new Date();

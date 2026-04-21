@@ -17,7 +17,8 @@
  */
 
 const { Router } = require('express');
-const fs   = require('../services/firestore');
+const fs             = require('../services/firestore');
+const { newId }      = require('../lib/utils');
 const { createLogger } = require('../logger');
 
 const router = Router();
@@ -25,14 +26,7 @@ const log    = createLogger('sessions-route');
 
 const COLLECTION = 'sessions';
 
-// Fallback uuid when crypto.randomUUID is not available (Node < 14.17)
-function _newId() {
-  try {
-    return require('crypto').randomUUID();
-  } catch {
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  }
-}
+const _newId = newId;
 
 function _now() {
   return new Date().toISOString();

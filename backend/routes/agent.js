@@ -26,6 +26,7 @@
 const { Router } = require('express');
 const { investigate } = require('../services/agentRunner');
 const fs             = require('../services/firestore');
+const { newId }      = require('../lib/utils');
 const { createLogger } = require('../logger');
 
 const log    = createLogger('agent-route');
@@ -34,10 +35,7 @@ const router = Router();
 const MAX_QUERY_LENGTH = 2000;
 const COLLECTION       = 'sessions';
 
-function _newId() {
-  try { return require('crypto').randomUUID(); }
-  catch { return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`; }
-}
+const _newId = newId;
 
 router.post('/investigate', async (req, res) => {
   const { query, sessionId: resumeId } = req.body || {};

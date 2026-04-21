@@ -543,7 +543,7 @@ export default function DossierBuilder() {
     let failed = 0;
     for (const path of selected) {
       try {
-        const res = await fetch(`/api/storage/file?name=${encodeURIComponent(path)}`, { method: "DELETE" });
+        const res = await apiFetch(`/api/storage/file?name=${encodeURIComponent(path)}`, { method: "DELETE" });
         if (!res.ok) failed++;
       } catch { failed++; }
     }
@@ -637,7 +637,7 @@ export default function DossierBuilder() {
   const handleDelete = useCallback(async (file) => {
     setActionError(null);
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/storage/file?name=${encodeURIComponent(file.fullPath)}`,
         { method: "DELETE" }
       );
@@ -679,7 +679,7 @@ export default function DossierBuilder() {
   const handleFolderDelete = useCallback(async (folderPrefix) => {
     setActionError(null);
     try {
-      const res = await fetch(`/api/storage/folder?prefix=${encodeURIComponent(folderPrefix)}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/storage/folder?prefix=${encodeURIComponent(folderPrefix)}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       refresh();
     } catch (e) {

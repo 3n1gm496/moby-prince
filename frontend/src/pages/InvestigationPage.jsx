@@ -133,11 +133,12 @@ function AgentMessage({ message }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function InvestigationPage() {
-  const [messages,     setMessages]     = useState([]);
-  const [input,        setInput]        = useState("");
-  const [isLoading,    setIsLoading]    = useState(false);
-  const [loadingStep,  setLoadingStep]  = useState(null);
-  const [steps,        setSteps]        = useState([]);   // accumulates during stream
+  const [messages,            setMessages]            = useState([]);
+  const [input,               setInput]               = useState("");
+  const [isLoading,           setIsLoading]           = useState(false);
+  const [loadingStep,         setLoadingStep]         = useState(null);
+  const [steps,               setSteps]               = useState([]);   // accumulates during stream
+  const [investigationSession, setInvestigationSession] = useState(null); // Firestore session ID
 
   const abortRef   = useRef(null);
   const bottomRef  = useRef(null);
@@ -156,6 +157,7 @@ export default function InvestigationPage() {
     setLoadingStep(null);
     setSteps([]);
     setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "user", text: q }]);
+    const currentSessionId = investigationSession;
 
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -168,7 +170,7 @@ export default function InvestigationPage() {
       const res = await apiFetch("/api/agent/investigate", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ query: q }),
+        body:    JSON.stringify({ query: q, ...(currentSessionId ? { sessionId: currentSessionId } : {}) }),
         signal:  controller.signal,
       });
 
@@ -192,7 +194,9 @@ export default function InvestigationPage() {
           }
           try {
             const data = JSON.parse(eventData);
-            if (eventType === "thinking") {
+            if (eventType === "session") {
+              if (data.sessionId) setInvestigationSession(data.sessionId);
+            } else if (eventType === "thinking") {
               setLoadingStep(data.step || null);
             } else if (eventType === "tool_call") {
               // Start tracking this step
@@ -249,7 +253,7 @@ export default function InvestigationPage() {
       setLoadingStep(null);
       setSteps([]);
     }
-  }, [input, isLoading]);
+  }, [input, isLoading, investigationSession]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendQuery(); }
@@ -269,9 +273,19 @@ export default function InvestigationPage() {
             Agente multi-step · Moby Prince
           </p>
         </div>
-        <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
-          Gemini 2.0 Flash
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          {investigationSession && (
+            <span
+              title={`Sessione Firestore: ${investigationSession}`}
+              className="text-[10px] px-2 py-0.5 rounded-full bg-surface text-text-muted border border-border font-mono truncate max-w-[120px]"
+            >
+              #{investigationSession.slice(0, 8)}
+            </span>
+          )}
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
+            Gemini 2.0 Flash
+          </span>
+        </div>
       </header>
 
       {/* ── Message list ── */}

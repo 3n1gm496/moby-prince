@@ -17,7 +17,7 @@
 const config = require('../config');
 const { getAccessToken } = require('./auth');
 
-const DOCAI_LOCATION = process.env.DOCAI_LOCATION || config.location || 'eu';
+const DOCAI_LOCATION = config.docAiLocation;
 
 /**
  * Synchronously process a GCS document with the Layout Parser.

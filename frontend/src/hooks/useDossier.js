@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { apiFetch } from "../lib/apiFetch";
 
 const PAGE_SIZE = 24;
 
@@ -31,7 +32,7 @@ export function useDossier() {
       const params = new URLSearchParams({ pageSize: String(PAGE_SIZE) });
       if (pageToken) params.set("pageToken", pageToken);
 
-      const res = await fetch(`/api/analysis/dossier?${params}`);
+      const res = await apiFetch(`/api/analysis/dossier?${params}`);
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || `HTTP ${res.status}`);

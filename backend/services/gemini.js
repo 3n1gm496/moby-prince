@@ -23,7 +23,7 @@ const EMBEDDING_MODEL  = 'text-embedding-004';
 const TIMEOUT          = 60_000;
 
 function _location() {
-  return process.env.GEMINI_LOCATION || 'us-central1';
+  return config.geminiLocation;
 }
 
 function _endpoint() {

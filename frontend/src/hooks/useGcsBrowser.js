@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { apiFetch } from "../lib/apiFetch";
 
 /**
  * Hook for navigating the GCS bucket as a virtual file system.
@@ -20,7 +21,7 @@ export function useGcsBrowser() {
     setError(null);
     try {
       const params = new URLSearchParams({ prefix: targetPrefix });
-      const res = await fetch(`/api/storage/browse?${params}`);
+      const res = await apiFetch(`/api/storage/browse?${params}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `HTTP ${res.status}`);

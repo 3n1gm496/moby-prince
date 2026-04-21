@@ -170,6 +170,7 @@ event: grounding    data: [{ score, sourceChunkId, ... }]
 
 **Sequenza SSE agente:**
 ```
+event: session      data: {"sessionId": "<firestore-id>"}   ← primo evento, sempre presente
 event: thinking     data: {"step": 1}
 event: tool_call    data: {"tool": "search_documents", "args": {...}, "step": 1}
 event: tool_result  data: {"tool": "...", "result": {...}, "durationMs": 312, "step": 1}
@@ -179,15 +180,31 @@ event: error        data: {"message": "..."}
 
 **Tool disponibili all'agente:** `search_documents`, `verify_claim`, `list_contradictions`, `get_entity_info`, `translate_text`.
 
-### Storage, analisi e health
+Passare `sessionId` nel corpo per riprendere un'indagine esistente.
+
+### Storage GCS (richiede `GCS_BUCKET`)
 
 | Metodo | Path | Descrizione |
 |--------|------|-------------|
-| `GET`  | `/api/storage` | Lista oggetti GCS del corpus |
-| `POST` | `/api/storage/upload` | Upload documento |
-| `PATCH`| `/api/storage/:path` | Rinomina / aggiorna metadati (sincronizza GCS → DE) |
-| `DELETE`| `/api/storage/:path` | Elimina documento |
-| `POST` | `/api/analysis` | Analisi comparativa multi-documento |
+| `GET`  | `/api/storage/browse?prefix=` | Lista cartelle e file a un prefisso |
+| `GET`  | `/api/storage/file?name=` | Download / proxy di un file GCS |
+| `POST` | `/api/storage/upload` | Upload documento (multipart/form-data) |
+| `GET`  | `/api/storage/metadata?name=` | Leggi metadati GCS (sistema + custom) |
+| `PATCH`| `/api/storage/metadata` | Aggiorna metadati custom GCS |
+| `POST` | `/api/storage/rename` | Rinomina file (sincronizza GCS → DE) |
+| `POST` | `/api/storage/copy` | Duplica file |
+| `DELETE`| `/api/storage/file?name=` | Elimina file |
+| `POST` | `/api/storage/move` | Sposta file in altra cartella |
+| `DELETE`| `/api/storage/folder?prefix=` | Elimina cartella ricorsivamente |
+| `POST` | `/api/storage/rename-folder` | Rinomina cartella |
+| `POST` | `/api/storage/copy-folder` | Duplica cartella |
+
+### Analisi, admin e health
+
+| Metodo | Path | Descrizione |
+|--------|------|-------------|
+| `GET`  | `/api/analysis/dossier` | Lista documenti indicizzati per il dossier workbench |
+| `GET`  | `/api/admin/stats` | Contatori operativi: sessioni, documenti, contraddizioni, budget Gemini/BQ |
 | `GET`  | `/api/health` | Liveness probe → `{"status":"ok"}` |
 
 ---

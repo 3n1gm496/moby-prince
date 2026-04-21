@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import ContradictionPanel from "../components/ContradictionPanel";
+import { apiFetch } from "../lib/apiFetch";
 
 const SEVERITY_ORDER = { major: 0, significant: 1, minor: 2 };
 const STATUS_FILTERS  = ["all", "open", "under_review", "contested", "resolved"];
@@ -19,13 +20,13 @@ async function _fetch({ status, severity }) {
   const params = new URLSearchParams({ limit: "100" });
   if (status   && status   !== "all") params.set("status",   status);
   if (severity && severity !== "all") params.set("severity", severity);
-  const res = await fetch(`/api/contradictions?${params}`);
+  const res = await apiFetch(`/api/contradictions?${params}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
 async function _patchStatus(id, status) {
-  const res = await fetch(`/api/contradictions/${id}`, {
+  const res = await apiFetch(`/api/contradictions/${id}`, {
     method:  "PATCH",
     headers: { "Content-Type": "application/json" },
     body:    JSON.stringify({ status }),

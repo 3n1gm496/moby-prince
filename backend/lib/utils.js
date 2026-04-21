@@ -37,4 +37,15 @@ function activeFilters(filters) {
   return Object.keys(active).length > 0 ? active : null;
 }
 
-module.exports = { clamp, activeFilters };
+/**
+ * Generate a random UUID, falling back to a timestamp-based ID on very old
+ * Node versions that do not expose crypto.randomUUID.
+ *
+ * @returns {string}
+ */
+function newId() {
+  try { return require('crypto').randomUUID(); }
+  catch { return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`; }
+}
+
+module.exports = { clamp, activeFilters, newId };

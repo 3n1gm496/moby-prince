@@ -58,6 +58,16 @@ const config = {
   // Firestore session persistence (optional — uses default database if unset)
   firestoreDb: optional('FIRESTORE_DB', '(default)'),
 
+  // Gemini / Vertex AI region for generative calls (separate from DE region)
+  geminiLocation: optional('GEMINI_LOCATION', 'us-central1'),
+
+  // Document AI region (defaults to GCP_LOCATION)
+  docAiLocation: optional('DOCAI_LOCATION', optional('GCP_LOCATION', 'eu')),
+
+  // Daily call budget limits for the in-memory circuit breaker
+  dailyGeminiLimit: parseInt(optional('DAILY_GEMINI_LIMIT', '500'),  10),
+  dailyBqLimit:     parseInt(optional('DAILY_BQ_LIMIT',     '2000'), 10),
+
   // Adjacent chunks to include per matched chunk in :answer responses.
   // Increasing these values improves answer context at the cost of more tokens.
   chunkContextPrev: parseInt(optional('CHUNK_CONTEXT_PREV', '1'), 10),

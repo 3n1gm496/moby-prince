@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, forwardRef, useRef } from "react";
 import { getFilterValueLabel } from "../filters/schema";
+import { apiFetch } from "../lib/apiFetch";
 
 function resolveUri(uri) {
   if (!uri) return null;
@@ -36,7 +37,7 @@ function DocumentChunksPanel({ documentId }) {
     if (phase !== "idle") return;
     setPhase("loading");
     try {
-      const res = await fetch(`/api/evidence/documents/${encodeURIComponent(documentId)}/chunks`);
+      const res = await apiFetch(`/api/evidence/documents/${encodeURIComponent(documentId)}/chunks`);
       if (res.status === 501) { setPhase("unavailable"); return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -225,10 +226,34 @@ const EvidenceItem = forwardRef(function EvidenceItem({ item, citations, isActiv
       )}
 
       {resolveUri(item.uri) && !hostname?.includes("storage.googleapis.com") && (
-        <a href={resolveUri(item.uri)} target="_blank" rel="noopener noreferrer"
-           className="text-accent hover:text-accent-hover transition-colors break-all block max-w-full mb-1 text-[10px]">
-          {item.uri?.startsWith("gs://") ? "Apri documento" : item.uri}
-        </a>
+        item.uri?.startsWith("gs://")
+          ? (
+            <button
+              onClick={() => {
+                const url = resolveUri(item.uri);
+                apiFetch(url)
+                  .then(r => r.blob())
+                  .then(blob => {
+                    const objUrl = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = objUrl;
+                    a.target = "_blank";
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(objUrl), 10_000);
+                  })
+                  .catch(() => {});
+              }}
+              className="text-accent hover:text-accent-hover transition-colors break-all block max-w-full mb-1 text-[10px] text-left"
+            >
+              Apri documento
+            </button>
+          )
+          : (
+            <a href={resolveUri(item.uri)} target="_blank" rel="noopener noreferrer"
+               className="text-accent hover:text-accent-hover transition-colors break-all block max-w-full mb-1 text-[10px]">
+              {item.uri}
+            </a>
+          )
       )}
 
       {item.documentId && <DocumentChunksPanel documentId={item.documentId} />}
