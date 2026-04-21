@@ -174,6 +174,10 @@ export default function Sidebar({
   const searchRef = useRef(null);
   const navRef    = useRef(null);
 
+  // Must be declared before the useEffect that depends on it (avoids TDZ ReferenceError).
+  const deferredSearch = useDeferredValue(search);
+  const isSearching = deferredSearch.trim().length > 0;
+
   // When mobile overlay opens, always expand
   useEffect(() => {
     if (isOpen) setCollapsed(false);
@@ -192,9 +196,6 @@ export default function Sidebar({
   }, [isSearching]);
 
   const allConvs = [...(pinnedConversations || []), ...Object.values(groupedConversations).flat()];
-  // Bug fix #10: defer the expensive deep-search filter so keystrokes feel instant.
-  const deferredSearch = useDeferredValue(search);
-  const isSearching = deferredSearch.trim().length > 0;
   const q = deferredSearch.toLowerCase();
 
   const filtered = isSearching
