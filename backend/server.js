@@ -26,8 +26,10 @@ const filtersRouter   = require('./routes/filters');
 const mediaRouter     = require('./routes/media');
 const entitiesRouter  = require('./routes/entities');
 const eventsRouter    = require('./routes/events');
-const sessionsRouter  = require('./routes/sessions');
-const healthRouter    = require('./routes/health');
+const sessionsRouter       = require('./routes/sessions');
+const contradictionsRouter = require('./routes/contradictions');
+const claimsRouter         = require('./routes/claims');
+const healthRouter         = require('./routes/health');
 
 const app = express();
 
@@ -81,7 +83,9 @@ app.use('/api/filters',  generalLimiter, requireApiKey, filtersRouter);
 app.use('/api/media',     generalLimiter, requireApiKey, mediaRouter);
 app.use('/api/entities',  generalLimiter, requireApiKey, entitiesRouter);
 app.use('/api/events',    generalLimiter, requireApiKey, eventsRouter);
-app.use('/api/sessions',  generalLimiter, requireApiKey, sessionsRouter);
+app.use('/api/sessions',        generalLimiter, requireApiKey, sessionsRouter);
+app.use('/api/contradictions',  generalLimiter, requireApiKey, contradictionsRouter);
+app.use('/api/claims',          generalLimiter, requireApiKey, claimsRouter);
 app.use('/api/health',                                   healthRouter);  // health is always public
 
 // ── Error handler (must be last) ──────────────────────────────────────────────

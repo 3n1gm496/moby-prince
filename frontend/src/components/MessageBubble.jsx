@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AnchorAvatar from "./AnchorAvatar";
 import EvidenceSection from "./EvidenceSection";
+import ContradictionPanel from "./ContradictionPanel";
 
 // ─── Citation helpers ─────────────────────────────────────────────────────────
 
@@ -362,6 +363,10 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
               ))}
             </div>
           </div>
+        )}
+
+        {!isStreaming && (
+          <ContradictionPanel contradictions={message.contradictions} />
         )}
 
       </div>

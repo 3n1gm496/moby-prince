@@ -117,6 +117,10 @@ export function useChat({
           onThinking?.();
         } else if (eventType === "answer") {
           result = JSON.parse(eventData);
+        } else if (eventType === "contradictions") {
+          // Merge contradiction data into the accumulated result
+          const contrData = JSON.parse(eventData);
+          result = { ...(result || {}), contradictions: contrData.contradictions || [] };
         } else if (eventType === "error") {
           const errData = JSON.parse(eventData);
           throw new Error(errData.message || "Errore dal server");
@@ -241,6 +245,7 @@ export function useChat({
           relatedQuestions: Array.isArray(answer.relatedQuestions) ? answer.relatedQuestions : [],
           steps:            Array.isArray(answer.steps)            ? answer.steps            : [],
           meta:             data.meta || {},
+          contradictions:   Array.isArray(data.contradictions)      ? data.contradictions      : [],
         };
 
         setStreamingMessage({ convId: targetConvId, text: "", target: msgData.text, msgData });

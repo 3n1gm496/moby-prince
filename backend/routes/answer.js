@@ -29,6 +29,8 @@ const { validateFilters }       = require('../middleware/validateFilters');
 const { buildFilterExpression } = require('../filters/schema');
 const { clamp } = require('../lib/utils');
 const { createLogger } = require('../logger');
+const contradictionsRepo        = require('../repos/contradictions');
+const { isBigQueryEnabled }     = require('../services/bigquery');
 
 const log    = createLogger('answer-route');
 const router = Router();
@@ -57,7 +59,28 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
       filter:     buildFilterExpression(filters),
     });
 
-    sendEvent('answer', normalizeAnswer(raw, filters || null));
+    const normalized = normalizeAnswer(raw, filters || null);
+    sendEvent('answer', normalized);
+
+    // Best-effort: surface open contradictions for documents cited in this answer.
+    // Fires async; never blocks or breaks the SSE stream on failure.
+    if (isBigQueryEnabled()) {
+      try {
+        const sourceUris = _extractSourceUris(raw);
+        let contradictions = [];
+        if (sourceUris.length > 0) {
+          contradictions = await contradictionsRepo.listBySourceUris(sourceUris, 3);
+        }
+        if (contradictions.length === 0) {
+          // Fallback: surface any recent open contradictions
+          contradictions = await contradictionsRepo.list({ status: 'open', limit: 3 });
+        }
+        if (contradictions.length > 0) {
+          sendEvent('contradictions', { contradictions, total: contradictions.length });
+        }
+      } catch (_) { /* BQ optional — silently skip */ }
+    }
+
     res.end();
   } catch (err) {
     // Headers already sent — handle errors inline rather than via errorHandler middleware
@@ -81,5 +104,30 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
     res.end();
   }
 });
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Extract GCS source URIs from the raw Discovery Engine answer response.
+ * The response may carry URIs in searchResults or the answer's references.
+ */
+function _extractSourceUris(raw) {
+  const uris = new Set();
+
+  // Modern :answer response shape
+  for (const ref of (raw?.answer?.references || [])) {
+    const uri = ref?.chunkInfo?.documentMetadata?.uri || ref?.documentMetadata?.uri;
+    if (uri?.startsWith('gs://')) uris.add(uri);
+  }
+
+  // :search response shape (when answer embeds search results)
+  for (const result of (raw?.searchResults || [])) {
+    const uri = result?.unstructuredDocumentInfo?.uri ||
+                result?.document?.derivedStructData?.link;
+    if (uri?.startsWith('gs://')) uris.add(uri);
+  }
+
+  return [...uris].slice(0, 10);
+}
 
 module.exports = router;
