@@ -86,10 +86,7 @@ const SCHEMA = {
     label:     'Qualità OCR',
     type:      'enum',
     values:    ['high', 'medium', 'low'],
-    // Populated only when the Document AI pipeline is active and has assessed
-    // each document. Leaving available: false prevents spurious filter clauses
-    // against a field that is null for all pipeline-indexed documents.
-    available: false,
+    available: true,
   },
 };
 

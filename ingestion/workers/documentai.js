@@ -1,9 +1,9 @@
 'use strict';
 
 /**
- * DocumentAIWorker — routes large PDFs through Document AI OCR, extracts
- * logical sections, writes them as .txt files to the normalized bucket, and
- * creates child IngestionJobs for each section.
+ * DocumentAIWorker — routes large PDFs through Document AI, extracts logical
+ * sections, writes them as .txt files to the normalized bucket, and creates
+ * child IngestionJobs for each section.
  *
  * Activated when:
  *   - job.status === 'VALIDATING'
@@ -11,9 +11,16 @@
  *   - job.fileSizeBytes >= config.split.pdfCriticalBytes (default 50 MB)
  *
  * Required environment variables:
- *   GOOGLE_CLOUD_PROJECT       GCP project ID
- *   DOCAI_PROCESSOR_ID         Document AI processor ID (DOCUMENT_OCR type)
- *   DOCAI_LOCATION             Document AI API location (default: eu)
+ *   GOOGLE_CLOUD_PROJECT           GCP project ID
+ *   DOCAI_PROCESSOR_ID             Document AI OCR processor ID (DOCUMENT_OCR type)
+ *   DOCAI_LOCATION                 Document AI API location (default: eu)
+ *
+ * Optional environment variables:
+ *   DOCAI_LAYOUT_PROCESSOR_ID      Layout Parser processor ID. When set, the
+ *                                  worker uses the Layout Parser instead of the
+ *                                  basic OCR processor, enabling semantic section
+ *                                  splitting (headings, tables) and populating
+ *                                  layout_type in DE structData.
  *
  * Required context (passed by Cloud Run entrypoint):
  *   context.storage            @google-cloud/storage Storage instance
@@ -47,7 +54,12 @@ class DocumentAIWorker extends BaseWorker {
 
   async run(job, context = {}) {
     const { storage, documentai, checkpoint } = context;
-    const processorId = process.env.DOCAI_PROCESSOR_ID;
+
+    // Layout Parser takes precedence over the basic OCR processor when configured.
+    const layoutProcessorId = process.env.DOCAI_LAYOUT_PROCESSOR_ID;
+    const ocrProcessorId    = process.env.DOCAI_PROCESSOR_ID;
+    const processorId       = layoutProcessorId || ocrProcessorId;
+    const useLayoutParser   = !!layoutProcessorId;
 
     if (!documentai) {
       this.logger.warn({ jobId: job.jobId }, 'No DocumentAI client in context; quarantining');
@@ -58,7 +70,7 @@ class DocumentAIWorker extends BaseWorker {
       return this.halt(job.fail('PDF_CRITICAL', 'GCS Storage client not provided — set context.storage'));
     }
     if (!processorId) {
-      return this.halt(job.fail('PDF_CRITICAL', 'DOCAI_PROCESSOR_ID env var not set'));
+      return this.halt(job.fail('PDF_CRITICAL', 'DOCAI_PROCESSOR_ID (or DOCAI_LAYOUT_PROCESSOR_ID) env var not set'));
     }
     if (!this._config.projectId) {
       return this.halt(job.fail('PDF_CRITICAL', 'GOOGLE_CLOUD_PROJECT not configured'));
@@ -136,8 +148,11 @@ class DocumentAIWorker extends BaseWorker {
         return this.halt(job.fail('PARSE_FAILURE', 'Document AI produced no output JSON files'));
       }
 
-      // ── 5. Extract logical sections from all output files ──────────────────
+      // ── 5. Extract sections and aggregate quality metrics ─────────────────
       const sections = [];
+      const allConfs = [];
+      const blockCounts = { tables: 0, headings: 0, other: 0 };
+
       for (const file of jsonFiles) {
         const [buf] = await file.download();
         let docResult;
@@ -147,8 +162,22 @@ class DocumentAIWorker extends BaseWorker {
           this.logger.warn({ file: file.name }, 'Failed to parse Document AI JSON; skipping file');
           continue;
         }
-        sections.push(..._extractSections(docResult));
+        _collectTokenConfidences(docResult, allConfs);
+        _collectBlockCounts(docResult, blockCounts);
+        if (useLayoutParser && docResult.documentLayout) {
+          sections.push(..._extractSectionsFromLayout(docResult));
+        } else {
+          sections.push(..._extractSections(docResult));
+        }
       }
+
+      const ocrQuality = _calcOcrQuality(allConfs);
+      const layoutType = _calcLayoutType(blockCounts);
+
+      this.logger.info(
+        { jobId: job.jobId, ocrQuality, layoutType, useLayoutParser },
+        'Document AI quality assessment complete',
+      );
 
       if (sections.length === 0) {
         return this.halt(job.fail('PARSE_FAILURE', 'Document AI output contains no extractable text'));
@@ -181,13 +210,20 @@ class DocumentAIWorker extends BaseWorker {
       );
 
       // ── 7. Create child jobs for each section ──────────────────────────────
-      const childJobs = normalizedUris.map((uri, i) =>
-        createJob(uri, {
+      const childJobs = normalizedUris.map((uri, i) => {
+        const sec = sections[i];
+        const extraMeta = {};
+        if (ocrQuality)           extraMeta.ocr_quality  = ocrQuality;
+        if (layoutType)           extraMeta.layout_type  = layoutType;
+        if (sec.pageStart != null) extraMeta.page_start  = sec.pageStart;
+        if (sec.pageEnd   != null) extraMeta.page_end    = sec.pageEnd;
+        return createJob(uri, {
           originalFilename: `${stem}_part_${String(i + 1).padStart(3, '0')}.txt`,
           parentJobId:      job.jobId,
           mimeType:         'text/plain',
-        }, this._config.retry.maxAttempts)
-      );
+          ...extraMeta,
+        }, this._config.retry.maxAttempts);
+      });
 
       const completed = splitting.completeSplit(normalizedUris);
       return this.ok(completed, { childJobs, partsCount: sections.length, partUris: normalizedUris });
@@ -197,6 +233,128 @@ class DocumentAIWorker extends BaseWorker {
       return this.halt(job.fail('PDF_CRITICAL', `Document AI error: ${err.message}`));
     }
   }
+}
+
+// ── Quality-metric helpers ────────────────────────────────────────────────────
+
+/** Accumulate per-token OCR confidence values into `out` (in-place). */
+function _collectTokenConfidences(doc, out) {
+  for (const page of (doc.pages || [])) {
+    for (const token of (page.tokens || [])) {
+      const c = token.layout?.confidence;
+      if (typeof c === 'number') out.push(c);
+    }
+  }
+}
+
+/** Accumulate block-type counts into `counts` (in-place). */
+function _collectBlockCounts(doc, counts) {
+  // Layout Parser format
+  if (doc.documentLayout?.blocks) {
+    for (const blk of doc.documentLayout.blocks) {
+      if (blk.tableBlock)                                   counts.tables++;
+      else if (blk.textBlock?.type?.startsWith('heading'))  counts.headings++;
+      else                                                  counts.other++;
+    }
+    return;
+  }
+  // OCR processor format
+  for (const page of (doc.pages || [])) {
+    for (const block of (page.blocks || [])) {
+      const t = block.layout?.blockType || '';
+      if (t.includes('TABLE'))                                  counts.tables++;
+      else if (t.includes('HEADING') || t.includes('TITLE'))   counts.headings++;
+      else                                                      counts.other++;
+    }
+  }
+}
+
+/**
+ * Derive OCR quality label from aggregated token confidence scores.
+ * Returns null when no tokens were found (non-text document or very short PDF).
+ */
+function _calcOcrQuality(confs) {
+  if (confs.length === 0) return null;
+  const avg = confs.reduce((s, v) => s + v, 0) / confs.length;
+  return avg > 0.9 ? 'high' : avg > 0.7 ? 'medium' : 'low';
+}
+
+/**
+ * Derive layout type from aggregated block-type counts.
+ */
+function _calcLayoutType({ tables, headings, other }) {
+  const total = tables + headings + other || 1;
+  if (tables / total > 0.2)   return 'table_heavy';
+  if (headings / total > 0.1) return 'structured';
+  return 'prose';
+}
+
+// ── Layout Parser section extraction ─────────────────────────────────────────
+
+/**
+ * Extract logical sections from a Layout Parser Document JSON.
+ * Uses `documentLayout.blocks` with semantic type annotations.
+ * Falls back to the heuristic extractor when layout blocks are absent.
+ */
+function _extractSectionsFromLayout(doc) {
+  const blocks = doc.documentLayout?.blocks;
+  if (!blocks || blocks.length === 0) return _extractSections(doc);
+
+  const sections = [];
+  let cur = { heading: null, text: '', pageStart: null, pageEnd: null };
+
+  for (const blk of blocks) {
+    const isHeading = blk.textBlock?.type?.startsWith('heading');
+    const isTable   = !!blk.tableBlock;
+    const blockText = isTable
+      ? _tableBlockToText(blk.tableBlock)
+      : (blk.textBlock?.text || '');
+
+    if (!blockText.trim()) continue;
+
+    // Page range from provenance (Layout Parser includes pageRefs)
+    const pageNums = (blk.pageSpan
+      ? [blk.pageSpan.pageStart, blk.pageSpan.pageEnd]
+      : []
+    ).filter(Boolean);
+    const blockPageStart = pageNums[0] ?? null;
+    const blockPageEnd   = pageNums[pageNums.length - 1] ?? null;
+
+    const wouldOverflow = cur.text.length + blockText.length > MAX_SECTION_CHARS;
+    const startNew = (isHeading && cur.text.length > 0) || wouldOverflow;
+
+    if (startNew) {
+      if (cur.text.trim()) sections.push({ ...cur });
+      cur = {
+        heading:   isHeading ? blockText.trim().slice(0, 120) : null,
+        text:      isHeading ? '' : blockText,
+        pageStart: blockPageStart,
+        pageEnd:   blockPageEnd,
+      };
+    } else {
+      if (isHeading && !cur.heading) cur.heading = blockText.trim().slice(0, 120);
+      cur.text   += cur.text ? '\n\n' + blockText : blockText;
+      if (blockPageStart != null && cur.pageStart == null) cur.pageStart = blockPageStart;
+      if (blockPageEnd   != null) cur.pageEnd = blockPageEnd;
+    }
+  }
+
+  if (cur.text.trim()) sections.push(cur);
+  return sections.length > 0 ? sections : _extractSections(doc);
+}
+
+/** Render a Layout Parser tableBlock to plain text (tab-separated rows). */
+function _tableBlockToText(tableBlock) {
+  if (!tableBlock) return '';
+  const rows = [...(tableBlock.headerRows || []), ...(tableBlock.bodyRows || [])];
+  return rows
+    .map(row =>
+      (row.cells || [])
+        .map(cell => (cell.blocks || []).map(b => b.textBlock?.text || '').join(' ').trim())
+        .join('\t')
+    )
+    .filter(Boolean)
+    .join('\n');
 }
 
 // ── Section extraction helpers ────────────────────────────────────────────────

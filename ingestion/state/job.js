@@ -147,6 +147,8 @@ class IngestionJob {
  */
 function createJob(sourceUri, meta = {}, maxAttempts = 3) {
   const now = _now();
+  // Known structural fields — everything else is caller metadata passed to DE structData
+  const { originalFilename, mimeType, fileSizeBytes, parentJobId, ...extraMeta } = meta;
   return new IngestionJob({
     jobId:            _uuid(),
     sourceUri,
@@ -163,13 +165,17 @@ function createJob(sourceUri, meta = {}, maxAttempts = 3) {
 
     isSplit:           false,
     splitParts:        [],
-    parentJobId:       meta.parentJobId || null,
+    parentJobId:       parentJobId || null,
     docaiOperationName: null,
 
-    originalFilename: meta.originalFilename || _basename(sourceUri),
-    mimeType:         meta.mimeType || _guessMime(sourceUri),
-    fileSizeBytes:    meta.fileSizeBytes || null,
+    originalFilename: originalFilename || _basename(sourceUri),
+    mimeType:         mimeType || _guessMime(sourceUri),
+    fileSizeBytes:    fileSizeBytes || null,
     chunkCount:       null,
+
+    // Caller-supplied metadata forwarded to DE structData by IndexerWorker.
+    // Entries here take precedence over heuristic inference in the indexer.
+    meta: Object.keys(extraMeta).length > 0 ? extraMeta : null,
 
     createdAt:  now,
     updatedAt:  now,
