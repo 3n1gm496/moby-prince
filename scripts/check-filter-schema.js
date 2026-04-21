@@ -74,15 +74,22 @@ for (const frontField of FRONTEND) {
   }
 
   if (back.type === 'enum') {
-    const backValues  = new Set(back.values || []);
+    const backValues  = new Set((back.options || []).map(o => o.value));
     const frontValues = new Set((frontField.options || []).map(o => o.value));
     for (const v of backValues) {
       if (!frontValues.has(v))
-        errors.push(`Key "${key}": backend value "${v}" missing from frontend options`);
+        errors.push(`Key "${key}": backend option "${v}" missing from frontend options`);
     }
     for (const v of frontValues) {
       if (!backValues.has(v))
-        errors.push(`Key "${key}": frontend option "${v}" missing from backend values`);
+        errors.push(`Key "${key}": frontend option "${v}" missing from backend options`);
+    }
+    // Check that labels match too
+    for (const backOpt of (back.options || [])) {
+      const frontOpt = (frontField.options || []).find(o => o.value === backOpt.value);
+      if (frontOpt && frontOpt.label !== backOpt.label) {
+        errors.push(`Key "${key}" option "${backOpt.value}" label mismatch: backend="${backOpt.label}", frontend="${frontOpt.label}"`);
+      }
     }
   }
 

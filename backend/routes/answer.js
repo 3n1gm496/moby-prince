@@ -28,6 +28,7 @@ const { validateQuery, validateSessionId } = require('../middleware/validate');
 const { validateFilters }       = require('../middleware/validateFilters');
 const { buildFilterExpression } = require('../filters/schema');
 const { clamp } = require('../lib/utils');
+const { sseHeaders, makeSender } = require('../lib/sse');
 const { createLogger } = require('../logger');
 const contradictionsRepo        = require('../repos/contradictions');
 const { isBigQueryEnabled }     = require('../services/bigquery');
@@ -39,16 +40,8 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
   const { query, sessionId, maxResults, filters } = req.body;
   const requestId = req.requestId;
 
-  // Set up Server-Sent Events
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx proxy buffering
-  res.flushHeaders();
-
-  const sendEvent = (event, data) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  };
+  sseHeaders(res);
+  const sendEvent = makeSender(res);
 
   try {
     // Notify the client that Discovery Engine is being called

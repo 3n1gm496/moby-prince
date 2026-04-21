@@ -1,49 +1,116 @@
 # Archivio Moby Prince
 
-> Piattaforma investigativa RAG per il corpus documentale sul disastro del Moby Prince (10 aprile 1991) — testimonianze, perizie, atti parlamentari, materiali audio/video. Permette interrogazione in linguaggio naturale, rilevamento automatico di contraddizioni, analisi multi-step tramite agente AI e persistenza delle sessioni di indagine.
+Piattaforma investigativa RAG sul disastro del Moby Prince (10 aprile 1991). Interrogazione in linguaggio naturale, rilevamento contraddizioni, agente AI multi-step, persistenza sessioni.
 
 ![Node.js](https://img.shields.io/badge/Node.js-20-339933?logo=nodedotjs&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Vertex AI Search](https://img.shields.io/badge/Vertex%20AI%20Search-v1-4285F4?logo=googlecloud&logoColor=white)
-![BigQuery](https://img.shields.io/badge/BigQuery-evidence%20layer-4285F4?logo=googlebigquery&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini-2.0%20Flash-8B5CF6?logo=googlegemini&logoColor=white)
 
 ---
 
-## Architettura generale
+## Architettura
 
+```mermaid
+graph TD
+    FE["Frontend\nReact 18 + Vite + Tailwind"]
+    BE["Backend\nNode.js 20 + Express 4"]
+    DE["Vertex AI Search\nDiscovery Engine v1"]
+    GCS["Cloud Storage\nCorpus GCS"]
+    BQ["BigQuery\nevidence layer"]
+    FS["Firestore\nsessioni"]
+    GM["Gemini 2.0 Flash\nVertex AI"]
+    ING["Ingestion Pipeline\nCloud Run Job"]
+
+    FE -->|"/api/* SSE + REST"| BE
+    BE --> DE
+    BE --> GCS
+    BE --> BQ
+    BE --> FS
+    BE --> GM
+    ING -->|"index"| DE
+    ING -->|"claims"| BQ
+    GCS -->|"corpus"| ING
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Frontend — React 18 + Vite + Tailwind                      │
-│  Chat · Timeline · Dossier · Contraddizioni · Investigazione │
-└────────────────────────┬────────────────────────────────────┘
-                         │ /api/*  (SSE + REST)
-┌────────────────────────▼────────────────────────────────────┐
-│  Backend — Node.js 20 + Express 4                           │
-│  answer · search · evidence · agent · contradictions         │
-│  entities · events · sessions · timeline · media · storage   │
-└──┬──────────────┬───────────────┬───────────────────────────┘
-   │              │               │
-   ▼              ▼               ▼
-Vertex AI      BigQuery        Firestore
-Search         evidence        sessions
-(RAG core)     layer           persistence
-   │
-   ▼
-Cloud Storage   ◄── Ingestion pipeline (Cloud Run Job)
-(corpus GCS)        Validator → DocAI → MediaProcessor
-                    → Splitter → EntityExtractor
-                    → Indexer → ClaimExtractor
+
+---
+
+## Flusso risposta RAG
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant B as Backend
+    participant D as Discovery Engine
+    participant Q as BigQuery
+
+    F->>B: POST /api/answer {query, filters, sessionId}
+    B-->>F: SSE: event:thinking
+    B->>D: :answer API (grounded RAG)
+    D-->>B: answer + references + citations
+    B-->>F: SSE: event:answer
+    B->>Q: contraddizioni per URI citati (2s timeout)
+    Q-->>B: contradictions[]
+    B-->>F: SSE: event:contradictions
+```
+
+---
+
+## Agente investigativo (ReAct)
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant B as Backend/Agent
+    participant G as Gemini 2.0 Flash
+    participant T as Tools
+
+    F->>B: POST /api/agent/investigate {query}
+    B-->>F: SSE: event:session {sessionId}
+    loop max 6 passi
+        B->>G: contents + tool declarations
+        G-->>B: functionCall
+        B-->>F: SSE: event:tool_call
+        B->>T: esegui tool
+        T-->>B: risultato
+        B-->>F: SSE: event:tool_result
+        B->>G: functionResponse
+    end
+    G-->>B: text (risposta finale)
+    B-->>F: SSE: event:answer {text, steps[]}
+```
+
+---
+
+## Pipeline di ingestion
+
+```mermaid
+flowchart LR
+    RAW["GCS raw/\n*.pdf *.mp4 …"]
+    VAL["Validator\nMIME + size"]
+    SPLIT["Splitter\n> 2 MB"]
+    DAI["DocumentAI\nLayout Parser\npdf >= 10 MB"]
+    MEDIA["MediaProcessor\nVision + STT + VideoAI"]
+    ENT["EntityExtractor\nNL API"]
+    IDX["IndexerWorker\nPUT → DE"]
+    CLAIM["ClaimExtractor\nGemini → BQ"]
+
+    RAW --> VAL --> SPLIT
+    SPLIT --> DAI
+    SPLIT --> MEDIA
+    SPLIT --> ENT
+    DAI --> IDX
+    MEDIA --> IDX
+    ENT --> IDX
+    IDX --> CLAIM
 ```
 
 ---
 
 ## Quick start (Docker)
 
-**Prerequisiti:** Docker, `gcloud` CLI, progetto GCP con Vertex AI Search configurato.
-
 ```bash
-# 1 — Credenziali Google (una volta sola)
+# 1 — Credenziali Google
 gcloud auth application-default login
 
 # 2 — Configurazione backend
@@ -55,298 +122,251 @@ docker compose up --build
 # → http://localhost:5173
 ```
 
-Il frontend nginx fa da reverse proxy per `/api/*` verso il backend sulla rete interna Docker. Nessuna configurazione aggiuntiva necessaria per il routing.
+---
+
+## Sviluppo locale
+
+```bash
+# Backend
+cd backend && cp .env.example .env && npm install && npm run dev
+# → http://localhost:3001
+
+# Frontend (secondo terminale)
+cd frontend && npm install && npm run dev
+# → http://localhost:5173  (/api/* proxato verso :3001)
+```
 
 ---
 
-## Interfaccia utente
+## Pagine
 
-| Pagina | Route | Funzione |
-|--------|-------|---------|
-| **Chat** | `/` | Interrogazione RAG in linguaggio naturale con citazioni ancorate ai documenti originali, domande correlate, badge grounding e pannello contraddizioni rilevanti |
-| **Timeline** | `/timeline` | Linea del tempo interattiva degli eventi; sorgente BigQuery (se disponibile) con fallback GCS; generazione AI dei punti salienti |
-| **Dossier** | `/dossier` | Costruttore di dossier investigativi con selezione manuale di evidenze |
-| **Contraddizioni** | `/contraddizioni` | Matrice delle contraddizioni rilevate tra claim; filtri per stato/gravità; aggiornamento status direttamente dal pannello |
-| **Investigazione** | `/investigazione` | Agente multi-step Gemini 2.0 Flash con traccia visuale dei tool call; query pre-caricate sui nodi chiave del caso |
+| Pagina | Route | Descrizione |
+|--------|-------|-------------|
+| Chat | `/` | RAG con citazioni, contraddizioni inline, filtri metadati |
+| Timeline | `/timeline` | Cronologia eventi (BigQuery → GCS → fallback) |
+| Dossier | `/dossier` | Browser GCS, upload, rename, drag-and-drop tra cartelle |
+| Contraddizioni | `/contraddizioni` | Matrice con filtri gravità/stato |
+| Investigazione | `/investigazione` | Agente multi-step con traccia tool call in tempo reale |
+| Admin | `/admin` | Statistiche operative e budget giornaliero |
 
 ---
 
-## API Backend
+## API
 
-Tutti gli endpoint sono sotto `/api/` e richiedono l'header `X-API-Key` quando `API_KEY` è configurata. Il backend risponde a `http://localhost:3001` in sviluppo, su `http://localhost:5173/api/` tramite proxy Docker.
+Tutti gli endpoint richiedono `X-API-Key: <key>` quando `API_KEY` è configurata.
+`GET /api/health` è sempre pubblico.
 
-### Risposta (RAG)
+Rate limit: **20 req/min** per `/api/answer` e `/api/agent`; **120 req/min** per gli altri.
 
-| Metodo | Path | Descrizione |
-|--------|------|-------------|
-| `POST` | `/api/answer` | Risposta fondata con citazioni — **SSE** (`event: thinking` → `event: answer` → `event: contradictions`) |
-| `POST` | `/api/ask` | Alias `/api/answer` (compatibilità) |
-| `POST` | `/api/search` | Ricerca chunk/documenti senza generazione di risposta |
+### Risposta RAG
 
-**Corpo `/api/answer`:**
+| Metodo | Path | Note |
+|--------|------|------|
+| `POST` | `/api/answer` | SSE: `thinking` → `answer` → `contradictions` |
+| `POST` | `/api/ask` | Alias `/api/answer` |
+| `POST` | `/api/search` | Ricerca chunk senza generazione |
+
+**Body `/api/answer`:**
 ```json
 {
-  "query": "Quali testimoni contraddicono la perizia RINA sulla visibilità?",
-  "sessionId": "abc123",
+  "query": "stringa (max 2000)",
+  "sessionId": "stringa (opzionale, multi-turn DE)",
+  "maxResults": 10,
   "filters": { "documentType": "testimony", "year": 1991 }
 }
 ```
 
-**Sequenza SSE:**
+**SSE:**
 ```
-event: thinking     data: {"stage":"searching"}
-event: answer       data: { answer, session, meta }
-event: contradictions data: [{ id, severity, description, ... }]
-event: grounding    data: [{ score, sourceChunkId, ... }]
+event: thinking       data: {"stage":"searching"}
+event: answer         data: {answer, citations, evidence, session, meta}
+event: contradictions data: {contradictions[], total}
+event: error          data: {"message":"..."}
 ```
 
 ### Evidence e filtri
 
-| Metodo | Path | Descrizione |
-|--------|------|-------------|
-| `POST` | `/api/evidence/search` | Lista piatta di chunk per il workbench |
-| `GET`  | `/api/evidence/documents/:id/chunks` | Tutti i chunk di un documento (richiede `DATA_STORE_ID`) |
-| `GET`  | `/api/evidence/chunks-by-gcs-path?path=` | Lookup per percorso GCS |
-| `GET`  | `/api/filters/schema` | Schema filtri a runtime (evita duplicazione con il frontend) |
+| Metodo | Path | Note |
+|--------|------|------|
+| `POST` | `/api/evidence/search` | Chunk workbench |
+| `GET`  | `/api/evidence/documents/:id/chunks` | Richiede `DATA_STORE_ID` |
+| `GET`  | `/api/evidence/chunks-by-gcs-path?path=` | Lookup per path GCS |
+| `GET`  | `/api/filters/schema` | Schema filtri completo — sorgente di verità |
 
 ### Timeline
 
-| Metodo | Path | Descrizione |
-|--------|------|-------------|
-| `GET`  | `/api/timeline/documents` | Tutti i documenti con metadati anno/tipo |
-| `GET`  | `/api/timeline/events` | Eventi ordinati; sorgente BigQuery → GCS → vuoto |
+| Metodo | Path | Note |
+|--------|------|------|
+| `GET`  | `/api/timeline/documents` | Tutti i documenti con metadati |
+| `GET`  | `/api/timeline/events` | BigQuery → GCS → vuoto |
 | `PUT`  | `/api/timeline/events` | Salva array eventi su GCS |
-| `POST` | `/api/timeline/generate` | Genera eventi storici via AI (DE → parser → GCS) |
+| `POST` | `/api/timeline/generate` | Genera eventi via Gemini |
 
-### Media (M2)
+### Media
 
-| Metodo | Path | Descrizione |
-|--------|------|-------------|
+| Metodo | Path | Note |
+|--------|------|------|
 | `GET`  | `/api/media/:id/transcript` | Trascrizione con timestamp |
-| `GET`  | `/api/media/:id/shots` | Shot list + URL firmati GCS thumbnail |
-| `GET`  | `/api/media/:id/labels` | Label e oggetti da Vision / Video Intelligence |
+| `GET`  | `/api/media/:id/shots` | Shot list + URL firmati thumbnail |
+| `GET`  | `/api/media/:id/labels` | Label Vision / Video Intelligence |
 
-### Entità e eventi (M3–M4 — richiede BigQuery)
+### Entità e eventi (richiede BigQuery)
 
-| Metodo | Path | Descrizione |
-|--------|------|-------------|
-| `GET`  | `/api/entities` | Lista entità con conteggio citazioni |
-| `GET`  | `/api/entities/search?q=` | Ricerca per nome / alias |
-| `GET`  | `/api/entities/:id` | Dettaglio entità |
-| `GET`  | `/api/entities/:id/claims` | Claim cross-documento che citano l'entità |
-| `GET`  | `/api/entities/:id/events` | Timeline eventi associati |
+| Metodo | Path | Note |
+|--------|------|------|
+| `GET`  | `/api/entities` | Lista con conteggio citazioni |
+| `GET`  | `/api/entities/search?q=` | Ricerca per nome/alias |
+| `GET`  | `/api/entities/:id` | Dettaglio |
+| `GET`  | `/api/entities/:id/claims` | Claim cross-documento |
+| `GET`  | `/api/entities/:id/events` | Timeline associata |
 | `GET`  | `/api/events` | Lista eventi (`?from=&to=&type=`) |
 | `GET`  | `/api/events/:id` | Dettaglio evento |
 
-### Contraddizioni e claim (M5 — richiede BigQuery)
+### Contraddizioni e claim (richiede BigQuery)
 
-| Metodo | Path | Descrizione |
-|--------|------|-------------|
+| Metodo | Path | Note |
+|--------|------|------|
 | `GET`  | `/api/contradictions` | Lista (`?status=&severity=&documentId=`) |
 | `GET`  | `/api/contradictions/:id` | Dettaglio con testo claim A/B |
-| `PATCH`| `/api/contradictions/:id` | Aggiorna `status` / `resolution` |
-| `POST` | `/api/contradictions/detect` | Attiva rilevamento pairwise su un documento o set di claim |
+| `PATCH`| `/api/contradictions/:id` | Aggiorna `status`/`resolution` |
+| `POST` | `/api/contradictions/detect` | Rilevamento pairwise |
 | `GET`  | `/api/claims?documentId=` | Claim per documento |
-| `POST` | `/api/claims/verify` | Verifica un testo libero contro i claim archiviati |
+| `POST` | `/api/claims/verify` | Verifica claim libero |
 | `GET`  | `/api/claims/:id` | Dettaglio claim |
 
-### Sessioni investigative (M6 — richiede Firestore)
+### Sessioni investigative (richiede Firestore)
 
-| Metodo | Path | Descrizione |
-|--------|------|-------------|
-| `POST` | `/api/sessions` | Crea sessione |
-| `GET`  | `/api/sessions` | Lista sessioni (senza messaggi) |
-| `GET`  | `/api/sessions/:id` | Dettaglio + messaggi |
-| `PATCH`| `/api/sessions/:id` | Aggiorna titolo / `deSessionId` / sostituisce messaggi |
-| `POST` | `/api/sessions/:id/messages` | **Append atomico** di un messaggio (Firestore FieldTransform — sicuro da tab concorrenti) |
-| `DELETE`| `/api/sessions/:id` | Elimina sessione |
-| `GET`  | `/api/sessions/:id/export` | Download JSON allegato |
+| Metodo | Path | Note |
+|--------|------|------|
+| `POST`   | `/api/sessions` | Crea sessione |
+| `GET`    | `/api/sessions` | Lista paginata (senza messaggi) |
+| `GET`    | `/api/sessions/:id` | Dettaglio + messaggi |
+| `PATCH`  | `/api/sessions/:id` | Aggiorna titolo/messaggi |
+| `POST`   | `/api/sessions/:id/messages` | Append atomico (Firestore FieldTransform) |
+| `DELETE` | `/api/sessions/:id` | Elimina |
+| `GET`    | `/api/sessions/:id/export` | Download JSON |
 
-### Agente multi-step (M6)
+### Agente multi-step
 
-| Metodo | Path | Descrizione |
-|--------|------|-------------|
-| `POST` | `/api/agent/investigate` | Avvia indagine — **SSE** con traccia dei tool call |
+| Metodo | Path | Note |
+|--------|------|------|
+| `POST` | `/api/agent/investigate` | SSE con traccia tool call; `sessionId` per riprendere |
 
-**Sequenza SSE agente:**
+**SSE:**
 ```
-event: session      data: {"sessionId": "<firestore-id>"}   ← primo evento, sempre presente
-event: thinking     data: {"step": 1}
-event: tool_call    data: {"tool": "search_documents", "args": {...}, "step": 1}
-event: tool_result  data: {"tool": "...", "result": {...}, "durationMs": 312, "step": 1}
-event: answer       data: {"text": "...", "steps": [...]}
-event: error        data: {"message": "..."}
+event: session      data: {"sessionId":"<firestore-id>"}  ← sempre primo
+event: thinking     data: {"step":1}
+event: tool_call    data: {"tool":"search_documents","args":{...},"step":1}
+event: tool_result  data: {"tool":"...","result":{...},"durationMs":312,"step":1}
+event: answer       data: {"text":"...","steps":[...]}
+event: error        data: {"message":"..."}
 ```
 
-**Tool disponibili all'agente:** `search_documents`, `verify_claim`, `list_contradictions`, `get_entity_info`, `translate_text`.
-
-Passare `sessionId` nel corpo per riprendere un'indagine esistente.
+**Tool:** `search_documents`, `verify_claim`, `list_contradictions`, `get_entity_info`, `translate_text`.
 
 ### Storage GCS (richiede `GCS_BUCKET`)
 
-| Metodo | Path | Descrizione |
-|--------|------|-------------|
-| `GET`  | `/api/storage/browse?prefix=` | Lista cartelle e file a un prefisso |
-| `GET`  | `/api/storage/file?name=` | Download / proxy di un file GCS |
-| `POST` | `/api/storage/upload` | Upload documento (multipart/form-data) |
-| `GET`  | `/api/storage/metadata?name=` | Leggi metadati GCS (sistema + custom) |
-| `PATCH`| `/api/storage/metadata` | Aggiorna metadati custom GCS |
-| `POST` | `/api/storage/rename` | Rinomina file (sincronizza GCS → DE) |
-| `POST` | `/api/storage/copy` | Duplica file |
-| `DELETE`| `/api/storage/file?name=` | Elimina file |
-| `POST` | `/api/storage/move` | Sposta file in altra cartella |
-| `DELETE`| `/api/storage/folder?prefix=` | Elimina cartella ricorsivamente |
-| `POST` | `/api/storage/rename-folder` | Rinomina cartella |
-| `POST` | `/api/storage/copy-folder` | Duplica cartella |
+| Metodo   | Path | Note |
+|----------|------|------|
+| `GET`    | `/api/storage/browse?prefix=` | Lista cartelle e file |
+| `GET`    | `/api/storage/file?name=` | Download / proxy file GCS |
+| `POST`   | `/api/storage/upload` | Upload multipart/form-data |
+| `GET`    | `/api/storage/metadata?name=` | Metadati (sistema + custom) |
+| `PATCH`  | `/api/storage/metadata` | Aggiorna metadati custom |
+| `POST`   | `/api/storage/rename` | Rinomina file (sync GCS → DE) |
+| `POST`   | `/api/storage/copy` | Duplica file |
+| `DELETE` | `/api/storage/file?name=` | Elimina file |
+| `POST`   | `/api/storage/move` | Sposta file |
+| `DELETE` | `/api/storage/folder?prefix=` | Elimina cartella ricorsivamente |
+| `POST`   | `/api/storage/rename-folder` | Rinomina cartella |
+| `POST`   | `/api/storage/copy-folder` | Duplica cartella |
 
-### Analisi, admin e health
+### Admin e health
 
-| Metodo | Path | Descrizione |
-|--------|------|-------------|
-| `GET`  | `/api/analysis/dossier` | Lista documenti indicizzati per il dossier workbench |
-| `GET`  | `/api/admin/stats` | Contatori operativi: sessioni, documenti, contraddizioni, budget Gemini/BQ |
-| `GET`  | `/api/health` | Liveness probe → `{"status":"ok"}` |
+| Metodo | Path | Note |
+|--------|------|------|
+| `GET`  | `/api/analysis/dossier` | Documenti indicizzati per workbench |
+| `GET`  | `/api/admin/stats` | Budget Gemini/BQ, contatori sessioni |
+| `GET`  | `/api/health` | `{"status":"ok"}` — sempre pubblico |
 
 ---
 
-## Configurazione backend (`backend/.env`)
+## Filtri metadati
 
-| Variabile | Obbligo | Default | Descrizione |
-|-----------|---------|---------|-------------|
+`GET /api/filters/schema` è la sorgente di verità. La copia statica in `frontend/src/filters/schema.js` è il fallback offline — verificarne la sync con:
+
+```bash
+cd backend && npm run check-schema
+```
+
+| Chiave | Tipo | Valori / Range |
+|--------|------|----------------|
+| `documentType` | enum | testimony, report, expert_opinion, exhibit, decree, parliamentary_act, press, investigation |
+| `institution` | enum | marina_militare, guardia_costiera, procura_livorno, commissione_parlamentare, tribunale, ministero_trasporti, rina, other |
+| `year` | number | 1991–2024 |
+| `legislature` | enum | X–XIX |
+| `person` | text | nome/alias persona citata |
+| `topic` | enum | incendio, collisione, soccorso, responsabilita, indennizzo, rotta, comunicazioni, radar, nebbia, vittime |
+| `ocrQuality` | enum | high, medium, low |
+| `mediaType` | enum | document, image, video, audio |
+| `containsSpeech` | enum | true, false |
+| `locationDetected` | text | luogo rilevato |
+
+---
+
+## Configurazione (`backend/.env`)
+
+| Variabile | Obbligatoria | Default | Descrizione |
+|-----------|:---:|---------|-------------|
 | `GOOGLE_CLOUD_PROJECT` | **sì** | — | GCP project ID |
 | `ENGINE_ID` | **sì** | — | Vertex AI Search engine ID |
-| `GCP_LOCATION` | no | `eu` | Regione DE (`eu` · `global` · `us`) |
+| `GCP_LOCATION` | no | `eu` | Regione Discovery Engine |
 | `DATA_STORE_ID` | no | — | Abilita chunk/document lookup |
-| `GCS_BUCKET` | no | — | Bucket corpus — abilita storage API |
-| `API_KEY` | no | — | Chiave per proteggere tutti gli endpoint `/api/*` |
+| `GCS_BUCKET` | no | — | Bucket corpus — abilita `/api/storage/*` |
+| `API_KEY` | no | — | Header `X-API-Key` per tutti gli endpoint |
 | `FRONTEND_ORIGIN` | no | `http://localhost:5173` | CORS origin |
 | `PORT` | no | `3001` | Porta HTTP |
 | `NODE_ENV` | no | `development` | `production` → log NDJSON strutturato |
-| `LOG_LEVEL` | no | `debug` | `debug` · `info` · `warn` · `error` |
-| `CHUNK_CONTEXT_PREV` | no | `1` | Chunk precedenti per risposta |
-| `CHUNK_CONTEXT_NEXT` | no | `1` | Chunk successivi per risposta |
+| `LOG_LEVEL` | no | `debug` | debug · info · warn · error |
+| `CHUNK_CONTEXT_PREV` | no | `1` | Chunk precedenti per risposta RAG |
+| `CHUNK_CONTEXT_NEXT` | no | `1` | Chunk successivi per risposta RAG |
 | `BQ_PROJECT_ID` | no | `GOOGLE_CLOUD_PROJECT` | Progetto BigQuery |
 | `BQ_DATASET_ID` | no | `evidence` | Dataset evidence layer |
 | `BQ_LOCATION` | no | `EU` | Regione BigQuery |
 | `FIRESTORE_DB` | no | `(default)` | Database Firestore sessioni |
-| `GEMINI_LOCATION` | no | `us-central1` | Regione Vertex AI / Gemini |
+| `GEMINI_LOCATION` | no | `us-central1` | Regione Vertex AI Gemini |
+| `DOCAI_LOCATION` | no | `GCP_LOCATION` | Regione Document AI |
+| `DAILY_GEMINI_LIMIT` | no | `500` | Max chiamate Gemini/giorno |
+| `DAILY_BQ_LIMIT` | no | `2000` | Max chiamate BigQuery/giorno |
 
 ---
 
-## Evidence layer — BigQuery
+## Evidence layer BigQuery
 
-Quando `BQ_PROJECT_ID` è configurato si attiva il livello di analisi strutturata. Il DDL completo è in `docs/bigquery-schema.sql`.
+```mermaid
+erDiagram
+    documents ||--o{ chunks : "ha"
+    documents ||--o{ claims : "contiene"
+    claims }o--o{ entities : "cita"
+    claims }o--o{ events : "riferisce"
+    claims }|--o{ contradictions : "claim A"
+    claims }|--o{ contradictions : "claim B"
+
+    documents { string id string title string document_type int year }
+    chunks { string id string document_id int page string content }
+    entities { string id string canonical_name string entity_type }
+    claims { string id string document_id string text float confidence }
+    contradictions { string id string severity string status }
+```
 
 ```bash
-# Prima configurazione
 bq mk --dataset --location=EU ${PROJECT_ID}:evidence
 bq query --nouse_legacy_sql < docs/bigquery-schema.sql
 ```
 
-**Tabelle:**
-
-| Tabella | Contenuto |
-|---------|-----------|
-| `evidence.documents` | Specchio metadati DE — tipo, istituzione, anno, qualità OCR |
-| `evidence.chunks` | Chunk indicizzati con riferimento pagina |
-| `evidence.entities` | Entità estratte (PERSON, ORGANIZATION, VESSEL, LOCATION) con alias canonici |
-| `evidence.events` | Cronologia eventi con coordinate temporali |
-| `evidence.claims` | Affermazioni fattuali estratte da Gemini, con `document_id` = ID DE reale |
-| `evidence.evidence_links` | Join claim → entità / evento |
-| `evidence.contradictions` | Contraddizioni rilevate pairwise con severity e stato revisione |
-
-**Rilevamento contraddizioni** — pre-filtro semantico tramite `text-embedding-004` (soglia coseno 0.45) prima di ogni chiamata Gemini pairwise. Se gli embedding non sono disponibili il sistema degrada silenziosamente al filtro per `entity_id` condivisi.
-
-**IAM minimi:**
-```
-ingestion SA : roles/bigquery.dataEditor
-backend SA   : roles/bigquery.dataViewer
-```
-
 ---
 
-## Pipeline di ingestion
-
-```
-GCS raw/*.pdf  →  Validator  →  DocumentAI (Layout Parser, PDF > 50 MB)
-                              →  MediaProcessor (Vision · Video Intelligence · STT)
-                              →  Splitter (parti > 2 MB)
-                              →  EntityExtractor (Natural Language API)
-                              →  IndexerWorker (PUT su Discovery Engine)
-                              →  ClaimExtractorWorker (Gemini Flash → BQ evidence.claims)
-```
-
-Il `ClaimExtractorWorker` gira **dopo** l'`IndexerWorker` così ogni claim riceve come `document_id` l'ID DE reale (non il job UUID temporaneo).
-
-**Comandi principali:**
-
-```bash
-cd ingestion
-cp .env.example .env
-
-# Ingestione singolo file (dry run — non scrive su DE)
-INDEX_DRY_RUN=true node cloudrun/entrypoint.js ingest ./corpus/raw/documento.pdf
-
-# Scan di un bucket GCS
-node cloudrun/entrypoint.js scan gs://my-project-corpus-raw/moby-prince/
-
-# Retry dei job falliti
-node cloudrun/entrypoint.js retry
-
-# Importazione con manifest (metadati espliciti)
-node ingestion/scripts/import-documents.js --manifest corpus.jsonl
-```
-
-**Worker e MIME supportati:**
-
-| Worker | Attivazione |
-|--------|-------------|
-| `DocumentAIWorker` | PDF ≥ soglia (`SPLIT_PDF_WARN`, default 10 MB) |
-| `MediaProcessorWorker` | `image/*` · `video/*` · `audio/*` |
-| `SplitterWorker` | PDF/testo > `SPLIT_MAX_BYTES` (2 MB) |
-| `EntityExtractionWorker` | Testo plain/markdown |
-| `IndexerWorker` | Tutti i tipi in stato VALIDATING/INDEXING |
-| `ClaimExtractorWorker` | Testo plain/markdown dopo INDEXED |
-
-### Configurazione ingestion (`ingestion/.env`)
-
-| Variabile | Default | Descrizione |
-|-----------|---------|-------------|
-| `GOOGLE_CLOUD_PROJECT` | — | Progetto GCP |
-| `ENGINE_ID` / `DATA_STORE_ID` | — | DE identifiers |
-| `GCS_BUCKET` (o `BUCKET_*`) | — | Bucket raw/normalized/quarantine |
-| `DOCAI_LAYOUT_PROCESSOR_ID` | — | Processor Layout Parser |
-| `STORE_TYPE` | `file` | `firestore` · `file` · `memory` |
-| `INDEX_DRY_RUN` | `false` | Salta il PUT su DE |
-| `SPLIT_PDF_FATAL` | `50000000` | Dimensione massima senza Document AI |
-
----
-
-## Sviluppo locale (senza Docker)
-
-```bash
-# Backend
-cd backend
-cp .env.example .env        # compilare GOOGLE_CLOUD_PROJECT e ENGINE_ID
-npm install
-npm run dev                  # nodemon — riavvio su modifiche → http://localhost:3001
-
-# Frontend (terminale separato)
-cd frontend
-npm install
-npm run dev                  # Vite HMR → http://localhost:5173
-                             # /api/* → proxy verso localhost:3001
-```
-
-**Build di produzione frontend:**
-```bash
-cd frontend && npm run build
-# output in frontend/dist/
-```
-
----
-
-## Deploy su Google Cloud
+## Deploy
 
 ### Backend → Cloud Run
 
@@ -357,123 +377,97 @@ PROJECT=your-project-id \
   ./deploy/backend.sh
 ```
 
-Costruisce via Cloud Build, pubblica su Artifact Registry, deploya su Cloud Run (`europe-west1`).
+**IAM** `moby-prince-backend@PROJECT.iam.gserviceaccount.com`:
 
-Service account richiesto: `moby-prince-backend@PROJECT.iam.gserviceaccount.com`
-
-**Ruoli IAM minimi:**
-
-| Servizio | Ruolo |
-|---------|-------|
-| Discovery Engine | `roles/discoveryengine.viewer` |
-| Cloud Storage | `roles/storage.objectViewer` |
-| BigQuery | `roles/bigquery.dataViewer` |
-| Firestore | `roles/datastore.user` |
-| Vertex AI | `roles/aiplatform.user` |
+| Ruolo | Servizio |
+|-------|---------|
+| `roles/discoveryengine.viewer` | Vertex AI Search |
+| `roles/storage.objectViewer` | Cloud Storage |
+| `roles/bigquery.dataViewer` | BigQuery |
+| `roles/datastore.user` | Firestore |
+| `roles/aiplatform.user` | Vertex AI / Gemini |
 
 ### Frontend → Cloud Storage / Firebase Hosting
 
 ```bash
-BACKEND_URL=https://moby-prince-backend-xxxx-ew.a.run.app \
-  ./deploy/frontend.sh
-
-# oppure Firebase:
-TARGET=firebase BACKEND_URL=https://… ./deploy/frontend.sh
+BACKEND_URL=https://moby-prince-backend-xxxx-ew.a.run.app ./deploy/frontend.sh
+# Firebase:
+TARGET=firebase BACKEND_URL=https://... ./deploy/frontend.sh
 ```
 
 ### Ingestion → Cloud Run Job
 
 ```bash
 ./deploy/ingestion.sh
-# Poi pianificare via Cloud Scheduler o avviare manualmente:
-gcloud run jobs execute moby-prince-ingestion \
-  --args="scan,gs://my-bucket/moby-prince/"
+gcloud run jobs execute moby-prince-ingestion --args="scan,gs://my-bucket/moby-prince/"
 ```
 
 ---
 
-## Autenticazione
+## Autenticazione GCP
 
-Il backend usa esclusivamente **Application Default Credentials (ADC)** — nessuna chiave hardcoded.
+Il backend usa **Application Default Credentials** — un unico `GoogleAuth` client condiviso da tutti i servizi via `backend/services/auth.js`.
 
-| Ambiente | Risoluzione credenziali |
-|----------|------------------------|
-| Locale diretto | `gcloud auth application-default login` |
-| docker-compose | Stesso file montato come volume in `~/.config/gcloud` |
-| Cloud Run | Workload Identity del service account allegato |
-
-Quando `API_KEY` è impostata, tutti gli endpoint `/api/*` (eccetto `/api/health`) richiedono:
-```
-Header:       X-API-Key: <key>
-Query param:  ?api_key=<key>    (alternativa)
-```
+| Ambiente | Risoluzione ADC |
+|----------|----------------|
+| Locale | `gcloud auth application-default login` |
+| docker-compose | Volume `~/.config/gcloud` montato |
+| Cloud Run | Workload Identity del service account |
 
 ---
 
-## Rate limiting
-
-| Gruppo | Endpoint | Limite |
-|--------|----------|--------|
-| `answerLimiter` | `/api/answer` · `/api/ask` · `/api/agent` | 20 req/min per client |
-| `generalLimiter` | Tutti gli altri | 120 req/min per client |
-
-Il client è identificato dalla chiave API (`X-API-Key`) se presente, altrimenti dall'IP. Questo evita che un singolo IP condiviso (load balancer) esaurisca i limiti di tutti gli utenti.
-
----
-
-## Stack tecnologico
-
-| Layer | Tecnologie |
-|-------|-----------|
-| **Frontend** | React 18, React Router v6, Vite, Tailwind CSS, react-markdown |
-| **Backend** | Node.js 20, Express 4, helmet, express-rate-limit, pino |
-| **RAG core** | Vertex AI Search — Discovery Engine v1 (`:answer` + `:search`) |
-| **AI generativa** | Gemini 2.0 Flash (`generateContent`), `text-embedding-004` |
-| **Evidence layer** | BigQuery REST API v2 (query + streaming insert) |
-| **Sessioni** | Firestore REST API v1 (commit + FieldTransform) |
-| **Multimedia** | Vision API · Video Intelligence API · Speech-to-Text v2 |
-| **NLP** | Cloud Natural Language API (`analyzeEntities`) |
-| **Traduzione** | Cloud Translation API v3 |
-| **OCR/Layout** | Document AI — Layout Parser |
-| **Storage** | Cloud Storage (corpus + thumbnail + session export) |
-| **Auth** | Google Application Default Credentials (`google-auth-library`) |
-| **Container** | Docker, nginx 1.27 (reverse proxy + SPA fallback) |
-
----
-
-## Struttura del repository
+## Struttura repository
 
 ```
 ├── backend/
-│   ├── routes/          # Express router per ogni area funzionale
-│   ├── services/        # Client REST GCP (DE, BQ, Firestore, Gemini, …)
-│   ├── repos/           # Query helpers BigQuery (claims, entities, events, contradictions)
-│   ├── transformers/    # Normalizzazione risposte DE (answer, search, citations)
-│   ├── filters/         # Schema filtri + builder espressioni DE
-│   ├── middleware/       # Auth, rate limit, request ID, error handler
-│   └── evidence/        # Modelli normalizzazione evidence layer
+│   ├── config.js            # Env validation + costanti centralizzate
+│   ├── server.js            # Entry point (rate limit, middleware, route mount)
+│   ├── routes/              # Un file per area funzionale
+│   ├── services/            # Client REST GCP (auth, DE, BQ, Firestore, GCS, Gemini…)
+│   ├── repos/               # Query helpers BigQuery
+│   ├── transformers/        # Normalizzazione risposte DE → contratto API
+│   ├── filters/             # Schema filtri + expression builder (sorgente di verità)
+│   ├── middleware/          # Auth, rate limit, requestId, errorHandler, validateFilters
+│   └── lib/                 # utils.js · sse.js
 ├── frontend/
-│   ├── src/
-│   │   ├── pages/       # Chat, Timeline, DossierBuilder, Contradictions, InvestigationPage
-│   │   ├── components/  # MessageBubble, CitationPanel, ContradictionPanel, MediaPlayer, …
-│   │   ├── hooks/       # useChat, useChatHistory, useFilters
-│   │   └── filters/     # Schema filtri lato client
-│   └── nginx.conf
+│   └── src/
+│       ├── pages/           # Chat, Timeline, Dossier, Contradictions, Investigation, Admin
+│       ├── components/      # MessageBubble, EvidenceSection, DocumentPanel, FilterPanel…
+│       ├── hooks/           # useChat, useFilters, useGcsBrowser, useDossier…
+│       ├── filters/         # Copia statica schema (fallback offline)
+│       └── lib/             # apiFetch (inietta X-API-Key)
 ├── ingestion/
-│   ├── workers/         # ValidatorWorker, DocumentAIWorker, MediaProcessorWorker,
-│   │                    # SplitterWorker, EntityExtractionWorker, IndexerWorker, ClaimExtractorWorker
-│   ├── services/        # BQ insert, Gemini JSON, Auth
-│   ├── state/           # IngestionJob (state machine) + store (Firestore/file/memory)
-│   ├── pipeline/        # Orchestratore + retry
-│   └── cloudrun/        # Entrypoint + worker chain factory
+│   ├── workers/             # Validator→DocAI→Media→Splitter→Entity→Indexer→Claim
+│   ├── pipeline/            # Orchestratore + retry
+│   ├── services/            # Auth, BQ insert, Gemini
+│   └── cloudrun/            # CLI (ingest / scan / retry)
 ├── docs/
-│   └── bigquery-schema.sql   # DDL completo evidence dataset
-├── deploy/              # Script Cloud Run / Cloud Build / Firebase
+│   ├── bigquery-schema.sql
+│   └── runtime-config.md
+├── scripts/
+│   └── check-filter-schema.js
+├── deploy/
 └── docker-compose.yml
 ```
 
 ---
 
-## Licenza
+## Stack
 
-Uso riservato — Commissione Parlamentare d'Inchiesta · Camera dei Deputati.
+| Layer | Tecnologie |
+|-------|-----------|
+| Frontend | React 18, React Router v6, Vite, Tailwind CSS, lucide-react |
+| Backend | Node.js 20, Express 4, helmet, express-rate-limit, pino |
+| RAG core | Vertex AI Search — Discovery Engine v1 |
+| AI generativa | Gemini 2.0 Flash, text-embedding-004 |
+| Evidence layer | BigQuery REST API v2 |
+| Sessioni | Firestore REST API v1 (atomic FieldTransform) |
+| Multimedia | Vision API, Video Intelligence, Speech-to-Text v2 |
+| NLP | Cloud Natural Language API |
+| Storage | Cloud Storage |
+| Auth | Google Application Default Credentials |
+| Container | Docker, nginx 1.27 |
+
+---
+
+*Uso riservato — Commissione Parlamentare d'Inchiesta · Camera dei Deputati.*

@@ -27,6 +27,7 @@ const { Router } = require('express');
 const { investigate } = require('../services/agentRunner');
 const fs             = require('../services/firestore');
 const { newId }      = require('../lib/utils');
+const { sseHeaders, makeSender } = require('../lib/sse');
 const { createLogger } = require('../logger');
 
 const log    = createLogger('agent-route');
@@ -48,17 +49,8 @@ router.post('/investigate', async (req, res) => {
   }
 
   // ── Set up Server-Sent Events ───────────────────────────────────────────────
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
-
-  const sendEvent = (event, data) => {
-    try {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    } catch (_) { /* connection closed */ }
-  };
+  sseHeaders(res);
+  const sendEvent = makeSender(res);
 
   // ── Create or resume Firestore session ─────────────────────────────────────
   const now       = new Date().toISOString();
