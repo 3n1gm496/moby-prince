@@ -8,8 +8,8 @@ function ToastItem({ toast, onDismiss }) {
   }, [toast.id, toast.duration, onDismiss]);
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-xl min-w-[300px] max-w-sm
-                    bg-surface-raised border border-border/80 shadow-2xl text-sm">
+    <div className="relative flex items-center gap-3 px-4 py-3 rounded-xl min-w-[300px] max-w-sm
+                    bg-surface-raised border border-border/80 shadow-2xl text-sm overflow-hidden">
       <span className="flex-1 text-text-primary leading-snug line-clamp-3">{toast.message}</span>
       {toast.action && (
         <button
@@ -28,6 +28,14 @@ function ToastItem({ toast, onDismiss }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
+      {toast.duration && (
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-border/30">
+          <div
+            className="h-full bg-accent/50 toast-progress"
+            style={{ animationDuration: `${toast.duration}ms` }}
+          />
+        </div>
+      )}
     </div>
   );
 }

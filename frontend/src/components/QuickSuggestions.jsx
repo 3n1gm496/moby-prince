@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 const SUGGESTIONS = [
   "Quali sono le conclusioni della Commissione parlamentare d'inchiesta?",
@@ -21,6 +21,10 @@ export default function QuickSuggestions({ onSelect, disabled }) {
     setOpen(false);
     toggleRef.current?.focus();
   }, [onSelect]);
+
+  useEffect(() => {
+    if (disabled && open) setOpen(false);
+  }, [disabled, open]);
 
   // Improvement #3: keyboard navigation within the suggestion list.
   const handleListKeyDown = (e) => {

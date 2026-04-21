@@ -18,6 +18,7 @@ function resolveUri(uri) {
 
 export default function CitationPanel({ citation, onClose }) {
   const panelRef = useRef(null);
+  const touchStartX = useRef(null);
 
   useEffect(() => {
     const handleKey = (e) => e.key === "Escape" && onClose();
@@ -26,6 +27,13 @@ export default function CitationPanel({ citation, onClose }) {
   }, [onClose]);
 
   useEffect(() => { panelRef.current?.focus(); }, []);
+
+  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd   = (e) => {
+    if (touchStartX.current === null) return;
+    if (e.changedTouches[0].clientX - touchStartX.current > 80) onClose();
+    touchStartX.current = null;
+  };
 
   if (!citation) return null;
 
@@ -38,6 +46,8 @@ export default function CitationPanel({ citation, onClose }) {
       <aside
         ref={panelRef}
         tabIndex={-1}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         className="fixed right-0 top-0 bottom-0 w-full max-w-[22rem]
                    bg-surface-sidebar border-l border-border/50
                    z-50 flex flex-col outline-none
@@ -47,7 +57,9 @@ export default function CitationPanel({ citation, onClose }) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
           <div className="flex items-center gap-2.5">
             <span className="citation-badge">{citation.id}</span>
-            <span className="text-[13px] font-medium text-text-primary">Fonti</span>
+            <span className="text-[13px] font-medium text-text-primary">
+              {citation.sources?.length === 1 ? "Fonte" : "Fonti"}
+            </span>
           </div>
           <button
             onClick={onClose}

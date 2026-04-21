@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useDeferredValue } from "react";
 
-export default function SearchPalette({ conversations, onSelect, onClose }) {
+export default function SearchPalette({ conversations, onSelect, onClose, onNewChat }) {
   const [query, setQuery]   = useState("");
   const inputRef            = useRef(null);
   const listRef             = useRef(null);
@@ -76,9 +76,17 @@ export default function SearchPalette({ conversations, onSelect, onClose }) {
             className="max-h-[55vh] overflow-y-auto py-1.5"
           >
             {results.length === 0 && (
-              <p className="px-4 py-6 text-sm text-text-secondary text-center">
-                Nessuna conversazione trovata.
-              </p>
+              <div className="px-4 py-6 text-center space-y-2.5">
+                <p className="text-sm text-text-secondary">Nessuna conversazione trovata.</p>
+                {onNewChat && (
+                  <button
+                    onClick={() => { onNewChat(); onClose(); }}
+                    className="text-sm text-accent hover:text-accent-hover transition-colors"
+                  >
+                    Inizia una nuova chat →
+                  </button>
+                )}
+              </div>
             )}
             {!q && results.length > 0 && (
               <p className="px-4 pb-1 text-[10px] text-text-muted uppercase tracking-wider">

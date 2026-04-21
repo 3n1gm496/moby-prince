@@ -364,7 +364,7 @@ function UploadButton({ prefix, onUploaded }) {
   };
 
   return (
-    <div className="relative">
+    <div className="space-y-1">
       <input
         ref={inputRef}
         type="file"
@@ -375,7 +375,6 @@ function UploadButton({ prefix, onUploaded }) {
       <button
         onClick={() => { setUploadErr(null); inputRef.current?.click(); }}
         disabled={uploading}
-        title={uploadErr || undefined}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] border transition-colors
                     ${uploadErr
                       ? "border-red-500/40 text-red-400 bg-red-500/5 hover:bg-red-500/10"
@@ -398,6 +397,9 @@ function UploadButton({ prefix, onUploaded }) {
           </>
         )}
       </button>
+      {uploadErr && (
+        <p className="text-[11px] text-red-400 leading-snug">{uploadErr}</p>
+      )}
     </div>
   );
 }

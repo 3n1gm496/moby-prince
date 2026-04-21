@@ -567,9 +567,10 @@ export default function Timeline() {
         </div>
 
         {/* Filter tabs */}
-        <div className="max-w-[860px] mx-auto px-5 pb-2.5 flex items-center gap-1 overflow-x-auto">
+        <div role="tablist" className="max-w-[860px] mx-auto px-5 pb-2.5 flex items-center gap-1 overflow-x-auto">
           {FILTERS.map(f => (
-            <button key={f.id} onClick={() => setFilter(f.id)}
+            <button key={f.id} role="tab" aria-selected={filter === f.id}
+                    onClick={() => setFilter(f.id)}
                     className={`px-3 py-1 rounded-full text-[11px] font-medium transition-colors whitespace-nowrap
                                 ${filter === f.id
                                   ? "bg-accent/15 text-accent border border-accent/30"
@@ -693,7 +694,7 @@ export default function Timeline() {
 
                     <div className="flex gap-6 py-3">
                       {/* Year marker */}
-                      <div className="w-10 flex-shrink-0 flex flex-col items-center pt-1 relative z-10">
+                      <div className="w-10 flex-shrink-0 flex flex-col items-center pt-1 relative z-10 sticky top-[100px] self-start">
                         <div className={`w-2.5 h-2.5 rounded-full ring-[3px] ring-surface flex-shrink-0 ${s.dot}`} />
                         <span className="text-[10px] font-mono text-text-muted mt-1 leading-none">{year}</span>
                       </div>

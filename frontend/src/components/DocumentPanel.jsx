@@ -215,8 +215,8 @@ function GcsMetadataSection({ fullPath }) {
               <input
                 value={k}
                 readOnly
-                className="w-24 text-[10px] font-mono bg-surface border border-border/40 rounded px-1.5 py-1
-                           text-text-muted focus:outline-none"
+                className="w-24 text-[10px] font-mono bg-surface/40 border border-border/20 rounded px-1.5 py-1
+                           text-text-muted/60 cursor-default focus:outline-none"
               />
               <input
                 value={v}
@@ -398,6 +398,7 @@ const SOURCE_LABELS = {
 
 export default function DocumentPanel({ doc, onClose }) {
   const panelRef = useRef(null);
+  const touchStartX = useRef(null);
 
   useEffect(() => {
     const handleKey = (e) => e.key === "Escape" && onClose();
@@ -406,6 +407,13 @@ export default function DocumentPanel({ doc, onClose }) {
   }, [onClose]);
 
   useEffect(() => { panelRef.current?.focus(); }, [doc]);
+
+  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd   = (e) => {
+    if (touchStartX.current === null) return;
+    if (e.changedTouches[0].clientX - touchStartX.current > 80) onClose();
+    touchStartX.current = null;
+  };
 
   if (!doc) return null;
 
@@ -433,6 +441,8 @@ export default function DocumentPanel({ doc, onClose }) {
       <aside
         ref={panelRef}
         tabIndex={-1}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         className="fixed right-0 top-0 bottom-0 w-full max-w-[26rem]
                    bg-surface-sidebar border-l border-border/50
                    z-50 flex flex-col outline-none animate-slide-right print:hidden"

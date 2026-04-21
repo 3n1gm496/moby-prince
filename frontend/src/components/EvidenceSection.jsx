@@ -242,10 +242,10 @@ const EvidenceSection = forwardRef(function EvidenceSection(
   ).size;
 
   return (
-    <div ref={ref} className="mt-2 print:hidden">
+    <div ref={ref} className="mt-2">
       <button onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
-              className={`flex items-center gap-1.5 text-xs transition-colors ${
+              className={`flex items-center gap-1.5 text-xs transition-colors print:hidden ${
                 open ? "text-accent" : "text-text-primary hover:text-accent"
               }`}>
         <svg className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`}
@@ -258,20 +258,18 @@ const EvidenceSection = forwardRef(function EvidenceSection(
         )}
       </button>
 
-      {open && (
-        <div className="mt-2 space-y-2">
-          {evidence.map((item, idx) => (
-            <EvidenceItem
-              key={item.index}
-              ref={(el) => { itemRefs.current[idx] = el; }}
-              item={item}
-              citations={citations || []}
-              isActive={activeCitationId != null && !!item.citationIds?.includes(activeCitationId)}
-              onCitationClick={onCitationClick}
-            />
-          ))}
-        </div>
-      )}
+      <div className={`mt-2 space-y-2 evidence-content ${!open ? "hidden print:block" : ""}`}>
+        {evidence.map((item, idx) => (
+          <EvidenceItem
+            key={item.index}
+            ref={(el) => { itemRefs.current[idx] = el; }}
+            item={item}
+            citations={citations || []}
+            isActive={activeCitationId != null && !!item.citationIds?.includes(activeCitationId)}
+            onCitationClick={onCitationClick}
+          />
+        ))}
+      </div>
     </div>
   );
 });

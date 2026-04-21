@@ -30,18 +30,24 @@
            rounded cursor-pointer align-super flex-shrink-0 relative;
     width: 16px;
     height: 16px;
-    background: rgba(201, 168, 76, 0.08);
-    color: #c9a84c;
-    border: 1px solid rgba(201, 168, 76, 0.22);
+    background: rgba(201, 168, 76, 0.10);
+    color: #d4aa50;
+    border: 1px solid rgba(212, 170, 80, 0.28);
     animation: badgePulse 0.7s ease-out forwards;
     transition: background 100ms, border-color 100ms;
   }
-  .citation-badge:hover {
-    background: rgba(201, 168, 76, 0.20);
-    border-color: rgba(201, 168, 76, 0.40);
+  .citation-badge:hover, .citation-badge:focus-visible {
+    background: rgba(212, 170, 80, 0.22);
+    border-color: rgba(212, 170, 80, 0.45);
+    outline: none;
   }
   .citation-badge:active {
-    background: rgba(201, 168, 76, 0.30);
+    background: rgba(212, 170, 80, 0.32);
+  }
+
+  /* Toast auto-dismiss progress bar */
+  .toast-progress {
+    animation: toastProgress linear forwards;
   }
 
   /* Prose — editorial-quality reading */
@@ -76,6 +82,11 @@
       inset 0 1px 0 rgba(255,255,255,0.04),
       0 1px 4px rgba(0,0,0,0.45);
   }
+}
+
+@keyframes toastProgress {
+  from { width: 100%; }
+  to   { width: 0%; }
 }
 
 /* ── Print stylesheet ────────────────────────────────────────────────────── */
@@ -134,6 +145,10 @@
 
   /* Message spacing */
   .space-y-8 > * + * { margin-top: 1.75rem !important; }
+
+  /* Evidence section: always show content */
+  .evidence-content { display: block !important; }
+  .evidence-content > * { margin-top: 0.5rem !important; }
 
   @page { margin: 2cm; size: A4; }
 }

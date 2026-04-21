@@ -71,7 +71,7 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogg
       title={renaming ? undefined : conv.title}
       onClick={() => !renaming && onSelect(conv.id)}
       onKeyDown={(e) => {
-        if (e.key === "Enter"  && !renaming) onSelect(conv.id);
+        if ((e.key === "Enter" || e.key === " ") && !renaming) { e.preventDefault(); onSelect(conv.id); }
         if ((e.key === "Delete" || e.key === "Backspace") && !renaming) {
           e.preventDefault(); onDelete(conv.id);
         }
@@ -163,8 +163,12 @@ export default function Sidebar({
 }) {
   const [search,        setSearch]        = useState("");
   const [expandedGroups, setExpandedGroups] = useState({});
-  const [collapsed,     setCollapsed]     = useState(false);
-  const [sidebarWidth,  setSidebarWidth]  = useState(DEFAULT_WIDTH);
+  const [collapsed,     setCollapsed]     = useState(() => {
+    try { return localStorage.getItem("sidebar-collapsed") === "true"; } catch { return false; }
+  });
+  const [sidebarWidth,  setSidebarWidth]  = useState(() => {
+    try { return Number(localStorage.getItem("sidebar-width")) || DEFAULT_WIDTH; } catch { return DEFAULT_WIDTH; }
+  });
   const [isResizing,    setIsResizing]    = useState(false);
 
   const searchRef = useRef(null);
@@ -174,6 +178,18 @@ export default function Sidebar({
   useEffect(() => {
     if (isOpen) setCollapsed(false);
   }, [isOpen]);
+
+  useEffect(() => {
+    try { localStorage.setItem("sidebar-collapsed", String(collapsed)); } catch {}
+  }, [collapsed]);
+
+  useEffect(() => {
+    try { localStorage.setItem("sidebar-width", String(sidebarWidth)); } catch {}
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (isSearching) setExpandedGroups({});
+  }, [isSearching]);
 
   const allConvs = [...(pinnedConversations || []), ...Object.values(groupedConversations).flat()];
   // Bug fix #10: defer the expensive deep-search filter so keystrokes feel instant.

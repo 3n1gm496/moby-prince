@@ -71,7 +71,15 @@ function CitationBadge({ id, sources, onClick }) {
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
     >
-      <span className="citation-badge cursor-pointer select-none" onClick={onClick}>{id}</span>
+      <button
+        className="citation-badge select-none"
+        onClick={onClick}
+        onFocus={() => setVisible(true)}
+        onBlur={() => setVisible(false)}
+        aria-label={`Apri citazione ${id}`}
+      >
+        {id}
+      </button>
       {visible && sources?.length > 0 && (
         <span
           className="absolute bottom-full left-1/2 -translate-x-1/2 z-50 mb-1.5
@@ -143,11 +151,20 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
     onCitationClick?.(cit);
   }, [onCitationClick]);
 
-  const handleCopy = () =>
-    navigator.clipboard.writeText(message.text).then(() => {
+  const handleCopy = () => {
+    let text = message.text;
+    if (message.citations?.length) {
+      const seen = new Set();
+      const titles = message.citations
+        .flatMap((c) => (c.sources || []).map((s) => s.title))
+        .filter((t) => t && !seen.has(t) && seen.add(t));
+      if (titles.length) text += `\n\nFonti: ${titles.join(" · ")}`;
+    }
+    navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
 
   // ── User ─────────────────────────────────────────────────────────────────────
   if (message.role === "user") {
@@ -247,13 +264,23 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
         </div>
 
         {mightBeTruncated && (
-          <p className="flex items-center gap-1 text-[10px] text-text-secondary italic">
-            <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            </svg>
-            La risposta potrebbe essere incompleta.
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="flex items-center gap-1 text-[10px] text-text-secondary italic">
+              <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              La risposta potrebbe essere incompleta.
+            </p>
+            {onFollowUp && (
+              <button
+                onClick={() => onFollowUp("Continua la risposta dal punto in cui ti sei interrotto.")}
+                className="text-[10px] text-accent hover:text-accent-hover transition-colors"
+              >
+                Continua →
+              </button>
+            )}
+          </div>
         )}
 
         {!isStreaming && (

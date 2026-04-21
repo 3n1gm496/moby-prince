@@ -475,12 +475,24 @@ export default function ChatInterface() {
 
             {/* Improvement #5: session near-expiry warning */}
             {sessionWarning && (
-              <div className="flex items-center gap-2 px-1 text-[11px] text-yellow-400/80">
-                <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg
+                              bg-yellow-500/10 border border-yellow-500/25 text-yellow-300/90">
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                         d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                La sessione di ricerca scade tra meno di 10 minuti. Il contesto verrà resettato.
+                <span className="flex-1 text-[11px] leading-snug">
+                  La sessione di ricerca scade tra meno di 10 minuti. Il contesto verrà resettato.
+                </span>
+                <button
+                  onClick={() => setSessionWarning(false)}
+                  aria-label="Chiudi avviso"
+                  className="text-yellow-400/60 hover:text-yellow-300 transition-colors flex-shrink-0"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
             )}
 
@@ -580,6 +592,7 @@ export default function ChatInterface() {
           conversations={history.conversations.filter((c) => c.messages.length > 0)}
           onSelect={(id) => { history.selectConversation(id); }}
           onClose={() => setShowPalette(false)}
+          onNewChat={() => { setShowPalette(false); handleNewChat(); }}
         />
       )}
 
