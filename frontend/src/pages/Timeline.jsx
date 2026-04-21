@@ -234,7 +234,7 @@ function EventDrawer({ initial, onSave, onClose }) {
   const handleSave = async () => {
     if (!form.date || !form.title.trim()) return;
     setSaving(true);
-    await onSave({ ...form, id: form.id ?? `evt-${Date.now()}` });
+    await onSave({ ...form, id: form.id ?? crypto.randomUUID() });
     setSaving(false);
   };
 

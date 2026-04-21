@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useChat } from "../hooks/useChat";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { useToast } from "../hooks/useToast";
@@ -13,7 +14,8 @@ import AnchorAvatar from "./AnchorAvatar";
 import Toast from "./Toast";
 import { getFilterValueLabel, FILTER_SCHEMA } from "../filters/schema";
 
-const MESSAGES_PAGE_SIZE = 30; // Improvement #6: max messages rendered at once
+const MESSAGES_PAGE_SIZE    = 30;  // fallback pagination for short conversations
+const VIRTUALIZE_THRESHOLD  = 100; // switch to virtual list above this count
 
 // ─── SkeletonLoader ───────────────────────────────────────────────────────────
 
@@ -82,6 +84,15 @@ export default function ChatInterface() {
   const textareaRef           = useRef(null);
   const autoScrollRef         = useRef(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
+
+  // Virtual list — active only when conversation exceeds VIRTUALIZE_THRESHOLD
+  const virtualizer = useVirtualizer({
+    count:           messages.length,
+    getScrollElement: () => messagesContainerRef.current,
+    estimateSize:    () => 150,
+    overscan:        3,
+  });
+  const useVirtual = messages.length > VIRTUALIZE_THRESHOLD;
 
   const showLoadingBubble = loadingConvId !== null
     && loadingConvId === history.activeConversationId
@@ -383,36 +394,67 @@ export default function ChatInterface() {
             </div>
 
             <div ref={messagesInnerRef} className="max-w-[760px] mx-auto px-5 py-6 print:max-w-none print:px-8 print:py-0">
-              <div className="space-y-8">
-                {/* Improvement #6: load-more button for long conversations */}
-                {hiddenCount > 0 && (
-                  <div className="flex justify-center print:hidden">
-                    <button
-                      onClick={() => setVisibleFrom((v) => Math.max(0, v - MESSAGES_PAGE_SIZE))}
-                      className="text-xs text-text-secondary hover:text-text-primary border border-border/40
-                                 hover:border-border rounded-full px-4 py-1.5 transition-colors"
-                    >
-                      Carica precedenti ({hiddenCount})
-                    </button>
+              {useVirtual ? (
+                /* Virtual list — used for conversations > VIRTUALIZE_THRESHOLD messages */
+                <>
+                  <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+                    {virtualizer.getVirtualItems().map(virtualItem => (
+                      <div
+                        key={virtualItem.key}
+                        ref={virtualizer.measureElement}
+                        data-index={virtualItem.index}
+                        style={{ position: "absolute", top: virtualItem.start, left: 0, right: 0, paddingBottom: "2rem" }}
+                      >
+                        <MessageBubble
+                          message={messages[virtualItem.index]}
+                          onCitationClick={setActiveCitation}
+                          onFollowUp={(q) => { setInput(q); textareaRef.current?.focus(); }}
+                          onRetry={handleRetry}
+                        />
+                      </div>
+                    ))}
                   </div>
-                )}
-                {visibleMessages.map((msg) => (
-                  <MessageBubble
-                    key={msg.id} message={msg}
-                    onCitationClick={setActiveCitation}
-                    onFollowUp={(q) => { setInput(q); textareaRef.current?.focus(); }}
-                    onRetry={handleRetry}
-                  />
-                ))}
-                {showLoadingBubble && <SkeletonLoader stage={loadingStage} retryCountdown={retryCountdown} />}
-                {streamingMessage && (
-                  <div onClick={stopStreaming} className="cursor-pointer" title="Clicca per vedere la risposta completa">
-                    <MessageBubble key={`streaming-${streamingMessage.id}`} message={streamingMessage}
-                                   onCitationClick={() => {}} onFollowUp={() => {}} onRetry={() => {}} />
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
+                  {showLoadingBubble && <SkeletonLoader stage={loadingStage} retryCountdown={retryCountdown} />}
+                  {streamingMessage && (
+                    <div onClick={stopStreaming} className="cursor-pointer" title="Clicca per vedere la risposta completa">
+                      <MessageBubble key={`streaming-${streamingMessage.id}`} message={streamingMessage}
+                                     onCitationClick={() => {}} onFollowUp={() => {}} onRetry={() => {}} />
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </>
+              ) : (
+                /* Standard list — used for short conversations */
+                <div className="space-y-8">
+                  {hiddenCount > 0 && (
+                    <div className="flex justify-center print:hidden">
+                      <button
+                        onClick={() => setVisibleFrom((v) => Math.max(0, v - MESSAGES_PAGE_SIZE))}
+                        className="text-xs text-text-secondary hover:text-text-primary border border-border/40
+                                   hover:border-border rounded-full px-4 py-1.5 transition-colors"
+                      >
+                        Carica precedenti ({hiddenCount})
+                      </button>
+                    </div>
+                  )}
+                  {visibleMessages.map((msg) => (
+                    <MessageBubble
+                      key={msg.id} message={msg}
+                      onCitationClick={setActiveCitation}
+                      onFollowUp={(q) => { setInput(q); textareaRef.current?.focus(); }}
+                      onRetry={handleRetry}
+                    />
+                  ))}
+                  {showLoadingBubble && <SkeletonLoader stage={loadingStage} retryCountdown={retryCountdown} />}
+                  {streamingMessage && (
+                    <div onClick={stopStreaming} className="cursor-pointer" title="Clicca per vedere la risposta completa">
+                      <MessageBubble key={`streaming-${streamingMessage.id}`} message={streamingMessage}
+                                     onCitationClick={() => {}} onFollowUp={() => {}} onRetry={() => {}} />
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { ArrowLeft, SearchPlus, ChevronDown, ArrowRight } from "lucide-react";
 import AnchorAvatar from "../components/AnchorAvatar";
 import { apiFetch } from "../lib/apiFetch";
 
@@ -53,10 +54,7 @@ function ToolStep({ step, isExpanded, onToggle }) {
         {step.error && (
           <span className="ml-1 text-red-400">✗</span>
         )}
-        <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-             fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <ChevronDown className={`w-3 h-3 flex-shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
       </button>
 
       {isExpanded && hasResult && (
@@ -157,7 +155,7 @@ export default function InvestigationPage() {
     setIsLoading(true);
     setLoadingStep(null);
     setSteps([]);
-    setMessages(prev => [...prev, { id: Date.now(), role: "user", text: q }]);
+    setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "user", text: q }]);
 
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -210,7 +208,7 @@ export default function InvestigationPage() {
               setSteps([...accSteps]);
             } else if (eventType === "answer") {
               setMessages(prev => [...prev, {
-                id:    Date.now() + 1,
+                id:    crypto.randomUUID(),
                 role:  "assistant",
                 text:  data.text || "",
                 steps: accSteps,
@@ -219,7 +217,7 @@ export default function InvestigationPage() {
               setSteps([]);
             } else if (eventType === "error") {
               setMessages(prev => [...prev, {
-                id:   Date.now() + 1,
+                id:   crypto.randomUUID(),
                 role: "error",
                 text: data.message || "Errore sconosciuto",
               }]);
@@ -241,7 +239,7 @@ export default function InvestigationPage() {
     } catch (err) {
       if (err.name !== "AbortError") {
         setMessages(prev => [...prev, {
-          id:   Date.now() + 1,
+          id:   crypto.randomUUID(),
           role: "error",
           text: "Connessione interrotta. Riprova.",
         }]);
@@ -263,9 +261,7 @@ export default function InvestigationPage() {
       <header className="flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border bg-surface-raised">
         <Link to="/"
               className="text-text-muted hover:text-text-primary transition-colors">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+          <ArrowLeft className="w-4 h-4" />
         </Link>
         <div>
           <h1 className="font-serif text-base font-semibold leading-tight">Investigazione</h1>
@@ -283,10 +279,7 @@ export default function InvestigationPage() {
         {messages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full gap-6 text-center">
             <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center">
-              <svg className="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-              </svg>
+              <SearchPlus className="w-6 h-6 text-accent" strokeWidth={1.5} />
             </div>
             <div>
               <p className="font-serif text-lg font-medium text-text-primary mb-1">
@@ -383,9 +376,7 @@ export default function InvestigationPage() {
                        transition-colors"
             aria-label="Avvia indagine"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       </div>

@@ -3,6 +3,9 @@
 // Load .env before importing config (config reads process.env at module init)
 require('dotenv').config();
 
+// Set up global HTTP keepalive dispatcher for all GCP API calls
+require('./services/httpAgent')();
+
 const express   = require('express');
 const cors      = require('cors');
 const helmet    = require('helmet');
@@ -30,6 +33,7 @@ const sessionsRouter       = require('./routes/sessions');
 const contradictionsRouter = require('./routes/contradictions');
 const claimsRouter         = require('./routes/claims');
 const agentRouter          = require('./routes/agent');
+const adminRouter          = require('./routes/admin');
 const healthRouter         = require('./routes/health');
 
 const app = express();
@@ -105,6 +109,7 @@ app.use('/api/sessions',        generalLimiter, requireApiKey, sessionsRouter);
 app.use('/api/contradictions',  generalLimiter, requireApiKey, contradictionsRouter);
 app.use('/api/claims',          generalLimiter, requireApiKey, claimsRouter);
 app.use('/api/agent',           answerLimiter,  requireApiKey, agentRouter);
+app.use('/api/admin',           generalLimiter, requireApiKey, adminRouter);
 app.use('/api/health',                                   healthRouter);  // health is always public
 
 // ── Error handler (must be last) ──────────────────────────────────────────────

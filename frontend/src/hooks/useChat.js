@@ -179,7 +179,7 @@ export function useChat({
       const timeoutId   = setTimeout(() => controller.abort("timeout"), CLIENT_TIMEOUT_MS);
 
       if (!silent) {
-        addMessage({ id: Date.now(), role: "user", text: queryText.trim() }, targetConvId);
+        addMessage({ id: crypto.randomUUID(), role: "user", text: queryText.trim() }, targetConvId);
       }
       setLoadingConvId(targetConvId);
       setLoadingStage("searching");
@@ -247,7 +247,7 @@ export function useChat({
 
         const answer  = data.answer || {};
         const msgData = {
-          id:               Date.now() + 1,
+          id:               crypto.randomUUID(),
           role:             "assistant",
           text:             answer.text || "Nessuna risposta disponibile.",
           citations:        Array.isArray(answer.citations)        ? answer.citations        : [],
@@ -266,7 +266,7 @@ export function useChat({
 
         addMessage(
           {
-            id:         Date.now() + 1,
+            id:         crypto.randomUUID(),
             role:       "error",
             text:       err.name === "AbortError"
               ? "La richiesta ha impiegato troppo tempo. Riprova."

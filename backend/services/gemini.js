@@ -12,9 +12,10 @@
  *   GEMINI_LOCATION   (default: "us-central1")
  */
 
-const config             = require('../config');
-const { getAccessToken } = require('./auth');
-const { createLogger }   = require('../logger');
+const config                    = require('../config');
+const { getAccessToken }        = require('./auth');
+const { createLogger }          = require('../logger');
+const { incrementGemini }       = require('./rateLimiter');
 
 const log              = createLogger('gemini');
 const MODEL            = 'gemini-2.0-flash-001';
@@ -42,6 +43,7 @@ function _embeddingEndpoint() {
  * @returns {Promise<any>}  Parsed JSON value
  */
 async function generateJson(prompt, maxOutputTokens = 2048) {
+  incrementGemini();
   const token      = await getAccessToken();
   const controller = new AbortController();
   const timerId    = setTimeout(() => controller.abort(), TIMEOUT);
@@ -94,6 +96,7 @@ async function generateJson(prompt, maxOutputTokens = 2048) {
  */
 async function getEmbeddings(texts) {
   if (!texts || texts.length === 0) return [];
+  incrementGemini();
   const token      = await getAccessToken();
   const controller = new AbortController();
   const timerId    = setTimeout(() => controller.abort(), TIMEOUT);

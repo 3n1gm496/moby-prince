@@ -14,9 +14,10 @@
  * immediately so callers can gate on isBigQueryEnabled().
  */
 
-const config           = require('../config');
+const config             = require('../config');
 const { getAccessToken } = require('./auth');
-const { createLogger } = require('../logger');
+const { createLogger }   = require('../logger');
+const { incrementBq }    = require('./rateLimiter');
 
 const log     = createLogger('bigquery');
 const BQ_BASE = 'https://bigquery.googleapis.com/bigquery/v2';
@@ -117,6 +118,7 @@ function isBigQueryEnabled() {
  */
 async function query(sql, params = []) {
   if (!isBigQueryEnabled()) throw new Error('BigQuery not configured (BQ_PROJECT_ID / BQ_DATASET_ID missing)');
+  incrementBq();
 
   const token = await getAccessToken();
   const body  = {
@@ -166,6 +168,7 @@ async function query(sql, params = []) {
 async function insert(tableId, rows) {
   if (!isBigQueryEnabled()) throw new Error('BigQuery not configured');
   if (!rows || rows.length === 0) return;
+  incrementBq();
 
   const token = await getAccessToken();
   const body  = {
