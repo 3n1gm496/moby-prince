@@ -1,6 +1,18 @@
 import { useState, useCallback, useEffect, forwardRef, useRef } from "react";
 import { getFilterValueLabel } from "../filters/schema";
 
+function resolveUri(uri) {
+  if (!uri) return null;
+  if (uri.startsWith("gs://")) {
+    const withoutScheme = uri.slice(5);
+    const slash = withoutScheme.indexOf("/");
+    if (slash < 0) return null;
+    const path = withoutScheme.slice(slash + 1);
+    return `/api/storage/file?name=${encodeURIComponent(path)}`;
+  }
+  return uri;
+}
+
 const SNIPPET_LIMIT = 280;
 
 function cleanTitle(title) {
@@ -180,10 +192,10 @@ const EvidenceItem = forwardRef(function EvidenceItem({ item, citations, isActiv
         </p>
       )}
 
-      {hostname && !hostname.includes("storage.googleapis.com") && (
-        <a href={item.uri} target="_blank" rel="noopener noreferrer"
+      {resolveUri(item.uri) && !hostname?.includes("storage.googleapis.com") && (
+        <a href={resolveUri(item.uri)} target="_blank" rel="noopener noreferrer"
            className="text-accent hover:text-accent-hover transition-colors break-all block max-w-full mb-1 text-[10px]">
-          {item.uri}
+          {item.uri?.startsWith("gs://") ? "Apri documento" : item.uri}
         </a>
       )}
 

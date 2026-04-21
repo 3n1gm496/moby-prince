@@ -510,46 +510,29 @@ export default function ChatInterface() {
 
 function WelcomeScreen() {
   return (
-    <div className="text-center px-6 pb-10 max-w-md">
-      {/* Moby Prince ferry illustration */}
-      <div className="inline-flex items-center justify-center mb-6">
-        <svg viewBox="0 0 96 52" fill="none" className="w-24 h-14 text-accent/70"
-             stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          {/* Hull */}
-          <path d="M6 32 Q8 38 18 38 L78 38 Q88 38 90 32 L87 26 L9 26 Z" />
-          {/* Main deck structure */}
-          <rect x="22" y="16" width="52" height="10" rx="1.5" />
-          {/* Upper cabin */}
-          <rect x="32" y="8" width="32" height="8" rx="1.5" />
-          {/* Funnel */}
-          <path d="M57 8 L57 3" strokeWidth="2.5" />
-          <path d="M62 8 L63 3" strokeWidth="2" />
-          {/* Deck windows */}
-          <rect x="26" y="18.5" width="4" height="4" rx="0.8" />
-          <rect x="35" y="18.5" width="4" height="4" rx="0.8" />
-          <rect x="44" y="18.5" width="4" height="4" rx="0.8" />
-          <rect x="53" y="18.5" width="4" height="4" rx="0.8" />
-          <rect x="62" y="18.5" width="4" height="4" rx="0.8" />
-          {/* Cabin windows */}
-          <rect x="37" y="10.5" width="3.5" height="3.5" rx="0.7" />
-          <rect x="44.5" y="10.5" width="3.5" height="3.5" rx="0.7" />
-          <rect x="52" y="10.5" width="3.5" height="3.5" rx="0.7" />
-          {/* Water */}
-          <path d="M2 42 Q10 40 18 42 Q26 44 34 42 Q42 40 50 42 Q58 44 66 42 Q74 40 82 42 Q90 44 94 42"
-                strokeOpacity="0.5" />
-          <path d="M4 47 Q14 45 24 47 Q34 49 44 47 Q54 45 64 47 Q74 49 84 47"
-                strokeOpacity="0.25" />
-        </svg>
+    <div className="px-6 pb-10 max-w-lg">
+      <div className="flex items-center gap-5 mb-5">
+        {/* Camera dei Deputati logo — white via CSS filter */}
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/4/4d/Logo_della_Camera_dei_deputati.svg"
+          alt="Camera dei Deputati"
+          style={{ filter: "brightness(0) invert(1)", height: "64px", width: "auto", opacity: 0.75 }}
+          onError={(e) => { e.currentTarget.style.display = "none"; }}
+        />
+        <div className="text-left">
+          <p className="text-[10px] font-medium text-text-muted uppercase tracking-[0.15em] mb-1">
+            Camera dei Deputati
+          </p>
+          <h2 className="font-serif text-[26px] font-semibold text-text-primary leading-tight">
+            Archivio Moby Prince
+          </h2>
+        </div>
       </div>
 
-      <h2 className="font-serif text-[28px] font-semibold text-text-primary mb-3 leading-tight">
-        Archivio Moby Prince
-      </h2>
-
-      <p className="text-text-secondary text-sm leading-relaxed max-w-xs mx-auto">
+      <p className="text-text-secondary text-sm leading-relaxed">
         Sistema di consultazione documentale della Commissione Parlamentare
         d&apos;Inchiesta sul naufragio del{" "}
-        <span className="text-text-primary">10 aprile 1991</span>
+        <span className="text-text-primary font-medium">10 aprile 1991</span>
       </p>
     </div>
   );

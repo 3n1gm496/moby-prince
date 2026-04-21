@@ -1,5 +1,17 @@
 import { useEffect, useRef } from "react";
 
+function resolveUri(uri) {
+  if (!uri) return null;
+  if (uri.startsWith("gs://")) {
+    const withoutScheme = uri.slice(5);
+    const slash = withoutScheme.indexOf("/");
+    if (slash < 0) return null;
+    const path = withoutScheme.slice(slash + 1);
+    return `/api/storage/file?name=${encodeURIComponent(path)}`;
+  }
+  return uri;
+}
+
 export default function CitationPanel({ citation, onClose }) {
   const panelRef = useRef(null);
 
@@ -72,9 +84,9 @@ export default function CitationPanel({ citation, onClose }) {
               )}
 
               {/* Link */}
-              {src.uri && (
+              {resolveUri(src.uri) && (
                 <a
-                  href={src.uri}
+                  href={resolveUri(src.uri)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-[11px] text-accent
@@ -84,7 +96,7 @@ export default function CitationPanel({ citation, onClose }) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
-                  Documento originale
+                  {src.uri?.startsWith("gs://") ? "Apri documento" : "Documento originale"}
                 </a>
               )}
 

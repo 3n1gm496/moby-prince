@@ -142,10 +142,18 @@ function GcsMetadataSection({ fullPath }) {
   });
 
   if (phase === "idle" || phase === "loading") {
-    return <p className="text-[11px] text-text-secondary animate-pulse">Caricamento metadati…</p>;
+    return <p className="text-[11px] text-text-muted animate-pulse">Caricamento metadati…</p>;
   }
   if (phase === "error") {
-    return <p className="text-[11px] text-red-400">Impossibile caricare i metadati.</p>;
+    return (
+      <div className="flex items-center gap-2">
+        <p className="text-[11px] text-red-400">Impossibile caricare i metadati.</p>
+        <button onClick={load}
+                className="text-[11px] text-accent hover:text-accent-hover transition-colors underline">
+          Riprova
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -501,26 +509,26 @@ export default function DocumentPanel({ doc, onClose }) {
               <h3 className="text-[10px] font-medium text-text-muted uppercase tracking-wider mb-2">
                 Metadati
               </h3>
-              {hasAnyMetadata ? (
-                <dl className="space-y-1.5">
-                  {META_FIELDS.map(({ key, label }) => {
-                    const value     = doc.metadata?.[key];
-                    const available = doc.metadataAvailable?.[key];
-                    return (
-                      <div key={key} className="flex items-baseline gap-2">
-                        <dt className="text-[10px] text-text-muted w-20 flex-shrink-0">{label}</dt>
-                        <dd className={`text-[11px] leading-snug ${available ? "text-text-primary" : "text-text-muted italic"}`}>
-                          {available ? getFilterValueLabel(key, value) : "—"}
-                        </dd>
-                      </div>
-                    );
-                  })}
-                </dl>
-              ) : (
-                <p className="text-[11px] text-text-muted italic">
-                  Metadati strutturati non disponibili per questo documento.
-                </p>
-              )}
+              <dl className="space-y-1.5">
+                {hasAnyMetadata && META_FIELDS.map(({ key, label }) => {
+                  const value     = doc.metadata?.[key];
+                  const available = doc.metadataAvailable?.[key];
+                  if (!available) return null;
+                  return (
+                    <div key={key} className="flex items-baseline gap-2">
+                      <dt className="text-[10px] text-text-muted w-20 flex-shrink-0">{label}</dt>
+                      <dd className="text-[11px] leading-snug text-text-primary">
+                        {getFilterValueLabel(key, value)}
+                      </dd>
+                    </div>
+                  );
+                })}
+                {!hasAnyMetadata && (
+                  <div className="text-[11px] text-text-muted italic">
+                    Nessun metadato strutturato indicizzato per questo documento.
+                  </div>
+                )}
+              </dl>
             </section>
           )}
 

@@ -264,7 +264,7 @@ async function getDocumentChunks(documentId) {
   let encodedId;
   try { encodedId = encodeURIComponent(decodeURIComponent(documentId)); }
   catch { encodedId = encodeURIComponent(documentId); }
-  const url = `${config.dataStoreBase}/branches/0/documents/${encodedId}/chunks`;
+  const url = `${config.dataStoreBase}/branches/0/documents/${encodedId}/chunks?pageSize=100`;
   return _get(url);
 }
 

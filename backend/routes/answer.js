@@ -53,7 +53,7 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
     sendEvent('thinking', { stage: 'searching' });
 
     const raw = await de.answer(query, sessionId || null, {
-      maxResults: clamp(maxResults, 1, 20, 10),
+      maxResults: clamp(maxResults, 1, 20, 20),
       filter:     buildFilterExpression(filters),
     });
 

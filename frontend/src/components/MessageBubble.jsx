@@ -133,7 +133,8 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
 
   const handleBadgeClick = useCallback((cit) => {
     setActiveCitId(cit.id);
-  }, []);
+    onCitationClick?.(cit);
+  }, [onCitationClick]);
 
   const handleCopy = () =>
     navigator.clipboard.writeText(message.text).then(() => {
