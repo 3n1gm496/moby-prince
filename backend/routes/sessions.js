@@ -17,7 +17,6 @@
  */
 
 const { Router } = require('express');
-const { v4: uuidv4 } = require('crypto');
 const fs   = require('../services/firestore');
 const { createLogger } = require('../logger');
 

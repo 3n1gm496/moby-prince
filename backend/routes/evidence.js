@@ -72,6 +72,9 @@ router.get('/chunks-by-gcs-path', async (req, res, next) => {
   const gcsPath = req.query.path;
   if (!gcsPath) return res.status(400).json({ error: 'path query param required' });
   if (!config.gcsBucket) return res.status(501).json({ error: 'GCS_BUCKET not configured' });
+  if (gcsPath.includes('..') || gcsPath.startsWith('/') || /[\r\n\0]/.test(gcsPath)) {
+    return res.status(400).json({ error: 'Invalid path.' });
+  }
 
   const uri = `gs://${config.gcsBucket}/${gcsPath}`;
   try {

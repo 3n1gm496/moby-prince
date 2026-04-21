@@ -107,8 +107,20 @@ const VALID_TYPES = new Set(['evento', 'udienza', 'sentenza', 'relazione', 'comm
 function normaliseDate(raw) {
   const s = (raw || '').replace(/[^\d-]/g, '').trim();
   if (!s || !/^\d{4}/.test(s)) return null;
-  if (/^\d{4}$/.test(s))       return `${s}-01-01`;
-  if (/^\d{4}-\d{2}$/.test(s)) return `${s}-01`;
+  if (/^\d{4}$/.test(s)) return `${s}-01-01`;
+  if (/^\d{4}-\d{2}$/.test(s)) {
+    const m = parseInt(s.slice(5, 7), 10);
+    if (m < 1 || m > 12) return `${s.slice(0, 4)}-01-01`;
+    return `${s}-01`;
+  }
+  // Full YYYY-MM-DD: validate month and day ranges
+  const parts = s.split('-');
+  if (parts.length >= 3) {
+    const [, mm, dd] = parts;
+    const m = parseInt(mm, 10);
+    const d = parseInt(dd, 10);
+    if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  }
   return s;
 }
 

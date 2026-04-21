@@ -277,6 +277,7 @@ async function getDocumentChunks(documentId) {
       501,
     );
   }
+  if (!documentId) throw new DiscoveryEngineError('documentId is required', 400);
   // Normalise: decode first (handles IDs that are already percent-encoded by Discovery Engine),
   // then re-encode cleanly to avoid double-encoding (%20 → %2520).
   let encodedId;
@@ -400,6 +401,7 @@ async function getDocument(documentId) {
       501,
     );
   }
+  if (!documentId) throw new DiscoveryEngineError('documentId is required', 400);
   let encodedId;
   try { encodedId = encodeURIComponent(decodeURIComponent(documentId)); }
   catch { encodedId = encodeURIComponent(documentId); }
@@ -418,6 +420,7 @@ async function getDocument(documentId) {
  */
 async function updateStructData(documentId, delta) {
   if (!config.dataStoreBase) return null;
+  if (!documentId) return null;
 
   let encodedId;
   try { encodedId = encodeURIComponent(decodeURIComponent(documentId)); }

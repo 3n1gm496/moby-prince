@@ -54,8 +54,8 @@ router.post('/detect', async (req, res, next) => {
   if (!requireBQ(res)) return;
 
   const { documentId, claimIds } = req.body || {};
-  if (!documentId && !Array.isArray(claimIds)) {
-    return res.status(400).json({ error: '"documentId" or "claimIds" array required.' });
+  if (!documentId && (!Array.isArray(claimIds) || claimIds.length === 0)) {
+    return res.status(400).json({ error: '"documentId" or non-empty "claimIds" array required.' });
   }
 
   try {
