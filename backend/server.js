@@ -157,3 +157,13 @@ function shutdown(signal) {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT',  () => shutdown('SIGINT'));
+
+// Catch-all for unhandled async rejections and sync exceptions.
+// Log them so ops can detect issues; do NOT crash the process since Cloud Run
+// will restart the container anyway and in-flight SSE streams would be dropped.
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error({ reason: String(reason), promise: String(promise) }, 'Unhandled promise rejection');
+});
+process.on('uncaughtException', (err) => {
+  logger.error({ error: err.message, stack: err.stack }, 'Uncaught exception — process may be unstable');
+});

@@ -13,17 +13,20 @@ const CLIENT_TIMEOUT_MS = 75_000; // must exceed backend POST_TIMEOUT_MS (55 s)
 const MAX_AUTO_RETRIES  = 2;
 const RETRY_DELAYS      = [2_000, 4_000]; // exponential backoff
 
-// Improvement #7: sleep for `delayMs` while ticking down a visible countdown.
-function _retryWithCountdown(delayMs, setCountdown) {
+// Sleep for `delayMs` while ticking down a visible countdown.
+// Resolves early if `signal` is aborted (component unmount / manual cancel).
+function _retryWithCountdown(delayMs, setCountdown, signal) {
   const secs = Math.ceil(delayMs / 1000);
   setCountdown(secs);
   return new Promise((resolve) => {
     let remaining = secs;
     const tick = setInterval(() => {
+      if (signal?.aborted) { clearInterval(tick); resolve(); return; }
       remaining -= 1;
       if (remaining <= 0) { clearInterval(tick); resolve(); }
       else setCountdown(remaining);
     }, 1000);
+    signal?.addEventListener('abort', () => { clearInterval(tick); resolve(); }, { once: true });
   });
 }
 
@@ -208,7 +211,7 @@ export function useChat({
               if ((status === 502 || status === 503) && attempt < MAX_AUTO_RETRIES) {
                 attempt++;
                 setLoadingStage("retrying");
-                await _retryWithCountdown(RETRY_DELAYS[attempt - 1], setRetryCountdown);
+                await _retryWithCountdown(RETRY_DELAYS[attempt - 1], setRetryCountdown, controller.signal);
                 setRetryCountdown(null);
                 setLoadingStage("searching");
                 continue;
@@ -230,7 +233,7 @@ export function useChat({
             if (attempt < MAX_AUTO_RETRIES) {
               attempt++;
               setLoadingStage("retrying");
-              await _retryWithCountdown(RETRY_DELAYS[attempt - 1], setRetryCountdown);
+              await _retryWithCountdown(RETRY_DELAYS[attempt - 1], setRetryCountdown, controller.signal);
               setRetryCountdown(null);
               setLoadingStage("searching");
               continue;

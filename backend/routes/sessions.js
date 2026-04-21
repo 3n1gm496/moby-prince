@@ -170,9 +170,12 @@ router.get('/:id/export', async (req, res, next) => {
     const session = await fs.getDocument(COLLECTION, req.params.id);
     if (!session) return res.status(404).json({ error: 'Session not found.' });
 
-    const filename = `sessione-${req.params.id}.json`;
+    // Strip non-ASCII and header-unsafe chars before embedding in Content-Disposition
+    const safeId   = String(req.params.id).replace(/[^\w-]/g, '_');
+    const filename = `sessione-${safeId}.json`;
+    const encoded  = encodeURIComponent(filename);
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encoded}`);
     res.send(JSON.stringify(session, null, 2));
   } catch (err) {
     next(err);

@@ -83,10 +83,11 @@ router.post('/investigate', async (req, res) => {
   // Announce sessionId as the first SSE event so the frontend can link to it
   sendEvent('session', { sessionId });
 
-  // ── Persist user query ──────────────────────────────────────────────────────
+  // ── Persist user query (awaited so it lands before tool results) ───────────
   if (sessionId) {
     const userMsg = { _mid: _newId(), role: 'user', text: query.trim(), ts: now };
-    fs.appendToArray(COLLECTION, sessionId, 'messages', [userMsg]).catch(() => {});
+    await fs.appendToArray(COLLECTION, sessionId, 'messages', [userMsg])
+      .catch(err => log.warn({ error: err.message }, 'Could not persist user message to Firestore'));
   }
 
   // ── Wrap sendEvent to persist tool results and final answer ────────────────
@@ -102,7 +103,8 @@ router.post('/investigate', async (req, res) => {
         ts:   new Date().toISOString(),
         steps: [data],
       };
-      fs.appendToArray(COLLECTION, sessionId, 'messages', [msg]).catch(() => {});
+      fs.appendToArray(COLLECTION, sessionId, 'messages', [msg])
+        .catch(err => log.warn({ error: err.message }, 'Could not persist tool result to Firestore'));
     } else if (event === 'answer') {
       const msg = {
         _mid:  _newId(),
@@ -111,7 +113,8 @@ router.post('/investigate', async (req, res) => {
         ts:    new Date().toISOString(),
         steps: data.steps || [],
       };
-      fs.appendToArray(COLLECTION, sessionId, 'messages', [msg]).catch(() => {});
+      fs.appendToArray(COLLECTION, sessionId, 'messages', [msg])
+        .catch(err => log.warn({ error: err.message }, 'Could not persist assistant answer to Firestore'));
     }
   };
 
