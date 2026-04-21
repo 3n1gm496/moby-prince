@@ -2,24 +2,24 @@
 
 /**
  * Worker chain factory for the Cloud Run entrypoint.
- * Inserts DocumentAIWorker before IndexerWorker so large PDFs are routed
- * through Document AI instead of being quarantined.
+ *
+ * Full chain (all workers active):
+ *   Validator → DocumentAI → MediaProcessor → Splitter → Indexer
+ *
+ * Each worker's shouldRun() gates activation by MIME type / file size:
+ *   - DocumentAIWorker:    PDF >= pdfCriticalBytes
+ *   - MediaProcessorWorker: image / video / audio MIME types
+ *   - SplitterWorker:      PDF / text that needs splitting
+ *   - IndexerWorker:       everything in VALIDATING / INDEXING state
  */
 
-const { ValidatorWorker }  = require('../workers/validator');
-const { SplitterWorker }   = require('../workers/splitter');
-const { IndexerWorker }    = require('../workers/indexer');
-const { DocumentAIWorker } = require('../workers/documentai');
+const { ValidatorWorker }      = require('../workers/validator');
+const { SplitterWorker }       = require('../workers/splitter');
+const { IndexerWorker }        = require('../workers/indexer');
+const { DocumentAIWorker }     = require('../workers/documentai');
+const { MediaProcessorWorker } = require('../workers/mediaProcessor');
 
 /**
- * Build a worker chain that includes DocumentAIWorker.
- * Order: Validator → DocumentAI → Splitter → Indexer
- *
- * DocumentAIWorker only runs when:
- *   - status === VALIDATING
- *   - mimeType === application/pdf
- *   - fileSizeBytes >= config.split.pdfCriticalBytes
- *
  * @param {object} config
  * @param {object} [logger]
  */
@@ -27,6 +27,7 @@ function buildWorkersWithDocumentAI(config, logger) {
   return [
     new ValidatorWorker(config, logger),
     new DocumentAIWorker(config, logger),
+    new MediaProcessorWorker(config, logger),
     new SplitterWorker(config, logger),
     new IndexerWorker(config, logger),
   ];

@@ -88,6 +88,29 @@ const SCHEMA = {
     values:    ['high', 'medium', 'low'],
     available: true,
   },
+
+  mediaType: {
+    field:     'media_type',
+    label:     'Tipo media',
+    type:      'enum',
+    values:    ['document', 'image', 'video', 'audio'],
+    available: true,
+  },
+
+  containsSpeech: {
+    field:     'contains_speech',
+    label:     'Contiene audio parlato',
+    type:      'enum',
+    values:    ['true', 'false'],
+    available: true,
+  },
+
+  locationDetected: {
+    field:     'locations_detected',
+    label:     'Luogo rilevato',
+    type:      'text',
+    available: true,
+  },
 };
 
 /**

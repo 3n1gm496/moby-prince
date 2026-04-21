@@ -23,6 +23,7 @@ const analysisRouter  = require('./routes/analysis');
 const storageRouter   = require('./routes/storage');
 const timelineRouter  = require('./routes/timeline');
 const filtersRouter   = require('./routes/filters');
+const mediaRouter     = require('./routes/media');
 const healthRouter    = require('./routes/health');
 
 const app = express();
@@ -74,6 +75,7 @@ app.use('/api/analysis', generalLimiter, requireApiKey, analysisRouter);
 app.use('/api/storage',  generalLimiter, requireApiKey, storageRouter);
 app.use('/api/timeline', generalLimiter, requireApiKey, timelineRouter);
 app.use('/api/filters',  generalLimiter, requireApiKey, filtersRouter);
+app.use('/api/media',    generalLimiter, requireApiKey, mediaRouter);
 app.use('/api/health',                                  healthRouter);  // health is always public
 
 // ── Error handler (must be last) ──────────────────────────────────────────────

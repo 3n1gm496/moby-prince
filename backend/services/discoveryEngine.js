@@ -387,4 +387,24 @@ async function getDocumentIdByUri(uri) {
   return _uriIdCache.get(uri) ?? null;
 }
 
-module.exports = { answer, search, getDocumentChunks, listDocuments, getDocumentIdByUri, DiscoveryEngineError };
+/**
+ * GET a single document (including structData) from the datastore by ID.
+ * Requires DATA_STORE_ID to be configured.
+ *
+ * @param {string} documentId
+ */
+async function getDocument(documentId) {
+  if (!config.dataStoreBase) {
+    throw new DiscoveryEngineError(
+      'DATA_STORE_ID is not configured — document lookup unavailable.',
+      501,
+    );
+  }
+  let encodedId;
+  try { encodedId = encodeURIComponent(decodeURIComponent(documentId)); }
+  catch { encodedId = encodeURIComponent(documentId); }
+  const url = `${config.dataStoreBase}/branches/0/documents/${encodedId}`;
+  return _get(url);
+}
+
+module.exports = { answer, search, getDocument, getDocumentChunks, listDocuments, getDocumentIdByUri, DiscoveryEngineError };

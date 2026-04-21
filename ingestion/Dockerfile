@@ -1,6 +1,10 @@
 FROM node:22-slim
 WORKDIR /app
 
+# ffmpeg — required by MediaProcessorWorker for audio noise reduction
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install production dependencies for the ingestion module
 COPY ingestion/package.json ./ingestion/
 RUN cd ingestion && npm install --production --ignore-scripts
