@@ -5,25 +5,48 @@
  *
  * Routes:
  *   GET  /api/storage/browse?prefix=&pageToken=
- *     List folders and files at a given GCS prefix (virtual folder).
- *     Returns { prefix, folders, files, nextPageToken, hasMore }.
- *
  *   GET  /api/storage/file?name=
- *     Proxy-stream a GCS object to the client (for inline viewing / download).
- *
  *   POST /api/storage/upload
- *     Upload a file to GCS.  multipart/form-data with fields:
- *       file   — the file binary (required)
- *       prefix — destination folder path, e.g. "Commissione/Atti/" (optional)
+ *   … (see inline docs)
+ *
+ * GCS→DE sync: rename, move and metadata-patch operations attempt to keep the
+ * corresponding Discovery Engine document's structData in sync. Sync failures
+ * are logged but do NOT fail the request — the GCS operation is authoritative.
  *
  * All routes require GCS_BUCKET to be configured; return 501 if absent.
  */
 
-const { Router } = require('express');
-const multer      = require('multer');
-const gcs         = require('../services/gcs');
+const { Router }   = require('express');
+const multer       = require('multer');
+const config       = require('../config');
+const gcs          = require('../services/gcs');
+const de           = require('../services/discoveryEngine');
+const { createLogger } = require('../logger');
 
 const router = Router();
+const log    = createLogger('storage-route');
+
+// Fields from GCS custom metadata that map 1:1 to DE structData keys
+const SYNCABLE_META_KEYS = new Set([
+  'persons_mentioned', 'organizations_mentioned', 'document_type',
+  'institution', 'year', 'legislature', 'topic', 'ocr_quality',
+]);
+
+/**
+ * Best-effort: update DE structData to match a GCS metadata delta.
+ * Fires async; never throws to the caller.
+ */
+function _syncMetaToDE(gcsName, delta) {
+  if (!config.gcsBucket || !config.dataStoreId) return;
+  const gcsUri = `gs://${config.gcsBucket}/${gcsName}`;
+  de.getDocumentIdByUri(gcsUri)
+    .then(docId => {
+      if (!docId) return;
+      return de.updateStructData(docId, delta);
+    })
+    .catch(err => log.warn({ name: gcsName, error: err.message }, 'DE structData sync failed'));
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits:  { fileSize: 100 * 1024 * 1024 }, // 100 MB
@@ -158,6 +181,13 @@ router.patch('/metadata', async (req, res, next) => {
   }
   try {
     const obj = await gcs.updateObjectMetadata(name, metadata);
+
+    // Sync whitelisted keys to DE structData (best-effort, async)
+    const syncable = Object.fromEntries(
+      Object.entries(metadata).filter(([k]) => SYNCABLE_META_KEYS.has(k)),
+    );
+    if (Object.keys(syncable).length > 0) _syncMetaToDE(name, syncable);
+
     res.json({ success: true, metadata: obj.metadata || {} });
   } catch (err) {
     next(err);
@@ -183,6 +213,10 @@ router.post('/rename', async (req, res, next) => {
   try {
     await gcs.copyObject(source, destination);
     await gcs.deleteObject(source);
+
+    // Sync new filename to DE structData so search results show the new name
+    _syncMetaToDE(destination, { original_filename: safeName });
+
     res.json({ success: true, destination });
   } catch (err) {
     next(err);
@@ -254,6 +288,10 @@ router.post('/move', async (req, res, next) => {
   try {
     await gcs.copyObject(source, destination);
     await gcs.deleteObject(source);
+
+    // After move, original_uri in DE structData is stale — mark it so operators know
+    _syncMetaToDE(destination, { original_uri: `gs://${config.gcsBucket}/${destination}` });
+
     res.json({ success: true, destination });
   } catch (err) {
     next(err);

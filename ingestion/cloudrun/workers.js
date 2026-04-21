@@ -13,13 +13,17 @@
  *   - IndexerWorker:       everything in VALIDATING / INDEXING state
  */
 
-const { ValidatorWorker }      = require('../workers/validator');
-const { SplitterWorker }       = require('../workers/splitter');
-const { IndexerWorker }        = require('../workers/indexer');
-const { DocumentAIWorker }     = require('../workers/documentai');
-const { MediaProcessorWorker } = require('../workers/mediaProcessor');
+const { ValidatorWorker }          = require('../workers/validator');
+const { SplitterWorker }           = require('../workers/splitter');
+const { IndexerWorker }            = require('../workers/indexer');
+const { DocumentAIWorker }         = require('../workers/documentai');
+const { MediaProcessorWorker }     = require('../workers/mediaProcessor');
+const { EntityExtractionWorker }   = require('../workers/entities');
 
 /**
+ * Full worker chain (M1-M3):
+ *   Validator → DocumentAI → MediaProcessor → Splitter → EntityExtractor → Indexer
+ *
  * @param {object} config
  * @param {object} [logger]
  */
@@ -29,6 +33,7 @@ function buildWorkersWithDocumentAI(config, logger) {
     new DocumentAIWorker(config, logger),
     new MediaProcessorWorker(config, logger),
     new SplitterWorker(config, logger),
+    new EntityExtractionWorker(config, logger),
     new IndexerWorker(config, logger),
   ];
 }

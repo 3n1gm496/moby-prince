@@ -407,4 +407,63 @@ async function getDocument(documentId) {
   return _get(url);
 }
 
-module.exports = { answer, search, getDocument, getDocumentChunks, listDocuments, getDocumentIdByUri, DiscoveryEngineError };
+/**
+ * Merge a delta object into a document's structData using a read-modify-PATCH
+ * cycle. The content URI and other document fields are preserved.
+ *
+ * Returns null (no-op) when DATA_STORE_ID is not configured.
+ *
+ * @param {string} documentId
+ * @param {object} delta   Partial structData to merge in (null values remove keys)
+ */
+async function updateStructData(documentId, delta) {
+  if (!config.dataStoreBase) return null;
+
+  let encodedId;
+  try { encodedId = encodeURIComponent(decodeURIComponent(documentId)); }
+  catch { encodedId = encodeURIComponent(documentId); }
+
+  const url     = `${config.dataStoreBase}/branches/0/documents/${encodedId}`;
+  const current = await _get(url);
+
+  const merged = { ...(current.structData || {}), ...delta };
+  const clean  = Object.fromEntries(
+    Object.entries(merged).filter(([, v]) => v !== null && v !== undefined && v !== ''),
+  );
+
+  // PATCH with updateMask=structData preserves content.uri and other fields
+  const token      = await getAccessToken();
+  const controller = new AbortController();
+  const timerId    = setTimeout(() => controller.abort('timeout'), GET_TIMEOUT_MS);
+
+  let response;
+  try {
+    response = await fetch(`${url}?updateMask=structData`, {
+      method: 'PATCH',
+      headers: {
+        Authorization:         `Bearer ${token}`,
+        'Content-Type':        'application/json',
+        'X-Goog-User-Project': config.projectId,
+      },
+      body:   JSON.stringify({ structData: clean }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timerId);
+    throw new DiscoveryEngineError(err.message);
+  }
+  clearTimeout(timerId);
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new DiscoveryEngineError(
+      `DE structData PATCH ${response.status}`,
+      response.status,
+      errText,
+    );
+  }
+
+  return _parseResponse(response);
+}
+
+module.exports = { answer, search, getDocument, updateStructData, getDocumentChunks, listDocuments, getDocumentIdByUri, DiscoveryEngineError };
