@@ -59,6 +59,11 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogg
 
   const citCount = conv.messages.reduce((s, m) => s + (m.citations?.length ?? 0), 0);
 
+  // Improvement #9: yellow dot when DE session is active (< 55 min old).
+  const SESSION_MAX_MS = 55 * 60 * 1000;
+  const hasActiveSession = conv.sessionId && conv.sessionUpdatedAt
+    && (Date.now() - new Date(conv.sessionUpdatedAt).getTime()) < SESSION_MAX_MS;
+
   return (
     <div
       tabIndex={0}
@@ -95,6 +100,13 @@ function ConversationItem({ conv, isActive, onSelect, onDelete, onRename, onTogg
       ) : (
         <>
           <span className="flex-1 truncate">{conv.title}</span>
+
+          {hasActiveSession && (
+            <span
+              title="Sessione DE attiva"
+              className="w-1.5 h-1.5 rounded-full bg-yellow-400/80 flex-shrink-0"
+            />
+          )}
 
           {citCount > 0 && (
             <span className="flex-shrink-0 text-[10px] font-mono text-text-muted

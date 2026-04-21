@@ -119,7 +119,8 @@ function GcsMetadataSection({ fullPath }) {
     }
   }, [fullPath]);
 
-  useEffect(() => { load(); }, [load]);
+  // Improvement #10: load metadata on demand instead of automatically, to avoid
+  // a burst of requests when multiple files are opened in quick succession.
 
   const handleSave = async () => {
     setSaving(true);
@@ -151,7 +152,21 @@ function GcsMetadataSection({ fullPath }) {
     return next;
   });
 
-  if (phase === "idle" || phase === "loading") {
+  if (phase === "idle") {
+    return (
+      <button
+        onClick={load}
+        className="flex items-center gap-1.5 text-xs text-accent hover:text-accent-hover transition-colors"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        Carica metadati
+      </button>
+    );
+  }
+
+  if (phase === "loading") {
     return <p className="text-[11px] text-text-muted animate-pulse">Caricamento metadati…</p>;
   }
   if (phase === "error") {

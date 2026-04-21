@@ -10,6 +10,9 @@
 const config           = require('../config');
 const { getAccessToken } = require('./auth');
 const { createLogger } = require('../logger');
+const gcs              = require('./gcs');
+
+const URI_CACHE_PATH = '_cache/de-uri-id.json';
 
 const log = createLogger('discovery-engine');
 
@@ -301,6 +304,24 @@ async function _buildUriCache() {
   if (_uriCacheReady) return;
   if (_uriCachePending) return _uriCachePending;
   _uriCachePending = (async () => {
+    // Improvement #2: try loading the pre-built cache from GCS first so a full
+    // DE pagination scan is avoided after every server restart.
+    if (config.gcsBucket) {
+      try {
+        const obj  = await gcs.getObject(URI_CACHE_PATH);
+        const text = await obj.text();
+        const data = JSON.parse(text);
+        for (const [uri, id] of Object.entries(data)) _uriIdCache.set(uri, id);
+        log.info({ entries: _uriIdCache.size }, 'URI→ID cache loaded from GCS');
+        _uriCacheReady   = true;
+        _uriCachePending = null;
+        return;
+      } catch (e) {
+        if (e.statusCode !== 404) log.warn({ err: e.message }, 'GCS URI cache unreadable; rebuilding from DE');
+      }
+    }
+
+    // Full pagination scan from Discovery Engine
     let pageToken = null;
     do {
       const params = new URLSearchParams({ pageSize: '100' });
@@ -315,6 +336,18 @@ async function _buildUriCache() {
       }
       pageToken = data.nextPageToken || null;
     } while (pageToken);
+
+    // Persist to GCS so subsequent restarts skip the full scan
+    if (config.gcsBucket) {
+      try {
+        const buf = Buffer.from(JSON.stringify(Object.fromEntries(_uriIdCache)), 'utf-8');
+        await gcs.uploadObject(URI_CACHE_PATH, 'application/json', buf);
+        log.info({ entries: _uriIdCache.size }, 'URI→ID cache saved to GCS');
+      } catch (e) {
+        log.warn({ err: e.message }, 'Failed to persist URI→ID cache to GCS');
+      }
+    }
+
     _uriCacheReady   = true;
     _uriCachePending = null;
   })();

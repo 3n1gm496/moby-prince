@@ -7,15 +7,21 @@ import MessageBubble from "./MessageBubble";
 import CitationPanel from "./CitationPanel";
 import FilterPanel from "./FilterPanel";
 import QuickSuggestions from "./QuickSuggestions";
+import SearchPalette from "./SearchPalette";
 import Sidebar from "./Sidebar";
 import AnchorAvatar from "./AnchorAvatar";
 import Toast from "./Toast";
 import { getFilterValueLabel, FILTER_SCHEMA } from "../filters/schema";
 
+const MESSAGES_PAGE_SIZE = 30; // Improvement #6: max messages rendered at once
+
 // ─── SkeletonLoader ───────────────────────────────────────────────────────────
 
-function SkeletonLoader({ stage }) {
-  const label = stage === "retrying" ? "Nuovo tentativo…" : "Ricerca in corso…";
+// Improvement #7: show countdown when retrying
+function SkeletonLoader({ stage, retryCountdown }) {
+  const label = stage === "retrying"
+    ? `Nuovo tentativo${retryCountdown ? ` tra ${retryCountdown}s…` : "…"}`
+    : "Ricerca in corso…";
   return (
     <div className="flex justify-start gap-3 animate-fade-in">
       <AnchorAvatar />
@@ -50,7 +56,7 @@ export default function ChatInterface() {
   const history = useChatHistory();
   const { filters, activeFilters, activeFilterCount, hasActiveFilters, setFilter, clearFilters } = useFilters();
   const {
-    messages, isLoading, loadingConvId, loadingStage,
+    messages, isLoading, loadingConvId, loadingStage, retryCountdown,
     sendMessage, streamingMessage, stopStreaming,
   } = useChat({
     externalMessages:     history.activeConversation?.messages ?? [],
@@ -62,10 +68,13 @@ export default function ChatInterface() {
   });
   const { toasts, showToast, dismissToast } = useToast();
 
-  const [input,          setInput]          = useState("");
-  const [activeCitation, setActiveCitation] = useState(null);
-  const [sidebarOpen,    setSidebarOpen]    = useState(false);
-  const [showFilters,    setShowFilters]    = useState(false);
+  const [input,           setInput]           = useState("");
+  const [activeCitation,  setActiveCitation]  = useState(null);
+  const [sidebarOpen,     setSidebarOpen]     = useState(false);
+  const [showFilters,     setShowFilters]     = useState(false);
+  const [showPalette,     setShowPalette]     = useState(false);  // #8 search palette
+  const [visibleFrom,     setVisibleFrom]     = useState(0);      // #6 pagination
+  const [sessionWarning,  setSessionWarning]  = useState(false);  // #5 session expiry
 
   const messagesEndRef        = useRef(null);
   const messagesContainerRef  = useRef(null);
@@ -103,7 +112,32 @@ export default function ChatInterface() {
     setShowScrollButton(false);
     scrollToBottom("instant");
     textareaRef.current?.focus();
+    // #6: reset pagination when switching conversations
+    setVisibleFrom(0);
   }, [history.activeConversationId, scrollToBottom]);
+
+  // #6: keep visibleFrom updated when new messages arrive so the latest are always shown
+  useEffect(() => {
+    if (messages.length > MESSAGES_PAGE_SIZE) {
+      setVisibleFrom((prev) => {
+        const minFrom = messages.length - MESSAGES_PAGE_SIZE;
+        return prev < minFrom ? minFrom : prev;
+      });
+    }
+  }, [messages.length]);
+
+  // #5: warn when DE session is 45–55 min old
+  useEffect(() => {
+    const check = () => {
+      const conv = history.activeConversation;
+      if (!conv?.sessionId || !conv?.sessionUpdatedAt) { setSessionWarning(false); return; }
+      const age = Date.now() - new Date(conv.sessionUpdatedAt).getTime();
+      setSessionWarning(age > 45 * 60 * 1000 && age < 55 * 60 * 1000);
+    };
+    check();
+    const id = setInterval(check, 30_000);
+    return () => clearInterval(id);
+  }, [history.activeConversation?.sessionId, history.activeConversation?.sessionUpdatedAt]);
 
   // Hide scroll button when content shrinks (e.g. evidence panel collapses)
   useEffect(() => {
@@ -130,9 +164,10 @@ export default function ChatInterface() {
   useEffect(() => {
     const onKey = (e) => {
       const mod = e.metaKey || e.ctrlKey;
-      // ⌘N/Ctrl+N conflicts with browser new-window — skip
       if (mod && e.key === "/") { e.preventDefault(); textareaRef.current?.focus(); }
       if (mod && e.shiftKey && e.key === "f") { e.preventDefault(); setShowFilters(v => !v); }
+      // Improvement #8: Ctrl+K opens the conversation search palette
+      if (mod && e.key === "k") { e.preventDefault(); setShowPalette(v => !v); }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -174,6 +209,16 @@ export default function ChatInterface() {
         lines.push(`\n**Domanda**\n\n${msg.text}\n`);
       } else if (msg.role === "assistant") {
         lines.push(`\n**Risposta**\n\n${msg.text}\n`);
+        // Improvement #4: include evidence fragments in export
+        if (msg.evidence?.length) {
+          lines.push(`\n_Frammenti recuperati:_\n`);
+          msg.evidence.slice(0, 6).forEach((ev) => {
+            lines.push(`\n- **${ev.title || "Documento"}**`);
+            if (ev.pageIdentifier) lines.push(` — p. ${ev.pageIdentifier}`);
+            if (ev.snippet) lines.push(`\n  > ${ev.snippet.slice(0, 250).replace(/\n/g, " ")}`);
+          });
+          lines.push("\n");
+        }
         if (msg.citations?.length) {
           const seen = new Set();
           const titles = msg.citations.flatMap((c) => (c.sources || []).map((s) => s.title))
@@ -215,6 +260,10 @@ export default function ChatInterface() {
   }, [isBlocked, history.activeConversationId, sendMessage]);
 
   const isEmpty = messages.length === 0;
+  // Improvement #6: only render a window of messages for long conversations
+  const effectiveFrom   = Math.min(visibleFrom, Math.max(0, messages.length - MESSAGES_PAGE_SIZE));
+  const visibleMessages = messages.slice(effectiveFrom);
+  const hiddenCount     = effectiveFrom;
 
   const recentConversations = useMemo(() =>
     [...history.conversations]
@@ -335,7 +384,19 @@ export default function ChatInterface() {
 
             <div ref={messagesInnerRef} className="max-w-[760px] mx-auto px-5 py-6 print:max-w-none print:px-8 print:py-0">
               <div className="space-y-8">
-                {messages.map((msg) => (
+                {/* Improvement #6: load-more button for long conversations */}
+                {hiddenCount > 0 && (
+                  <div className="flex justify-center print:hidden">
+                    <button
+                      onClick={() => setVisibleFrom((v) => Math.max(0, v - MESSAGES_PAGE_SIZE))}
+                      className="text-xs text-text-secondary hover:text-text-primary border border-border/40
+                                 hover:border-border rounded-full px-4 py-1.5 transition-colors"
+                    >
+                      Carica precedenti ({hiddenCount})
+                    </button>
+                  </div>
+                )}
+                {visibleMessages.map((msg) => (
                   <MessageBubble
                     key={msg.id} message={msg}
                     onCitationClick={setActiveCitation}
@@ -343,7 +404,7 @@ export default function ChatInterface() {
                     onRetry={handleRetry}
                   />
                 ))}
-                {showLoadingBubble && <SkeletonLoader stage={loadingStage} />}
+                {showLoadingBubble && <SkeletonLoader stage={loadingStage} retryCountdown={retryCountdown} />}
                 {streamingMessage && (
                   <MessageBubble key={`streaming-${streamingMessage.id}`} message={streamingMessage}
                                  onCitationClick={() => {}} onFollowUp={() => {}} onRetry={() => {}} />
@@ -409,6 +470,17 @@ export default function ChatInterface() {
                     </span>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Improvement #5: session near-expiry warning */}
+            {sessionWarning && (
+              <div className="flex items-center gap-2 px-1 text-[11px] text-yellow-400/80">
+                <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                La sessione di ricerca scade tra meno di 10 minuti. Il contesto verrà resettato.
               </div>
             )}
 
@@ -501,6 +573,16 @@ export default function ChatInterface() {
       {activeCitation && (
         <CitationPanel citation={activeCitation} onClose={() => setActiveCitation(null)} />
       )}
+
+      {/* Improvement #8: global conversation search palette (Ctrl+K) */}
+      {showPalette && (
+        <SearchPalette
+          conversations={history.conversations.filter((c) => c.messages.length > 0)}
+          onSelect={(id) => { history.selectConversation(id); }}
+          onClose={() => setShowPalette(false)}
+        />
+      )}
+
       <Toast toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
