@@ -62,7 +62,24 @@ const generalLimiter = rateLimit({
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 
-app.use(helmet({ contentSecurityPolicy: false })); // CSP managed by nginx
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'"],
+      styleSrc:    ["'self'", "'unsafe-inline'"],  // React inline styles
+      imgSrc:      ["'self'", 'data:', 'blob:'],
+      connectSrc:  ["'self'",
+        'https://*.googleapis.com',
+        'https://*.google.com',
+        'https://*.aiplatform.googleapis.com',
+      ],
+      frameSrc:    ["'none'"],
+      objectSrc:   ["'none'"],
+      baseUri:     ["'self'"],
+    },
+  },
+}));
 app.use(cors({
   origin:  config.frontendOrigin,
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT'],

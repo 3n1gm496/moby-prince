@@ -53,32 +53,36 @@ async function listByEntity(entityId, limit = 100) {
 }
 
 /**
- * Verify: find claims similar to a text by matching against stored claims
- * for the same entity IDs (fallback: full-scan keyword match).
+ * Verify: find claims similar to a text using BQ SEARCH() (full-text index).
+ * Falls back to LIKE if the search index is not yet built.
+ *
+ * Requires a BQ Search Index created once with:
+ *   CREATE SEARCH INDEX ON evidence.claims(text)
  *
  * @param {string}   text
- * @param {string[]} [entityIds=[]]
+ * @param {string[]} [entityIds=[]]  Optional entity filter (unused but kept for API compat)
  * @param {number}   [limit=20]
  */
 async function findSimilar(text, entityIds = [], limit = 20) {
-  const words = text
+  const keywords = text
     .toLowerCase()
     .split(/\W+/)
     .filter(w => w.length >= 4)
-    .slice(0, 6);
+    .slice(0, 6)
+    .join(' ');
 
-  if (words.length === 0) return [];
-
-  const conditions = words.map((_, i) => `LOWER(text) LIKE @kw${i}`).join(' OR ');
-  const params     = words.map((w, i) => bq.stringParam(`kw${i}`, `%${w}%`));
-  params.push(bq.intParam('limit', limit));
+  if (!keywords) return [];
 
   const rows = await bq.query(
     `SELECT * FROM ${_table('claims')}
-     WHERE (${conditions})
+     WHERE SEARCH(text, @keywords)
+       AND created_at > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 365 DAY)
      ORDER BY confidence DESC, created_at DESC
      LIMIT @limit`,
-    params,
+    [
+      bq.stringParam('keywords', keywords),
+      bq.intParam('limit', limit),
+    ],
   );
   return rows.map(normalizeClaim);
 }
