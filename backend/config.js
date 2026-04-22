@@ -64,6 +64,9 @@ const config = {
   // Document AI region (defaults to GCP_LOCATION)
   docAiLocation: optional('DOCAI_LOCATION', optional('GCP_LOCATION', 'eu')),
 
+  // Auto-ingest: when true, each successful upload triggers the ingestion pipeline
+  autoIngest: optional('AUTO_INGEST', 'false') === 'true',
+
   // Daily call budget limits for the in-memory circuit breaker
   dailyGeminiLimit: parseInt(optional('DAILY_GEMINI_LIMIT', '500'),  10),
   dailyBqLimit:     parseInt(optional('DAILY_BQ_LIMIT',     '2000'), 10),

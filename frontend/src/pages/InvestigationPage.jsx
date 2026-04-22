@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, SearchPlus, ChevronDown, ArrowRight } from "lucide-react";
+import { ArrowLeft, ScanSearch, ChevronDown, ArrowRight } from "lucide-react";
 import AnchorAvatar from "../components/AnchorAvatar";
 import { apiFetch } from "../lib/apiFetch";
 
@@ -293,7 +293,7 @@ export default function InvestigationPage() {
         {messages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full gap-6 text-center">
             <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center">
-              <SearchPlus className="w-6 h-6 text-accent" strokeWidth={1.5} />
+              <ScanSearch className="w-6 h-6 text-accent" strokeWidth={1.5} />
             </div>
             <div>
               <p className="font-serif text-lg font-medium text-text-primary mb-1">

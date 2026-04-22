@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useGcsBrowser } from "../hooks/useGcsBrowser";
 import DocumentPanel from "../components/DocumentPanel";
@@ -334,16 +334,42 @@ function SkeletonGrid() {
 // ── UploadButton ──────────────────────────────────────────────────────────────
 
 function UploadButton({ prefix, onUploaded }) {
-  const inputRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadErr, setUploadErr] = useState(null);
+  const inputRef  = useRef(null);
+  const timersRef = useRef([]);
+  const [uploading,  setUploading]  = useState(false);
+  const [uploadErr,  setUploadErr]  = useState(null);
+  const [ingestJobs, setIngestJobs] = useState([]); // [{ jobId, filename, status }]
+
+  // Poll a single ingest job until it reaches a terminal state.
+  const pollJob = useCallback((jobId) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiFetch(`/api/storage/ingest-status?jobId=${encodeURIComponent(jobId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setIngestJobs(prev => prev.map(j => j.jobId === jobId ? { ...j, status: data.status } : j));
+        if (data.status !== "running") clearInterval(interval);
+      } catch {
+        clearInterval(interval);
+      }
+    }, 3000);
+    timersRef.current.push(interval);
+  }, []);
+
+  // Clear all polling timers on unmount.
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => timers.forEach(clearInterval);
+  }, []);
 
   const handleFiles = async (fileList) => {
     if (!fileList?.length) return;
     setUploading(true);
     setUploadErr(null);
+    setIngestJobs([]);
 
     let failed = 0;
+    const newJobs = [];
     for (const file of Array.from(fileList)) {
       const fd = new FormData();
       fd.append("file", file);
@@ -354,6 +380,10 @@ function UploadButton({ prefix, onUploaded }) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || `HTTP ${res.status}`);
         }
+        const data = await res.json();
+        if (data.ingestJobId) {
+          newJobs.push({ jobId: data.ingestJobId, filename: file.name, status: "running" });
+        }
       } catch (err) {
         failed++;
         setUploadErr(err.message);
@@ -362,6 +392,17 @@ function UploadButton({ prefix, onUploaded }) {
 
     setUploading(false);
     if (!failed) onUploaded?.();
+
+    if (newJobs.length > 0) {
+      setIngestJobs(newJobs);
+      newJobs.forEach(j => pollJob(j.jobId));
+    }
+  };
+
+  const statusIcon = (status) => {
+    if (status === "indexed") return <span className="text-green-400 text-[10px]">✓</span>;
+    if (status === "failed")  return <span className="text-red-400 text-[10px]">✗</span>;
+    return <span className="w-2.5 h-2.5 rounded-full border border-accent/50 border-t-accent animate-spin inline-block flex-shrink-0" />;
   };
 
   return (
@@ -400,6 +441,25 @@ function UploadButton({ prefix, onUploaded }) {
       </button>
       {uploadErr && (
         <p className="text-[11px] text-red-400 leading-snug">{uploadErr}</p>
+      )}
+      {ingestJobs.length > 0 && (
+        <div className="mt-1 space-y-0.5">
+          {ingestJobs.map(j => (
+            <div key={j.jobId} className="flex items-center gap-1.5 text-[11px]">
+              {statusIcon(j.status)}
+              <span className="truncate max-w-[140px] text-text-secondary" title={j.filename}>
+                {j.filename}
+              </span>
+              <span className={`flex-shrink-0 ${
+                j.status === "indexed" ? "text-green-400" :
+                j.status === "failed"  ? "text-red-400"   : "text-text-muted"
+              }`}>
+                {j.status === "indexed" ? "indicizzato" :
+                 j.status === "failed"  ? "errore"       : "indicizzazione…"}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
