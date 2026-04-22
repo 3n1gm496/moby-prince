@@ -42,7 +42,7 @@ const TIMEOUT   = 90_000;  // per Gemini call
 
 function _endpoint() {
   const location = config.geminiLocation;
-  const model    = 'gemini-2.0-flash-001';
+  const model    = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
   return `https://${location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${location}/publishers/google/models/${model}:generateContent`;
 }
 

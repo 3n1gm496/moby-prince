@@ -15,7 +15,7 @@
 
 const { getAccessToken } = require('./auth');
 
-const MODEL    = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const MODEL    = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 const TIMEOUT  = 60_000; // ms
 
 function _endpoint() {

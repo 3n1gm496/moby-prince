@@ -18,7 +18,7 @@ const { createLogger }          = require('../logger');
 const { incrementGemini }       = require('./rateLimiter');
 
 const log              = createLogger('gemini');
-const MODEL            = 'gemini-2.0-flash-001';
+const MODEL            = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 const EMBEDDING_MODEL  = 'text-embedding-004';
 const TIMEOUT          = 60_000;
 
