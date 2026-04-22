@@ -235,7 +235,7 @@ async function search(queryText, {
 
   const body = {
     query:    queryText,
-    pageSize: Math.min(maxResults, 20),
+    pageSize: Math.max(1, Math.min(maxResults, 20)),
     queryExpansionSpec:  { condition: 'AUTO' },
     spellCorrectionSpec: { mode: 'AUTO' },
     contentSearchSpec: {
@@ -254,9 +254,9 @@ async function search(queryText, {
       ),
     },
     facetSpecs: isChunks ? [
-      { facetKey: { key: 'institution' } },
-      { facetKey: { key: 'document_type' } },
-      { facetKey: { key: 'year' } },
+      { facetKey: { key: 'institution' },    limit: 20 },
+      { facetKey: { key: 'document_type' },  limit: 20 },
+      { facetKey: { key: 'year' },           limit: 50 },
     ] : undefined,
     ...(filter ? { filter } : {}),
   };
