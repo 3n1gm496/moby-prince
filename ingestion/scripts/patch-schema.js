@@ -96,18 +96,22 @@ async function main() {
     ? 'discoveryengine.googleapis.com'
     : `${location}-discoveryengine.googleapis.com`;
 
-  const url =
-    `https://${endpoint}/v1/projects/${projectId}/locations/${location}` +
-    `/dataStores/${dataStoreId}/schema/default_schema` +
-    `?updateMask=structSchema`;
+  const resourceName =
+    `projects/${projectId}/locations/${location}` +
+    `/collections/default_collection/dataStores/${dataStoreId}/schemas/default_schema`;
+
+  const url = `https://${endpoint}/v1/${resourceName}`;
+
+  // The API requires the resource name inside the body for PATCH
+  body.name = resourceName;
 
   console.log(`PATCH ${url}\n`);
 
-  const response = await patchJson(url, token, body);
+  const { body: response, statusCode } = await patchJson(url, token, body);
 
-  if (response.error) {
-    console.error('API error:');
-    console.error(JSON.stringify(response.error, null, 2));
+  if (statusCode >= 400 || (response && response.error)) {
+    console.error(`API error (HTTP ${statusCode}):`);
+    console.error(JSON.stringify(response, null, 2));
     process.exit(1);
   }
 
@@ -142,8 +146,9 @@ function patchJson(url, token, body) {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch { resolve({ _raw: data, statusCode: res.statusCode }); }
+        let parsed = null;
+        try { parsed = JSON.parse(data); } catch { /* non-JSON response */ }
+        resolve({ body: parsed, statusCode: res.statusCode, raw: data });
       });
     });
     req.on('error', reject);
