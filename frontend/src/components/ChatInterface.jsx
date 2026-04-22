@@ -366,12 +366,10 @@ export default function ChatInterface() {
           <div className="flex-1 overflow-y-auto">
             <div className="min-h-full flex flex-col items-center justify-center py-8">
               <WelcomeScreen />
-              <div className="w-full max-w-[760px] px-5">
-                <QuickSuggestions
-                  onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }}
-                  disabled={isBlocked}
-                />
-              </div>
+              <QuickSuggestions
+                onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }}
+                disabled={isBlocked}
+              />
             </div>
           </div>
         )}
@@ -644,40 +642,86 @@ export default function ChatInterface() {
 
 // ─── WelcomeScreen ────────────────────────────────────────────────────────────
 
+function FerryIllustration() {
+  return (
+    <svg
+      viewBox="0 0 240 80"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-[200px] h-auto text-accent"
+      aria-hidden="true"
+    >
+      {/* Hull */}
+      <path d="M20 56 L218 56 Q228 56 230 62 Q232 68 226 72 L14 72 Q8 68 10 62 Q12 56 20 56" />
+      {/* Main cabin deck */}
+      <rect x="28" y="40" width="178" height="16" rx="1" />
+      {/* Upper cabin */}
+      <rect x="42" y="26" width="118" height="14" rx="1" />
+      {/* Funnel — trapezoid */}
+      <path d="M78 13 L83 26 H95 L100 13 Z" />
+      <rect x="75" y="11" width="28" height="3" rx="1" />
+      {/* Bridge */}
+      <rect x="144" y="20" width="26" height="6" rx="1" />
+      <rect x="146" y="18" width="22" height="2" rx="0.5" />
+      {/* Forward mast */}
+      <line x1="162" y1="6" x2="162" y2="20" />
+      <line x1="156" y1="10" x2="168" y2="10" />
+      {/* Portholes — upper cabin */}
+      <circle cx="52"  cy="33" r="2.2" />
+      <circle cx="64"  cy="33" r="2.2" />
+      <circle cx="76"  cy="33" r="2.2" />
+      <circle cx="116" cy="33" r="2.2" />
+      <circle cx="128" cy="33" r="2.2" />
+      <circle cx="140" cy="33" r="2.2" />
+      {/* Windows — main deck */}
+      <rect x="34"  y="44" width="6" height="5" rx="0.8" />
+      <rect x="46"  y="44" width="6" height="5" rx="0.8" />
+      <rect x="194" y="44" width="6" height="5" rx="0.8" />
+      <rect x="206" y="44" width="6" height="5" rx="0.8" />
+      {/* Bow door */}
+      <path d="M28 56 Q21 60 20 68" />
+      {/* Stern */}
+      <path d="M206 40 L218 40" />
+      {/* Waterline — gentle waves */}
+      <path d="M0 74 Q30 70 60 74 Q90 78 120 74 Q150 70 180 74 Q210 78 240 74" strokeWidth="0.9" />
+    </svg>
+  );
+}
+
 function WelcomeScreen() {
   return (
-    <div className="w-full max-w-[760px] px-5 pb-10">
-      {/* Anchor / boat mark */}
-      <div className="mb-6">
-        <svg
-          viewBox="0 0 48 48"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="w-12 h-12 text-accent"
-        >
-          <circle cx="24" cy="10" r="5" />
-          <line x1="24" y1="44" x2="24" y2="15" />
-          <path d="M10 24H4a20 20 0 0 0 40 0h-6" />
-        </svg>
+    <div className="w-full max-w-[760px] px-5 pb-8 text-center">
+      {/* Ferry illustration */}
+      <div className="flex justify-center mb-5">
+        <FerryIllustration />
       </div>
 
-      <h2 className="font-serif text-[22px] font-semibold text-text-primary leading-snug mb-2">
+      {/* Date callout */}
+      <p className="text-[10px] font-medium text-text-muted uppercase tracking-[0.22em] mb-5">
+        10 aprile 1991 &nbsp;·&nbsp; Porto di Livorno
+      </p>
+
+      {/* Title */}
+      <h1 className="font-serif text-[30px] font-semibold text-text-primary leading-tight mb-1">
         Archivio Moby Prince
-      </h2>
-      <p className="text-[11px] font-medium text-text-muted uppercase tracking-[0.14em] mb-4">
+      </h1>
+
+      {/* Institution */}
+      <p className="text-[10px] text-text-muted uppercase tracking-[0.18em] mb-5">
         Camera dei Deputati
       </p>
-      <p className="text-text-secondary text-sm leading-relaxed max-w-[480px]">
-        Sistema di consultazione documentale della{" "}
-        <span className="text-text-primary">
+
+      {/* Divider + commission name */}
+      <div className="flex items-center gap-4 mb-2 max-w-[520px] mx-auto">
+        <div className="flex-1 h-px bg-border/30" />
+        <p className="text-[11px] text-text-secondary leading-relaxed flex-shrink-0 max-w-[320px]">
           Commissione parlamentare di inchiesta sulle cause del disastro del traghetto Moby Prince
-        </span>
-        {" "}—{" "}
-        <span className="text-text-primary font-medium">10 aprile 1991</span>
-      </p>
+        </p>
+        <div className="flex-1 h-px bg-border/30" />
+      </div>
     </div>
   );
 }
