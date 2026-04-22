@@ -10,12 +10,12 @@
  *   GOOGLE_CLOUD_PROJECT
  *   GEMINI_LOCATION   (default: "us-central1" — Vertex AI Gemini availability)
  *
- * Model: gemini-2.0-flash-001 (fast, cost-effective for high-volume ingestion)
+ * Model: gemini-2.0-flash (override via GEMINI_MODEL env var)
  */
 
 const { getAccessToken } = require('./auth');
 
-const MODEL    = 'gemini-2.0-flash-001';
+const MODEL    = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const TIMEOUT  = 60_000; // ms
 
 function _endpoint() {
