@@ -320,7 +320,7 @@ STATUS=$(_http_status "${BACKEND_URL}/api/filters")
 # ── POST /api/search ──
 SEARCH_RESP=$(curl -sf "${CURL_AUTH[@]}" -X POST \
   -H "Content-Type: application/json" \
-  -d '{"q":"moby prince","filters":{}}' \
+  -d '{"query":"moby prince","filters":{}}' \
   "${BACKEND_URL}/api/search" 2>/dev/null || true)
 if [[ -n "$SEARCH_RESP" ]]; then
   COUNT=$(echo "$SEARCH_RESP" \
