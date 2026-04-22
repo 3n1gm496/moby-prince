@@ -28,6 +28,7 @@
  * Variabili d'ambiente (stesso backend/.env):
  *   GOOGLE_CLOUD_PROJECT  — obbligatorio
  *   DATA_STORE_ID         — obbligatorio per fase claims
+ *   ENGINE_ID             — opzionale; se impostato usa l'endpoint di ricerca a livello engine
  *   GCP_LOCATION          — default: eu
  *   GEMINI_LOCATION       — default: us-central1
  *   BQ_DATASET_ID         — default: evidence
@@ -46,6 +47,7 @@ const PROJECT       = process.env.GOOGLE_CLOUD_PROJECT;
 const LOCATION      = process.env.GCP_LOCATION      || 'eu';
 const DATASET       = process.env.BQ_DATASET_ID     || 'evidence';
 const DATA_STORE_ID = process.env.DATA_STORE_ID;
+const ENGINE_ID     = process.env.ENGINE_ID;
 
 if (!PROJECT) { console.error('GOOGLE_CLOUD_PROJECT non impostato.'); process.exit(1); }
 
@@ -59,8 +61,13 @@ const RESUME     = ARGS.includes('--resume');
 
 const PROGRESS_FILE = path.join(__dirname, '../../.batch-detect-progress.json');
 
-const DE_BASE = `https://${LOCATION}-discoveryengine.googleapis.com/v1/projects/${PROJECT}/locations/${LOCATION}/collections/default_collection/dataStores/${DATA_STORE_ID}`;
-const BQ_BASE = `https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT}/datasets/${DATASET}`;
+const DE_COLLECTION = `https://${LOCATION}-discoveryengine.googleapis.com/v1/projects/${PROJECT}/locations/${LOCATION}/collections/default_collection`;
+const DE_BASE       = `${DE_COLLECTION}/dataStores/${DATA_STORE_ID}`;
+// Prefer engine-level search (same as backend); fall back to datastore-level.
+const DE_SEARCH = ENGINE_ID
+  ? `${DE_COLLECTION}/engines/${ENGINE_ID}/servingConfigs/default_serving_config:search`
+  : `${DE_BASE}/servingConfigs/default_config:search`;
+const BQ_BASE   = `https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT}/datasets/${DATASET}`;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -95,7 +102,25 @@ async function _get(url) {
   });
   if (!res.ok) {
     const t = await res.text().catch(() => '');
-    throw new Error(`GET ${url.slice(0, 80)} → ${res.status}: ${t.slice(0, 200)}`);
+    throw new Error(`GET ${url.slice(0, 120)} → ${res.status}: ${t.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+async function _post(url, body) {
+  const token = await getAccessToken();
+  const res   = await fetch(url, {
+    method:  'POST',
+    headers: {
+      Authorization:         `Bearer ${token}`,
+      'Content-Type':        'application/json',
+      'X-Goog-User-Project': PROJECT,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(`POST ${url.slice(0, 120)} → ${res.status}: ${t.slice(0, 300)}`);
   }
   return res.json();
 }
@@ -159,14 +184,70 @@ async function listAllDocuments() {
   return docs;
 }
 
-async function getChunksForDocument(encodedDocId) {
+// Chunk resource names look like:
+// .../documents/{documentId}/chunks/{chunkId}
+// Extract documentId and compare with the target.
+function _chunkBelongsToDoc(chunk, docId) {
+  const name  = chunk.name || '';
+  const parts = name.split('/');
+  const ci    = parts.lastIndexOf('chunks');
+  if (ci > 0) return parts[ci - 1] === docId;
+  // Fallback: check if name contains the docId substring
+  return name.includes(docId);
+}
+
+async function getChunksForDocument(docId, encodedDocId, title) {
+  // Try direct chunks sub-resource first (requires chunk storage enabled on the datastore).
+  // Fall back to the :search endpoint filtered by document_id if it returns 404.
   try {
     const data = await _get(`${DE_BASE}/branches/0/documents/${encodedDocId}/chunks?pageSize=100`);
-    return data.chunks || [];
+    const chunks = data.chunks || [];
+    if (chunks.length > 0) return chunks;
   } catch (err) {
-    warn(`Chunk fetch failed for ${encodedDocId}: ${err.message}`);
-    return [];
+    if (!err.message.includes('404')) {
+      warn(`Chunk fetch failed for ${encodedDocId}: ${err.message}`);
+      return [];
+    }
+    // 404 → chunk storage not enabled; fall through to search API
   }
+
+  // Search-based fallback: query by title and keep chunks from this document.
+  try {
+    const body = {
+      query:    title || docId,
+      pageSize: 100,
+      contentSearchSpec: {
+        searchResultMode: 'CHUNKS',
+        chunkSpec: { numPreviousChunks: 0, numNextChunks: 0 },
+      },
+    };
+    const data    = await _post(DE_SEARCH, body);
+    const results = data.results || [];
+
+    const toChunk = c => ({
+      name:    c.name || c.id || '',
+      content: { content: c.content || '' },
+      documentMetadata: { title: c.documentMetadata?.title || title || '' },
+    });
+
+    // Prefer chunks whose resource name encodes this document's ID.
+    const matched = results
+      .map(r => r.chunk)
+      .filter(c => c && _chunkBelongsToDoc(c, docId));
+
+    if (matched.length > 0) return matched.map(toChunk);
+
+    // Accept all returned chunks (best-effort; may include other docs).
+    const all = results.map(r => r.chunk).filter(Boolean);
+    if (all.length > 0) {
+      warn(`  Usando ${all.length} chunk da ricerca non filtrata per ${docId.slice(0, 12)}`);
+      return all.map(toChunk);
+    }
+  } catch (err) {
+    warn(`Search fallback failed for ${docId}: ${err.message}`);
+  }
+
+  return [];
 }
 
 // ── Gemini: claim extraction ──────────────────────────────────────────────────
@@ -244,7 +325,7 @@ async function runClaimsPhase() {
 
     log(`[${di + 1}/${allDocs.length}] ${title.slice(0, 60)}`);
 
-    const chunks = await getChunksForDocument(encodedId);
+    const chunks = await getChunksForDocument(docId, encodedId, title);
     if (chunks.length === 0) {
       warn(`  Nessun chunk trovato — saltato`);
       processedIds.add(docId);
@@ -479,6 +560,7 @@ async function main() {
   console.log('');
   log(`Progetto    : ${PROJECT}`);
   log(`Datastore   : ${DATA_STORE_ID || '(non impostato)'}`);
+  log(`Engine      : ${ENGINE_ID    || '(non impostato — usando endpoint datastore)'}`);
   log(`Dataset BQ  : ${DATASET}`);
   log(`Fase        : ${PHASE}`);
   log(`Delay       : ${DELAY_MS} ms`);
