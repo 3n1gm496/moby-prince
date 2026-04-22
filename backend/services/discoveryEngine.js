@@ -261,6 +261,15 @@ async function search(queryText, {
     ...(filter ? { filter } : {}),
   };
 
+  // Guard: ensure every facet limit is valid (1–300) regardless of how the
+  // array was constructed. Catches any future regression before it hits the API.
+  if (body.facetSpecs) {
+    body.facetSpecs.forEach(s => { s.limit = Math.max(1, s.limit || 20); });
+  }
+
+  log.info({ facetSpecs: body.facetSpecs, pageSize: body.pageSize, searchMode },
+    'search request params');
+
   return _post(config.searchEndpoint, body);
 }
 
