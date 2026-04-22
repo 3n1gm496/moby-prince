@@ -29,6 +29,11 @@ function requireBQ(res) {
   return true;
 }
 
+function isBqDatasetError(err) {
+  return err?.message?.includes('Not found') || err?.message?.includes('404') ||
+         err?.message?.includes('was not found');
+}
+
 // ── GET /api/contradictions ───────────────────────────────────────────────────
 
 router.get('/', async (req, res, next) => {
@@ -43,6 +48,9 @@ router.get('/', async (req, res, next) => {
     const contradictions = await contradictionsRepo.list({ status, severity, documentId, limit });
     res.json({ contradictions, total: contradictions.length });
   } catch (err) {
+    if (isBqDatasetError(err)) {
+      return res.status(501).json({ error: 'Dataset BigQuery non trovato — la funzione contraddizioni non è ancora attiva.' });
+    }
     next(err);
   }
 });

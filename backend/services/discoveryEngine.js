@@ -208,10 +208,6 @@ async function answer(queryText, sessionId = null, {
       searchParams: {
         searchResultMode: 'CHUNKS',
         maxReturnResults: Math.min(maxResults, 20),
-        chunkSpec: {
-          numPreviousChunks: config.chunkContextPrev,
-          numNextChunks:     config.chunkContextNext,
-        },
         ...(filter ? { filter } : {}),
       },
     },

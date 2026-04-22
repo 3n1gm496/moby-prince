@@ -110,35 +110,6 @@ export const FILTER_SCHEMA = [
       { value: 'low',    label: 'Bassa' },
     ],
   },
-  {
-    key:       'mediaType',
-    label:     'Tipo media',
-    type:      'enum',
-    available: true,
-    options: [
-      { value: 'document', label: 'Documento' },
-      { value: 'image',    label: 'Immagine' },
-      { value: 'video',    label: 'Video' },
-      { value: 'audio',    label: 'Audio' },
-    ],
-  },
-  {
-    key:       'containsSpeech',
-    label:     'Contiene audio parlato',
-    type:      'enum',
-    available: true,
-    options: [
-      { value: 'true',  label: 'Sì' },
-      { value: 'false', label: 'No' },
-    ],
-  },
-  {
-    key:         'locationDetected',
-    label:       'Luogo rilevato',
-    type:        'text',
-    available:   true,
-    placeholder: 'es. Porto di Livorno',
-  },
 ];
 
 /** Look up the human-readable label for a filter value. */

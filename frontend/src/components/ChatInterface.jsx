@@ -366,14 +366,11 @@ export default function ChatInterface() {
           <div className="flex-1 overflow-y-auto">
             <div className="min-h-full flex flex-col items-center justify-center py-8">
               <WelcomeScreen />
-              <div className="w-full max-w-md px-4">
+              <div className="w-full max-w-[760px] px-5">
                 <QuickSuggestions
                   onSelect={(t) => { setInput(t); textareaRef.current?.focus(); }}
                   disabled={isBlocked}
                 />
-                {recentConversations.length > 0 && (
-                  <RecentConversations conversations={recentConversations} onSelect={history.selectConversation} />
-                )}
               </div>
             </div>
           </div>
@@ -649,28 +646,36 @@ export default function ChatInterface() {
 
 function WelcomeScreen() {
   return (
-    <div className="px-6 pb-10 max-w-lg">
-      <div className="flex items-center gap-5 mb-5">
-        {/* Camera dei Deputati logo — white via CSS filter */}
-        <img
-          src="https://upload.wikimedia.org/wikipedia/commons/4/4d/Logo_della_Camera_dei_deputati.svg"
-          alt="Camera dei Deputati"
-          style={{ filter: "brightness(0) invert(1)", height: "64px", width: "auto", opacity: 0.75 }}
-          onError={(e) => { e.currentTarget.style.display = "none"; }}
-        />
-        <div className="text-left">
-          <p className="text-[10px] font-medium text-text-muted uppercase tracking-[0.15em] mb-1">
-            Camera dei Deputati
-          </p>
-          <h2 className="font-serif text-[26px] font-semibold text-text-primary leading-tight">
-            Archivio Moby Prince
-          </h2>
-        </div>
+    <div className="w-full max-w-[760px] px-5 pb-10">
+      {/* Anchor / boat mark */}
+      <div className="mb-6">
+        <svg
+          viewBox="0 0 48 48"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="w-12 h-12 text-accent"
+        >
+          <circle cx="24" cy="10" r="5" />
+          <line x1="24" y1="44" x2="24" y2="15" />
+          <path d="M10 24H4a20 20 0 0 0 40 0h-6" />
+        </svg>
       </div>
 
-      <p className="text-text-secondary text-sm leading-relaxed">
-        Sistema di consultazione documentale della Commissione Parlamentare
-        d&apos;Inchiesta sul naufragio del{" "}
+      <h2 className="font-serif text-[22px] font-semibold text-text-primary leading-snug mb-2">
+        Archivio Moby Prince
+      </h2>
+      <p className="text-[11px] font-medium text-text-muted uppercase tracking-[0.14em] mb-4">
+        Camera dei Deputati
+      </p>
+      <p className="text-text-secondary text-sm leading-relaxed max-w-[480px]">
+        Sistema di consultazione documentale della{" "}
+        <span className="text-text-primary">
+          Commissione parlamentare di inchiesta sulle cause del disastro del traghetto Moby Prince
+        </span>
+        {" "}—{" "}
         <span className="text-text-primary font-medium">10 aprile 1991</span>
       </p>
     </div>

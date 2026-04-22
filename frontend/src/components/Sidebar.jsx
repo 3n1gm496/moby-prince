@@ -528,19 +528,12 @@ export default function Sidebar({
               <p className="text-[11px] font-medium text-text-muted/70 leading-tight">
                 Camera dei Deputati
               </p>
-              {/* Montecitorio building — simplified neoclassical silhouette */}
-              <svg className="w-6 h-[22px] text-text-muted/35 flex-shrink-0" fill="currentColor" viewBox="0 0 24 22">
-                <rect x="0" y="20.5" width="24" height="1.5" rx="0.5"/>
-                <rect x="1"  y="13"  width="1.5" height="7.5"/>
-                <rect x="5"  y="13"  width="1.5" height="7.5"/>
-                <rect x="9"  y="13"  width="1.5" height="7.5"/>
-                <rect x="13" y="13"  width="1.5" height="7.5"/>
-                <rect x="17" y="13"  width="1.5" height="7.5"/>
-                <rect x="21" y="13"  width="1.5" height="7.5"/>
-                <rect x="0"  y="11"  width="24" height="2" rx="0.3"/>
-                <path d="M0,11 L12,4 L24,11Z"/>
-                <ellipse cx="12" cy="4" rx="2.5" ry="2.5"/>
-              </svg>
+              <img
+                src="https://upload.wikimedia.org/wikipedia/commons/4/4d/Logo_della_Camera_dei_deputati.svg"
+                alt="Camera dei Deputati"
+                style={{ filter: "brightness(0) invert(1)", height: "22px", width: "auto", opacity: 0.35 }}
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
+              />
             </div>
           </>
         )}
