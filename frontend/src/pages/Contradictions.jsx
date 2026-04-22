@@ -48,7 +48,7 @@ export default function Contradictions() {
   const [contradictions, setContradictions] = useState([]);
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState(null);
-  const [statusFilter,   setStatusFilter]   = useState("open");
+  const [statusFilter,   setStatusFilter]   = useState("all");
   const [sevFilter,      setSevFilter]      = useState("all");
 
   const load = useCallback(async () => {
@@ -170,12 +170,29 @@ export default function Contradictions() {
 
         {!loading && !error && contradictions.length === 0 && (
           <div className="text-center py-12 text-text-muted">
-            <p className="text-sm">Nessuna contraddizione trovata con i filtri selezionati.</p>
-            {statusFilter !== "all" && (
-              <button onClick={() => setStatusFilter("all")}
-                      className="mt-2 text-xs text-accent hover:text-accent-hover transition-colors">
-                Mostra tutte
-              </button>
+            {statusFilter === "all" && sevFilter === "all" ? (
+              <>
+                <p className="text-sm font-medium text-text-secondary mb-1">
+                  Nessuna contraddizione nel sistema
+                </p>
+                <p className="text-xs text-text-muted max-w-sm mx-auto leading-relaxed">
+                  La detection confronta le affermazioni estratte dai documenti indicizzati.
+                  Per avviare l&apos;analisi occorre prima indicizzare documenti e lanciare
+                  la detection tramite{" "}
+                  <code className="font-mono text-accent/70 text-[10px]">
+                    POST /api/contradictions/detect
+                  </code>
+                  .
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm">Nessuna contraddizione con i filtri attivi.</p>
+                <button onClick={() => { setStatusFilter("all"); setSevFilter("all"); }}
+                        className="mt-2 text-xs text-accent hover:text-accent-hover transition-colors">
+                  Rimuovi filtri
+                </button>
+              </>
             )}
           </div>
         )}
