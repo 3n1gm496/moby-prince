@@ -21,6 +21,7 @@ const multer       = require('multer');
 const config       = require('../config');
 const gcs          = require('../services/gcs');
 const de           = require('../services/discoveryEngine');
+const ingestSvc    = require('../services/ingest');
 const { createLogger } = require('../logger');
 
 const router = Router();
@@ -196,16 +197,46 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
 
   try {
     const result = await gcs.uploadObject(destination, file.mimetype, file.buffer);
+
+    // Trigger ingestion pipeline for real documents when AUTO_INGEST=true.
+    // Directory-marker objects (.keep files created by NewFolderButton) are excluded.
+    let ingestJobId = null;
+    if (config.autoIngest && config.gcsBucket && !safeName.endsWith('.keep')) {
+      const gcsUri = `gs://${config.gcsBucket}/${destination}`;
+      try {
+        ingestJobId = ingestSvc.triggerIngest(gcsUri);
+        log.info({ ingestJobId, gcsUri }, 'Auto-ingest triggered');
+      } catch (err) {
+        log.warn({ error: err.message }, 'Failed to trigger auto-ingest; upload still succeeded');
+      }
+    }
+
     res.json({
-      success:     true,
-      name:        result.name,
-      size:        result.size    ? Number(result.size) : file.size,
-      contentType: result.contentType || file.mimetype,
-      updated:     result.updated || new Date().toISOString(),
+      success:      true,
+      name:         result.name,
+      size:         result.size    ? Number(result.size) : file.size,
+      contentType:  result.contentType || file.mimetype,
+      updated:      result.updated || new Date().toISOString(),
+      ingestJobId,  // null when AUTO_INGEST is disabled
     });
   } catch (err) {
     next(err);
   }
+});
+
+// ── GET /api/storage/ingest-status ───────────────────────────────────────────
+// Poll ingestion job status by jobId (returned from POST /api/storage/upload).
+
+router.get('/ingest-status', (req, res) => {
+  const jobId = typeof req.query.jobId === 'string' ? req.query.jobId.trim() : null;
+  if (!jobId) {
+    return res.status(400).json({ error: '"jobId" query parameter is required.' });
+  }
+  const job = ingestSvc.getStatus(jobId);
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found (server may have restarted).' });
+  }
+  res.json(job);
 });
 
 // ── GET /api/storage/metadata ─────────────────────────────────────────────────
