@@ -19,15 +19,15 @@ const { incrementGemini }       = require('./rateLimiter');
 
 const log              = createLogger('gemini');
 const MODEL            = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const API_KEY          = process.env.GEMINI_API_KEY;
 const EMBEDDING_MODEL  = 'text-embedding-004';
 const TIMEOUT          = 60_000;
 
-function _location() {
-  return config.geminiLocation;
-}
-
 function _endpoint() {
-  const loc = _location();
+  if (API_KEY) {
+    return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+  }
+  const loc = config.geminiLocation;
   return `https://${loc}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${loc}/publishers/google/models/${MODEL}:generateContent`;
 }
 
@@ -44,18 +44,20 @@ function _embeddingEndpoint() {
  */
 async function generateJson(prompt, maxOutputTokens = 2048) {
   incrementGemini();
-  const token      = await getAccessToken();
   const controller = new AbortController();
   const timerId    = setTimeout(() => controller.abort(), TIMEOUT);
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (!API_KEY) {
+    const token = await getAccessToken();
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   let res;
   try {
     res = await fetch(_endpoint(), {
       method:  'POST',
-      headers: {
-        Authorization:  `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: {

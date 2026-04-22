@@ -3,22 +3,27 @@
 /**
  * Gemini Flash REST client for ingestion workers.
  *
- * Uses Vertex AI generateContent endpoint with JSON response mode.
- * Keeps the response compact by capping maxOutputTokens at 4096.
+ * Supports two backends (auto-selected):
+ *   - Google AI Studio (GEMINI_API_KEY set): uses generativelanguage.googleapis.com
+ *   - Vertex AI (fallback): uses aiplatform.googleapis.com with ADC token
  *
- * Required env vars:
- *   GOOGLE_CLOUD_PROJECT
- *   GEMINI_LOCATION   (default: "us-central1" — Vertex AI Gemini availability)
- *
- * Model: gemini-2.0-flash (override via GEMINI_MODEL env var)
+ * Env vars:
+ *   GEMINI_API_KEY      — Google AI Studio key (preferred, no Vertex AI setup needed)
+ *   GEMINI_MODEL        — model name (default: gemini-1.5-flash)
+ *   GOOGLE_CLOUD_PROJECT — required for Vertex AI fallback
+ *   GEMINI_LOCATION     — Vertex AI region (default: us-central1)
  */
 
 const { getAccessToken } = require('./auth');
 
-const MODEL    = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-const TIMEOUT  = 60_000; // ms
+const MODEL   = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const API_KEY = process.env.GEMINI_API_KEY;
+const TIMEOUT = 60_000;
 
 function _endpoint() {
+  if (API_KEY) {
+    return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+  }
   const project  = process.env.GOOGLE_CLOUD_PROJECT;
   const location = process.env.GEMINI_LOCATION || 'us-central1';
   return `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${MODEL}:generateContent`;
@@ -27,27 +32,27 @@ function _endpoint() {
 /**
  * Send a prompt expecting a JSON response.
  * Returns the parsed JS value (object, array, etc.).
- *
- * @param {string}  prompt
- * @param {number}  [maxOutputTokens=2048]
- * @returns {Promise<any>}
  */
 async function generateJson(prompt, maxOutputTokens = 2048) {
-  const project = process.env.GOOGLE_CLOUD_PROJECT;
-  if (!project) throw new Error('GOOGLE_CLOUD_PROJECT not set');
+  const useApiKey = Boolean(API_KEY);
+  if (!useApiKey && !process.env.GOOGLE_CLOUD_PROJECT) {
+    throw new Error('Set GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT');
+  }
 
-  const token      = await getAccessToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (!useApiKey) {
+    const token = await getAccessToken();
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const controller = new AbortController();
   const timerId    = setTimeout(() => controller.abort(), TIMEOUT);
 
   let res;
   try {
     res = await fetch(_endpoint(), {
-      method:  'POST',
-      headers: {
-        Authorization:  `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      method: 'POST',
+      headers,
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: {

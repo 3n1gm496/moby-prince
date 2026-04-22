@@ -41,8 +41,12 @@ const TIMEOUT   = 90_000;  // per Gemini call
 // ── Model endpoint ────────────────────────────────────────────────────────────
 
 function _endpoint() {
+  const model   = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+  const apiKey  = process.env.GEMINI_API_KEY;
+  if (apiKey) {
+    return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  }
   const location = config.geminiLocation;
-  const model    = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
   return `https://${location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${location}/publishers/google/models/${model}:generateContent`;
 }
 
@@ -199,18 +203,20 @@ async function _executeTool(name, args) {
 // ── Gemini call ───────────────────────────────────────────────────────────────
 
 async function _callGemini(contents) {
-  const token      = await getAccessToken();
   const controller = new AbortController();
   const timerId    = setTimeout(() => controller.abort(), TIMEOUT);
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (!process.env.GEMINI_API_KEY) {
+    const token = await getAccessToken();
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   let res;
   try {
     res = await fetch(_endpoint(), {
       method:  'POST',
-      headers: {
-        Authorization:  `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
         tools:      [{ functionDeclarations: TOOL_DECLARATIONS }],
