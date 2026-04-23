@@ -4,10 +4,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 describe('answer.js — evidence-only SSE flow', () => {
-  it('does not reference contradictions anywhere in the route', () => {
+  it('only emits the expected SSE stages', () => {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const src = fs.readFileSync(path.join(__dirname, '../routes/answer.js'), 'utf8');
-    expect(src).not.toMatch(/contradiction/i);
+    expect(src).toContain("sendEvent('thinking'");
+    expect(src).toContain("sendEvent('answer'");
+    expect(src).toContain("sendEvent('error'");
   });
 
   it('still emits the answer event to the SSE stream', () => {

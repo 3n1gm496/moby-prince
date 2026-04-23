@@ -24,7 +24,7 @@ Confronta questo testo con le seguenti affermazioni documentali e classifica la 
 ${claimsBlock}
 
 Rispondi con un array JSON (un elemento per affermazione):
-[{"index": 1, "relationship": "supports" | "contradicts" | "neutral", "confidence": 0.0-1.0, "note": "breve spiegazione"}]
+[{"index": 1, "relationship": "supports" | "refutes" | "neutral", "confidence": 0.0-1.0, "note": "breve spiegazione"}]
 `.trim();
 
   let results;
@@ -43,7 +43,7 @@ Rispondi con un array JSON (un elemento per affermazione):
       claimId: claim?.id,
       documentId: claim?.documentId,
       claimText: claim?.text?.slice(0, 200),
-      relationship: ['supports', 'contradicts', 'neutral'].includes(result.relationship)
+      relationship: ['supports', 'refutes', 'neutral'].includes(result.relationship)
         ? result.relationship
         : 'neutral',
       confidence: typeof result.confidence === 'number'
@@ -54,9 +54,9 @@ Rispondi con un array JSON (un elemento per affermazione):
   });
 
   const supports = evidence.filter((item) => item.relationship === 'supports');
-  const contradicts = evidence.filter((item) => item.relationship === 'contradicts');
+  const refutes = evidence.filter((item) => item.relationship === 'refutes');
   const status =
-    contradicts.length > supports.length ? 'contradicted' :
+    refutes.length > supports.length ? 'challenged' :
     supports.length > 0 ? 'supported' :
     'inconclusive';
 

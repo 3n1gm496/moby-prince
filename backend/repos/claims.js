@@ -76,7 +76,6 @@ async function findSimilar(text, entityIds = [], limit = 20) {
   const rows = await bq.query(
     `SELECT * FROM ${_table('claims')}
      WHERE SEARCH(text, @keywords)
-       AND created_at > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 365 DAY)
      ORDER BY confidence DESC, created_at DESC
      LIMIT @limit`,
     [

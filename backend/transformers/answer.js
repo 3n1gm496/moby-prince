@@ -119,10 +119,62 @@ function buildEvidence(answerObj, citations, groundingMap = new Map()) {
       documentId:    _safeDecodeId(docMeta.id) || null,
       citationIds:   refToCitations.get(index) || [],
       groundingScore: rawScore != null ? Math.round(rawScore * 100) / 100 : null,
+      anchors: _fallbackAnchors({
+        documentId: _safeDecodeId(docMeta.id) || null,
+        uri,
+        snippet:
+          unstructured.chunkContents?.[0]?.content ||
+          chunkInfo.content ||
+          null,
+        pageIdentifier:
+          unstructured.chunkContents?.[0]?.pageIdentifier ||
+          chunkInfo.pageSpan?.pageStart?.toString() ||
+          null,
+      }),
       // Struct metadata — populated once the datastore schema includes these fields
       metadata: _extractStructMetadata(ref),
     };
   });
+}
+
+function _fallbackAnchors({ documentId, uri, snippet, pageIdentifier }) {
+  const anchors = [];
+  const page = pageIdentifier != null ? Number(pageIdentifier) : null;
+  if (page != null && !Number.isNaN(page)) {
+    anchors.push({
+      id: `${documentId || uri || 'evidence'}-page-${page}`,
+      documentId,
+      anchorType: 'page',
+      pageNumber: page,
+      snippet: snippet || null,
+      textQuote: null,
+      timeStartSeconds: null,
+      timeEndSeconds: null,
+      frameReference: null,
+      shotReference: null,
+      confidence: 0.6,
+      sourceUri: uri || null,
+      mimeType: null,
+    });
+  }
+  if (snippet) {
+    anchors.push({
+      id: `${documentId || uri || 'evidence'}-snippet`,
+      documentId,
+      anchorType: 'text_span',
+      pageNumber: page,
+      snippet,
+      textQuote: snippet,
+      timeStartSeconds: null,
+      timeEndSeconds: null,
+      frameReference: null,
+      shotReference: null,
+      confidence: 0.5,
+      sourceUri: uri || null,
+      mimeType: null,
+    });
+  }
+  return anchors;
 }
 
 /**

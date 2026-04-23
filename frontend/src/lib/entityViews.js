@@ -28,3 +28,7 @@ export const ENTITY_VIEW_CONFIG = {
 export function entityConfigFromSlug(slug) {
   return ENTITY_VIEW_CONFIG[slug] || null;
 }
+
+export function entityConfigFromType(type) {
+  return Object.values(ENTITY_VIEW_CONFIG).find((config) => config.type === type) || null;
+}

@@ -66,6 +66,18 @@ function buildCitations(answerObj) {
           // Only use the DE-internal ID (docMeta.id); falling back to the URI
           // filename gives an invalid ID that always returns 404 from DE.
           documentId: _safeDecodeId(docMeta.id) || null,
+          anchors: _fallbackAnchors({
+            documentId: _safeDecodeId(docMeta.id) || null,
+            snippet:
+              unstructured.chunkContents?.[0]?.content ||
+              chunkInfo.content ||
+              null,
+            pageIdentifier:
+              unstructured.chunkContents?.[0]?.pageIdentifier ||
+              chunkInfo.pageSpan?.pageStart?.toString() ||
+              null,
+            uri,
+          }),
         };
       })
       .filter(Boolean);
@@ -78,6 +90,50 @@ function buildCitations(answerObj) {
       sources,
     };
   });
+}
+
+function _fallbackAnchors({ documentId, snippet, pageIdentifier, uri }) {
+  const anchors = [];
+  const page = pageIdentifier != null ? Number(pageIdentifier) : null;
+  if (page != null && !Number.isNaN(page)) {
+    anchors.push({
+      id: `${documentId || uri || 'source'}-page-${page}`,
+      documentId,
+      claimId: null,
+      eventId: null,
+      anchorType: 'page',
+      pageNumber: page,
+      textQuote: null,
+      snippet: snippet || null,
+      timeStartSeconds: null,
+      timeEndSeconds: null,
+      frameReference: null,
+      shotReference: null,
+      confidence: 0.6,
+      sourceUri: uri || null,
+      mimeType: null,
+    });
+  }
+  if (snippet) {
+    anchors.push({
+      id: `${documentId || uri || 'source'}-snippet`,
+      documentId,
+      claimId: null,
+      eventId: null,
+      anchorType: 'text_span',
+      pageNumber: page,
+      textQuote: snippet,
+      snippet,
+      timeStartSeconds: null,
+      timeEndSeconds: null,
+      frameReference: null,
+      shotReference: null,
+      confidence: 0.5,
+      sourceUri: uri || null,
+      mimeType: null,
+    });
+  }
+  return anchors;
 }
 
 function _safeDecodeId(id) {

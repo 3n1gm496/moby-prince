@@ -15,8 +15,8 @@
  * pipeline continues.  The document is indexed regardless.
  *
  * BQ table written: evidence.claims
- * Fields: id, text, claim_type, document_id, confidence, status,
- *         extraction_method, source_uri, created_at, updated_at
+ * Fields: id, text, claim_type, document_id, document_uri, confidence, status,
+ *         extraction_method, created_at, updated_at
  *
  * Required env vars:
  *   GOOGLE_CLOUD_PROJECT   BQ project + Gemini billing project
@@ -46,6 +46,7 @@ Analizza il seguente testo ed estrai le affermazioni fattuali più rilevanti.
 Per ogni affermazione restituisci un oggetto JSON con:
 - "text": il testo della affermazione (frase completa, in italiano, max 200 caratteri)
 - "claimType": uno tra "fact" | "interpretation" | "allegation" | "conclusion"
+- "entities": array di nomi propri principali esplicitamente presenti nel testo (max 5)
 - "confidence": un valore da 0.0 a 1.0 che indica quanto l'affermazione è chiara e supportata dal testo
 
 Regole:
@@ -119,16 +120,16 @@ class ClaimExtractorWorker extends BaseWorker {
         text:              c.text.trim().slice(0, 500),
         claim_type:        _sanitizeClaimType(c.claimType),
         document_id:       job.documentId || job.jobId,
+        document_uri:      uri || null,
         chunk_id:          null,
-        page_reference:    null,
-        entity_ids:        [],
+        page_reference:    job.meta?.page_start != null ? String(job.meta.page_start) : null,
+        entity_ids:        Array.isArray(c.entities) ? c.entities.map(String).slice(0, 5) : [],
         event_id:          null,
         confidence:        typeof c.confidence === 'number'
           ? Math.max(0, Math.min(1, c.confidence))
           : 0.5,
         status:            'unverified',
         extraction_method: 'llm_extracted',
-        source_uri:        uri || '',
         created_at:        now,
         updated_at:        now,
       }));

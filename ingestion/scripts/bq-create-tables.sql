@@ -118,12 +118,13 @@ CREATE TABLE IF NOT EXISTS `{project}.evidence.claims` (
   text                STRING    NOT NULL  OPTIONS(description='The factual assertion (verbatim or paraphrased)'),
   claim_type          STRING              OPTIONS(description='fact|interpretation|allegation|conclusion|retraction'),
   document_id         STRING    NOT NULL  OPTIONS(description='FK → evidence.documents.id'),
+  document_uri        STRING              OPTIONS(description='Source URI copied from evidence.documents.source_uri for denormalized provenance'),
   chunk_id            STRING              OPTIONS(description='FK → evidence.chunks.id'),
   page_reference      STRING              OPTIONS(description='Human-readable page citation e.g. "p. 47"'),
   entity_ids          ARRAY<STRING>       OPTIONS(description='Entities this claim is about → evidence.entities.id'),
   event_id            STRING              OPTIONS(description='FK → evidence.events.id'),
   confidence          FLOAT64             OPTIONS(description='0.0-1.0 confidence score'),
-  status              STRING              OPTIONS(description='unverified|corroborated|contradicted|retracted'),
+  status              STRING              OPTIONS(description='unverified|corroborated|challenged|retracted'),
   extraction_method   STRING              OPTIONS(description='manual|llm_extracted|ner_model'),
   created_at          TIMESTAMP NOT NULL,
   updated_at          TIMESTAMP NOT NULL
@@ -132,18 +133,59 @@ PARTITION BY DATE(created_at)
 CLUSTER BY document_id, status, claim_type
 OPTIONS(description='Atomic factual assertions extracted from documents. Primary unit for structured provenance, entity linking and timeline reconstruction.');
 
--- ── 6. evidence_links ────────────────────────────────────────────────────────
+-- ── 6. source_anchors ────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS `{project}.evidence.source_anchors` (
+  id                  STRING    NOT NULL,
+  document_id         STRING    NOT NULL  OPTIONS(description='FK → evidence.documents.id'),
+  claim_id            STRING              OPTIONS(description='FK → evidence.claims.id'),
+  event_id            STRING              OPTIONS(description='FK → evidence.events.id'),
+  anchor_type         STRING    NOT NULL  OPTIONS(description='page|text_span|timestamp|frame|shot'),
+  page_number         INT64,
+  text_quote          STRING,
+  snippet             STRING,
+  time_start_seconds  FLOAT64,
+  time_end_seconds    FLOAT64,
+  frame_reference     STRING,
+  shot_reference      STRING,
+  anchor_confidence   FLOAT64,
+  source_uri          STRING,
+  mime_type           STRING,
+  created_at          TIMESTAMP NOT NULL,
+  updated_at          TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(created_at)
+CLUSTER BY document_id, anchor_type
+OPTIONS(description='Structured provenance anchors shared by timeline, chat, entity pages and dossier viewers.');
+
+-- ── 7. entity_profiles ───────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS `{project}.evidence.entity_profiles` (
+  entity_id           STRING    NOT NULL  OPTIONS(description='FK → evidence.entities.id'),
+  summary             STRING    NOT NULL  OPTIONS(description='Materialized AI summary for UI consumption'),
+  aliases             ARRAY<STRING>,
+  role                STRING,
+  summary_version     INT64     NOT NULL  OPTIONS(description='Increment when the prompt/data contract changes'),
+  source_claim_ids    ARRAY<STRING>,
+  generated_at        TIMESTAMP NOT NULL,
+  updated_at          TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(updated_at)
+CLUSTER BY entity_id
+OPTIONS(description='Materialized and cacheable entity summaries used by the evidence-first UI.');
+
+-- ── 8. evidence_links ────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS `{project}.evidence.evidence_links` (
   id          STRING    NOT NULL,
   claim_id    STRING    NOT NULL  OPTIONS(description='FK → evidence.claims.id'),
   chunk_id    STRING    NOT NULL  OPTIONS(description='FK → evidence.chunks.id'),
   document_id STRING    NOT NULL  OPTIONS(description='Denormalized for query performance'),
-  link_type   STRING    NOT NULL  OPTIONS(description='supports|contradicts|mentions|references|qualifies'),
+  link_type   STRING    NOT NULL  OPTIONS(description='supports|refutes|mentions|references|qualifies'),
   strength    FLOAT64             OPTIONS(description='0.0-1.0 confidence in the link'),
   note        STRING,
   created_at  TIMESTAMP NOT NULL
 )
 PARTITION BY DATE(created_at)
 CLUSTER BY claim_id, link_type
-OPTIONS(description='Links between claims and the chunks that support, mention, qualify or otherwise document them.');
+OPTIONS(description='Links between claims and the chunks that support, refute, mention, qualify or otherwise document them.');

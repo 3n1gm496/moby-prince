@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import CitationPanel from "../components/CitationPanel";
 import DocumentPanel from "../components/DocumentPanel";
 import { apiFetch } from "../lib/apiFetch";
-import { entityConfigFromSlug } from "../lib/entityViews";
+import { entityConfigFromSlug, entityConfigFromType } from "../lib/entityViews";
+import { dateAccuracyLabel, sourceLocationLabel } from "../lib/sourceUtils";
 
 function toTimelineCitation(event, sourceIndex) {
   const sources = [...(event.sources || [])];
@@ -121,65 +122,133 @@ export default function EntityProfile() {
               </div>
             </section>
 
+            <section className="grid gap-3 md:grid-cols-4">
+              {[
+                { label: "Documenti", value: payload.totals?.documents ?? 0 },
+                { label: "Claim", value: payload.totals?.claims ?? 0 },
+                { label: "Eventi", value: payload.totals?.events ?? 0 },
+                { label: "Entità collegate", value: payload.totals?.relatedEntities ?? 0 },
+              ].map((item) => (
+                <div key={item.label} className="rounded-2xl border border-border bg-surface-raised px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted">{item.label}</p>
+                  <p className="mt-1 text-[24px] font-semibold tracking-tight text-text-primary">{item.value}</p>
+                </div>
+              ))}
+            </section>
+
             <section className="space-y-3">
               <h2 className="text-[15px] font-semibold">Documenti collegati</h2>
-              <div className="grid gap-3 md:grid-cols-2">
-                {(payload.documents || []).map((document) => (
-                  <button
-                    key={document.id}
-                    onClick={() => setActiveDocument(document)}
-                    className="rounded-2xl border border-border bg-surface-raised p-4 text-left hover:border-accent/30 transition-colors"
-                  >
-                    <p className="text-[14px] font-medium text-text-primary">{document.title}</p>
-                    <p className="mt-1 text-[11px] text-text-secondary">
-                      {[document.documentType, document.institution, document.year].filter(Boolean).join(" · ")}
-                    </p>
-                  </button>
-                ))}
-              </div>
+              {(payload.documents || []).length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-raised px-4 py-5 text-[13px] text-text-secondary">
+                  Nessun documento collegato disponibile nel layer strutturato.
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {(payload.documents || []).map((document) => (
+                    <button
+                      key={document.id}
+                      onClick={() => setActiveDocument(document)}
+                      className="rounded-2xl border border-border bg-surface-raised p-4 text-left hover:border-accent/30 transition-colors"
+                    >
+                      <p className="text-[14px] font-medium text-text-primary">{document.title}</p>
+                      <p className="mt-1 text-[11px] text-text-secondary">
+                        {[document.documentType, document.institution, document.year].filter(Boolean).join(" · ")}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className="space-y-3">
               <h2 className="text-[15px] font-semibold">Eventi collegati</h2>
-              <div className="space-y-3">
-                {(payload.events || []).map((event) => (
-                  <article key={event.id} className="rounded-2xl border border-border bg-surface-raised p-4">
-                    <p className="text-[11px] text-text-secondary font-mono">{event.dateText || event.occurredAt || "Data da verificare"}</p>
-                    <h3 className="mt-1 text-[15px] font-medium text-text-primary">{event.title}</h3>
-                    {event.description && (
-                      <p className="mt-2 text-[13px] text-text-secondary">{event.description}</p>
-                    )}
-                    {event.sources?.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {event.sources.map((source, index) => (
-                          <button
-                            key={`${source.id || source.documentId || index}-${index}`}
-                            onClick={() => setActiveCitation(toTimelineCitation(event, index))}
-                            className="rounded-full border border-border px-3 py-1 text-[11px] text-text-secondary hover:text-text-primary hover:border-accent/30 transition-colors"
-                          >
-                            {source.title || source.documentId || "Fonte"}
-                            {source.pageReference ? ` · ${source.pageReference}` : ""}
-                          </button>
-                        ))}
+              {(payload.events || []).length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-raised px-4 py-5 text-[13px] text-text-secondary">
+                  Nessun evento strutturato collegato a questa entità.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {(payload.events || []).map((event) => (
+                    <article key={event.id} className="rounded-2xl border border-border bg-surface-raised p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-[11px] text-text-secondary font-mono">{event.dateLabel || event.dateText || event.occurredAt || "Data da verificare"}</p>
+                        <span className="inline-flex items-center rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-text-secondary">
+                          {dateAccuracyLabel(event.dateAccuracy || event.datePrecision)}
+                        </span>
                       </div>
-                    )}
-                  </article>
-                ))}
-              </div>
+                      <h3 className="mt-1 text-[15px] font-medium text-text-primary">{event.title}</h3>
+                      {event.description && (
+                        <p className="mt-2 text-[13px] text-text-secondary">{event.description}</p>
+                      )}
+                      {event.sources?.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {event.sources.map((source, index) => (
+                            <button
+                              key={`${source.id || source.documentId || index}-${index}`}
+                              onClick={() => setActiveCitation(toTimelineCitation(event, index))}
+                              className="rounded-full border border-border px-3 py-1 text-[11px] text-text-secondary hover:text-text-primary hover:border-accent/30 transition-colors"
+                            >
+                              {source.title || source.documentId || "Fonte"}
+                              {sourceLocationLabel(source) ? ` · ${sourceLocationLabel(source)}` : ""}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className="space-y-3">
               <h2 className="text-[15px] font-semibold">Claim rilevanti</h2>
-              <div className="space-y-3">
-                {(payload.claims || []).map((claim) => (
-                  <article key={claim.id} className="rounded-2xl border border-border bg-surface-raised p-4">
-                    <p className="text-[13px] leading-relaxed text-text-primary">{claim.text}</p>
-                    <p className="mt-2 text-[11px] text-text-secondary">
-                      {[claim.pageReference, claim.status, claim.claimType].filter(Boolean).join(" · ")}
-                    </p>
-                  </article>
-                ))}
-              </div>
+              {(payload.claims || []).length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-raised px-4 py-5 text-[13px] text-text-secondary">
+                  Nessun claim collegato disponibile.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {(payload.claims || []).map((claim) => (
+                    <article key={claim.id} className="rounded-2xl border border-border bg-surface-raised p-4">
+                      <p className="text-[13px] leading-relaxed text-text-primary">{claim.text}</p>
+                      <p className="mt-2 text-[11px] text-text-secondary">
+                        {[claim.pageReference, claim.status, claim.claimType].filter(Boolean).join(" · ")}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-3">
+              <h2 className="text-[15px] font-semibold">Entità collegate</h2>
+              {(payload.relatedEntities || []).length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-raised px-4 py-5 text-[13px] text-text-secondary">
+                  Nessuna entità correlata con soglia alta disponibile al momento.
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {(payload.relatedEntities || []).map((related) => {
+                    const relatedConfig = entityConfigFromType(related.entityType);
+                    const relatedHref = relatedConfig
+                      ? `${relatedConfig.route}/${encodeURIComponent(related.id)}`
+                      : config.route;
+                    const meta = [relatedConfig?.singular, related.role, `${related.coMentions || 0} co-citazioni`]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                    <Link
+                      key={related.id}
+                      to={relatedHref}
+                      className="rounded-2xl border border-border bg-surface-raised p-4 hover:border-accent/30 transition-colors"
+                    >
+                      <p className="text-[14px] font-medium text-text-primary">{related.canonicalName}</p>
+                      <p className="mt-1 text-[11px] text-text-secondary">{meta}</p>
+                    </Link>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           </div>
         )}

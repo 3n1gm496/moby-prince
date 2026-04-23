@@ -4,8 +4,12 @@ import {
   titleFromUri,
   resolveSourceUri,
   inferMimeType,
+  getPrimaryAnchor,
+  listSourceAnchors,
   parsePageIdentifier,
   parseTimeIdentifier,
+  sourceLocationLabel,
+  formatTimeIdentifier,
   buildPdfUrl,
 } from "../lib/sourceUtils";
 
@@ -83,6 +87,8 @@ export default function CitationPanel({ citation, onClose }) {
 
   const sources = citation.sources || [];
   const selectedSource = sources[selectedIndex] || sources[0] || null;
+  const anchors = listSourceAnchors(selectedSource);
+  const primaryAnchor = getPrimaryAnchor(selectedSource);
 
   return (
     <>
@@ -93,6 +99,9 @@ export default function CitationPanel({ citation, onClose }) {
       <aside
         ref={panelRef}
         tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Viewer della fonte"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         className="fixed right-0 top-0 bottom-0 w-full max-w-[38rem]
@@ -129,7 +138,7 @@ export default function CitationPanel({ citation, onClose }) {
                 <p className="text-xs text-text-secondary italic">Nessuna fonte disponibile.</p>
               )}
               {sources.map((source, index) => {
-                const pageIdentifier = parsePageIdentifier(source);
+                const locationLabel = sourceLocationLabel(source);
                 return (
                   <button
                     key={`${source.documentId || source.uri || source.title || index}-${index}`}
@@ -143,9 +152,9 @@ export default function CitationPanel({ citation, onClose }) {
                     <p className="text-[12px] font-medium text-text-primary leading-snug">
                       {titleFromUri(source.uri) || source.title || "Documento"}
                     </p>
-                    {pageIdentifier && (
+                    {locationLabel && (
                       <p className="text-[10px] text-text-secondary font-mono mt-1">
-                        p. {pageIdentifier}
+                        {locationLabel}
                       </p>
                     )}
                   </button>
@@ -162,21 +171,53 @@ export default function CitationPanel({ citation, onClose }) {
                     <h4 className="text-[14px] font-medium text-text-primary leading-snug flex-1">
                       {titleFromUri(selectedSource.uri) || selectedSource.title || "Documento"}
                     </h4>
-                    {parsePageIdentifier(selectedSource) && (
+                    {sourceLocationLabel(selectedSource) && (
                       <span className="text-[11px] text-text-secondary font-mono whitespace-nowrap flex-shrink-0 mt-0.5">
-                        p. {parsePageIdentifier(selectedSource)}
+                        {sourceLocationLabel(selectedSource)}
                       </span>
                     )}
                   </div>
 
-                  {selectedSource.snippet && (
+                  {(primaryAnchor?.textQuote || primaryAnchor?.snippet || selectedSource.snippet) && (
                     <p className="text-xs text-text-primary leading-relaxed italic border-l border-border/60 pl-3">
-                      &ldquo;{selectedSource.snippet.slice(0, 700)}{selectedSource.snippet.length > 700 ? "…" : ""}&rdquo;
+                      &ldquo;{(primaryAnchor?.textQuote || primaryAnchor?.snippet || selectedSource.snippet).slice(0, 700)}
+                      {(primaryAnchor?.textQuote || primaryAnchor?.snippet || selectedSource.snippet).length > 700 ? "…" : ""}&rdquo;
                     </p>
                   )}
                 </div>
 
                 <SourcePreview source={selectedSource} />
+
+                {anchors.length > 0 && (
+                  <div className="rounded-xl border border-border/40 bg-surface-raised p-3 space-y-2">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">Ancore disponibili</p>
+                    <div className="space-y-2">
+                      {anchors.map((anchor) => (
+                        <div key={anchor.id} className="rounded-lg border border-border/50 px-3 py-2 text-[11px] text-text-secondary">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-text-primary">
+                              {sourceLocationLabel({ anchors: [anchor] }) || anchor.anchorType}
+                            </span>
+                            <span className="uppercase tracking-wide text-[10px] text-text-muted">
+                              {anchor.anchorType}
+                            </span>
+                            {anchor.timeEndSeconds != null && anchor.timeStartSeconds != null && (
+                              <span className="font-mono">
+                                {formatTimeIdentifier(anchor.timeStartSeconds)}–{formatTimeIdentifier(anchor.timeEndSeconds)}
+                              </span>
+                            )}
+                          </div>
+                          {(anchor.textQuote || anchor.snippet) && (
+                            <p className="mt-1.5 leading-relaxed italic text-text-primary">
+                              &ldquo;{(anchor.textQuote || anchor.snippet).slice(0, 300)}
+                              {(anchor.textQuote || anchor.snippet).length > 300 ? "…" : ""}&rdquo;
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {resolveSourceUri(selectedSource.uri) && (
                   <div className="flex flex-wrap gap-3">

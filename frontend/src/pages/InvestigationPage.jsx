@@ -106,7 +106,7 @@ function AgentMessage({ message }) {
         {message.steps?.length > 0 && (
           <div className="space-y-1.5">
             <p className="text-[11px] text-text-muted font-medium uppercase tracking-wide">
-              Passaggi ragionamento ({message.steps.length})
+              Traccia analisi ({message.steps.length})
             </p>
             {message.steps.map((step, i) => (
               <ToolStep
@@ -270,7 +270,7 @@ export default function InvestigationPage() {
         <div>
           <h1 className="font-serif text-base font-semibold leading-tight">Investigazione</h1>
           <p className="text-[11px] text-text-muted leading-tight">
-            Agente multi-step · Moby Prince
+            Analisi assistita · Moby Prince
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -283,7 +283,7 @@ export default function InvestigationPage() {
             </span>
           )}
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
-            Gemini 2.0 Flash
+            Gemini 2.5 Flash Lite
           </span>
         </div>
       </header>
@@ -300,8 +300,8 @@ export default function InvestigationPage() {
                 Modalità investigazione
               </p>
               <p className="text-sm text-text-secondary max-w-sm">
-                L'agente usa più strumenti in sequenza per rispondere a domande complesse.
-                Puoi seguire ogni passaggio del ragionamento.
+                La modalità investigazione combina ricerca documentale, timeline ed entità
+                per costruire risposte più profonde mantenendo le fonti sempre al centro.
               </p>
             </div>
             <div className="flex flex-col gap-2 w-full max-w-lg">
@@ -347,7 +347,7 @@ export default function InvestigationPage() {
             <AnchorAvatar />
             <div className="flex-1 min-w-0 pt-0.5 space-y-1.5 max-w-3xl">
               <p className="text-[11px] text-text-muted font-medium uppercase tracking-wide">
-                Passaggi in corso
+                Analisi in corso
               </p>
               {steps.map((s, i) => (
                 <ToolStep key={i} step={s} isExpanded={false} onToggle={() => {}} />

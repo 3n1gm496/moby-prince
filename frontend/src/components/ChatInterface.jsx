@@ -13,6 +13,7 @@ import Sidebar from "./Sidebar";
 import AnchorAvatar from "./AnchorAvatar";
 import Toast from "./Toast";
 import { getFilterValueLabel, FILTER_SCHEMA } from "../filters/schema";
+import { sourceLocationLabel } from "../lib/sourceUtils";
 
 const MESSAGES_PAGE_SIZE    = 30;  // fallback pagination for short conversations
 const VIRTUALIZE_THRESHOLD  = 100; // switch to virtual list above this count
@@ -225,7 +226,7 @@ export default function ChatInterface() {
           lines.push(`\n_Frammenti recuperati:_\n`);
           msg.evidence.slice(0, 6).forEach((ev) => {
             lines.push(`\n- **${ev.title || "Documento"}**`);
-            if (ev.pageIdentifier) lines.push(` — p. ${ev.pageIdentifier}`);
+            if (sourceLocationLabel(ev)) lines.push(` — ${sourceLocationLabel(ev)}`);
             if (ev.snippet) lines.push(`\n  > ${ev.snippet.slice(0, 250).replace(/\n/g, " ")}`);
           });
           lines.push("\n");

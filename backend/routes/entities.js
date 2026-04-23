@@ -16,7 +16,7 @@ const { Router } = require('express');
 const entitiesRepo = require('../repos/entities');
 const claimsRepo   = require('../repos/claims');
 const eventsRepo   = require('../repos/events');
-const gemini       = require('../services/gemini');
+const profilesRepo = require('../repos/profiles');
 const { isBigQueryEnabled } = require('../services/bigquery');
 
 const router = Router();
@@ -63,42 +63,21 @@ router.get('/:id/context', async (req, res, next) => {
   const claimsLimit = Math.min(parseInt(req.query.claimsLimit, 10) || 15, 50);
   const docsLimit = Math.min(parseInt(req.query.docsLimit, 10) || 12, 50);
   const eventsLimit = Math.min(parseInt(req.query.eventsLimit, 10) || 20, 50);
+  const relatedLimit = Math.min(parseInt(req.query.relatedLimit, 10) || 8, 20);
 
   try {
     const entity = await entitiesRepo.getById(req.params.id);
     if (!entity) return res.status(404).json({ error: 'Entity not found.' });
 
-    const [claims, events, documents] = await Promise.all([
+    const [claims, events, documents, relatedEntities, profile] = await Promise.all([
       claimsRepo.listByEntity(req.params.id, claimsLimit),
       eventsRepo.listByEntity(req.params.id, eventsLimit),
       entitiesRepo.listDocuments(req.params.id, docsLimit),
+      entitiesRepo.listRelated(req.params.id, relatedLimit),
+      profilesRepo.getEntityProfile(req.params.id),
     ]);
 
-    let summary = null;
-    try {
-      const summaryResult = await gemini.generateJson(
-        [
-          'Sei un assistente storico specializzato nel caso Moby Prince.',
-          'Scrivi un profilo sintetico, preciso e prudente in italiano.',
-          'Massimo 3 frasi. Nessuna invenzione. Se i dati sono limitati, resta sobrio.',
-          `Entità: ${entity.canonicalName} (${entity.entityType})`,
-          entity.role ? `Ruolo noto: ${entity.role}` : '',
-          entity.description ? `Descrizione nota: ${entity.description}` : '',
-          claims.length > 0
-            ? `Claim rilevanti:\n${claims.slice(0, 5).map((claim, index) => `${index + 1}. ${claim.text}`).join('\n')}`
-            : 'Claim rilevanti: nessuno disponibile.',
-          events.length > 0
-            ? `Eventi collegati:\n${events.slice(0, 4).map((event, index) => `${index + 1}. ${event.title}`).join('\n')}`
-            : 'Eventi collegati: nessuno disponibile.',
-          'Rispondi SOLO in JSON con {"summary":"..."}',
-        ].filter(Boolean).join('\n\n'),
-        512,
-      );
-      summary = typeof summaryResult?.summary === 'string' ? summaryResult.summary.trim() : null;
-    } catch {
-      summary = null;
-    }
-
+    let summary = profile?.summary || null;
     if (!summary) {
       const rolePart = entity.role ? ` svolge il ruolo di ${entity.role}` : '';
       const aliasPart = entity.aliases?.length ? ` È citata anche come ${entity.aliases.slice(0, 3).join(', ')}.` : '';
@@ -111,10 +90,13 @@ router.get('/:id/context', async (req, res, next) => {
       claims,
       events,
       documents,
+      relatedEntities,
+      profile: profile || null,
       totals: {
         claims: claims.length,
         events: events.length,
         documents: documents.length,
+        relatedEntities: relatedEntities.length,
       },
     });
   } catch (err) {

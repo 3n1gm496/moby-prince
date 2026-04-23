@@ -1,28 +1,127 @@
 # Archivio Moby Prince
 
-Piattaforma investigativa evidence-first sul disastro del Moby Prince. Il prodotto unisce chat con citazioni verificabili, timeline strutturata, profili entità, dossier documentali e strumenti investigativi costruiti sul corpus.
+Piattaforma investigativa evidence-first sul disastro del Moby Prince.
 
-## Stato attuale
+Il repository serve a consultare un corpus documentale eterogeneo con quattro obiettivi operativi:
 
-- Chat principale con risposte grounded e pannello fonti unificato
-- Timeline unica basata su BigQuery con eventi, data, accuratezza e fonti multiple
-- Indici separati per `persone`, `navi`, `enti`, `luoghi`
-- Profilo entità con sintesi AI prudente, documenti, claim ed eventi collegati
-- Dossier builder su GCS con apertura documenti e drill-down indicizzato
-- Pagina investigazione con strumenti orientati a documenti, eventi ed entità
-- Funzionalità di `contraddizioni` rimossa dal prodotto operativo
+- interrogare il corpus in linguaggio naturale con citazioni apribili
+- ricostruire una timeline strutturata con eventi unificati e fonti multiple
+- navigare entità canoniche (`persone`, `navi`, `enti`, `luoghi`) con profili stabili
+- mantenere un layer dati autorevole in BigQuery, coerente con GCS, Discovery Engine e le superfici UI
+
+Il prodotto è pensato per demo interna seria: meno effetti “prototype”, più provenienza, più coerenza, meno ambiguità.
+
+## Stato del prodotto
+
+Superfici disponibili:
+
+- `Chat` su `/` con risposte grounded e pannello fonti unificato
+- `Timeline` su `/timeline` con eventi cronologici, accuratezza data e viewer condiviso
+- `Persone`, `Navi`, `Enti`, `Luoghi` con directory separate e profili dedicati
+- `Dossier` su `/dossier` per raccolta e consultazione materiali su GCS
+- `Investigazione` su `/investigazione` per analisi multi-step più profonda
+- `Admin` su `/admin` per metriche operative essenziali
+
+Decisioni architetturali importanti:
+
+- il prodotto evita feature speculative non affidabili e privilegia attribuzione documentale e provenance
+- BigQuery è la fonte autorevole per timeline, entità, claim e provenance strutturata
+- il viewer usa un contratto condiviso `source + anchors`
+- i profili AI delle entità devono essere materializzati o cachati persistentemente, non generati live per ogni apertura
 
 ## Stack
 
 - Frontend: React 18, Vite, Tailwind
 - Backend: Express, SSE, servizi Google Cloud
-- Retrieval: Vertex AI Search / Discovery Engine
-- Structured evidence: BigQuery `evidence`
-- Storage: GCS + Firestore
-- Modelli: Gemini per sintesi, verifica e arricchimento
-- Runtime supportato: Node 20 (`.nvmrc` presente)
+- Retrieval semantico: Vertex AI Search / Discovery Engine
+- Structured evidence: BigQuery dataset `evidence`
+- Storage: Google Cloud Storage
+- Sessioni e stato leggero: Firestore
+- Modelli: Gemini per estrazione, sintesi, verifica e arricchimento
+- Runtime supportato: Node 20
 
-## Architettura
+## Requisiti
+
+- Node 20
+- progetto GCP configurato
+- accesso a:
+  - Discovery Engine / Vertex AI Search
+  - BigQuery
+  - Cloud Storage
+  - Firestore
+  - Vertex AI / Gemini
+- credenziali ADC oppure API key Gemini dove previsto
+
+`.nvmrc` è presente nel repo.
+
+## Struttura del repository
+
+```text
+moby-prince/
+├── backend/                 API Express, SSE, query BigQuery, trasformazioni risposta
+├── frontend/                interfaccia React evidence-first
+├── ingestion/               worker, script di backfill, pipeline multimodale
+├── docs/                    documentazione tecnica allineata allo stato reale
+├── eval/                    benchmark ed evaluation harness
+└── scripts/                 utility locali
+```
+
+## Quick Start
+
+### 1. Ambiente
+
+Backend: `backend/.env`
+
+Frontend: usa le variabili `VITE_*` previste dal progetto.
+
+Le variabili più importanti lato backend sono:
+
+```bash
+GOOGLE_CLOUD_PROJECT=
+GCP_LOCATION=eu
+ENGINE_ID=
+DATA_STORE_ID=
+BQ_PROJECT_ID=
+BQ_DATASET_ID=evidence
+BQ_LOCATION=EU
+GEMINI_LOCATION=us-central1
+GEMINI_MODEL=gemini-2.5-flash-lite
+GEMINI_API_KEY=
+FRONTEND_ORIGIN=http://localhost:5173
+API_KEY=
+BUCKET_RAW=
+BUCKET_NORMALIZED=
+```
+
+### 2. Installazione
+
+```bash
+nvm use
+
+cd backend
+npm install
+
+cd ../frontend
+npm install
+```
+
+### 3. Avvio locale
+
+Backend:
+
+```bash
+cd backend
+npm run dev
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+## Architettura ad alto livello
 
 ```mermaid
 graph TD
@@ -31,7 +130,7 @@ graph TD
     DE["Vertex AI Search"]
     BQ["BigQuery evidence"]
     GCS["Cloud Storage corpus"]
-    FS["Firestore sessioni"]
+    FS["Firestore"]
     GM["Gemini"]
     ING["Ingestion / backfill"]
 
@@ -41,72 +140,268 @@ graph TD
     BE --> GCS
     BE --> FS
     BE --> GM
-    GCS --> ING
+    ING --> GCS
     ING --> DE
     ING --> BQ
+    ING --> GM
 ```
 
-## Superfici prodotto
+Flusso logico:
 
-| Pagina | Route | Scopo |
-|---|---|---|
-| Chat | `/` | Ricerca e sintesi grounded con viewer fonti |
-| Timeline | `/timeline` | Ricostruzione cronologica evidence-first |
-| Persone | `/persone` | Indice persone con profili dedicati |
-| Navi | `/navi` | Indice navi con profili dedicati |
-| Enti | `/enti` | Indice enti con profili dedicati |
-| Luoghi | `/luoghi` | Indice luoghi con profili dedicati |
-| Dossier | `/dossier` | Browser documentale e raccolta materiali |
-| Investigazione | `/investigazione` | Agente multi-step con tool documentali |
-| Admin | `/admin` | Statistiche operative |
+1. i documenti arrivano in GCS o nel corpus esistente
+2. la pipeline di ingestion estrae testo, metadata, entità, claim, eventi e anchor
+3. Discovery Engine indicizza i documenti/chunk per la ricerca semantica
+4. BigQuery conserva il layer strutturato autorevole
+5. backend e frontend consumano lo stesso contratto di provenance
+
+## Modello dati strutturato
+
+Tabelle principali:
+
+- `documents`
+- `chunks`
+- `entities`
+- `events`
+- `claims`
+- `source_anchors`
+- `entity_profiles`
+- `evidence_links`
+
+Concetti chiave:
+
+- `claims` sono l’unità atomica di affermazione documentale
+- `events` unificano più claim sullo stesso fatto cronologico
+- `source_anchors` rendono apribile la provenienza precisa:
+  - pagina PDF
+  - span testuale
+  - timestamp audio/video
+  - frame o shot per media
+- `entity_profiles` materializzano summary, alias e ruolo in forma stabile
+
+Vedi anche:
+
+- [docs/evidence-model.md](docs/evidence-model.md)
+- [docs/evidence-architecture.md](docs/evidence-architecture.md)
+- [docs/bigquery-schema.sql](docs/bigquery-schema.sql)
+
+## Provenance e viewer
+
+Il contratto condiviso backend/frontend per una fonte è:
+
+```json
+{
+  "id": "source-id",
+  "claimId": "claim-id",
+  "documentId": "document-id",
+  "title": "Titolo documento",
+  "uri": "gs://bucket/path/file.pdf",
+  "snippet": "estratto testuale",
+  "pageReference": "p. 47",
+  "mimeType": "application/pdf",
+  "anchors": [
+    {
+      "id": "anchor-id",
+      "anchorType": "page",
+      "pageNumber": 47,
+      "textQuote": "estratto",
+      "timeStartSeconds": null,
+      "frameReference": null
+    }
+  ]
+}
+```
+
+Regole operative:
+
+- se esiste `anchors[]`, il frontend usa quello
+- il parsing di stringhe come `p. 47` è solo fallback
+- chat, timeline, entità, dossier e investigazione devono aprire le fonti nello stesso modo
 
 ## API principali
 
-| Metodo | Path | Note |
-|---|---|---|
-| `POST` | `/api/answer` | SSE `thinking` → `answer` |
-| `POST` | `/api/ask` | Alias di `/api/answer` |
-| `POST` | `/api/search` | Ricerca diretta su Discovery Engine |
-| `GET` | `/api/timeline/events` | Timeline autorevole da BigQuery |
-| `GET` | `/api/entities` | Lista entità per tipo |
-| `GET` | `/api/entities/:id/context` | Profilo entità con summary, documenti, claim, eventi |
-| `POST` | `/api/agent/investigate` | Agente multi-step con tool evidence-first |
-| `GET` | `/api/evidence/documents/:id/chunks` | Drill-down chunk |
-| `GET` | `/api/storage/file` | Apertura asset sorgente |
+Chat e ricerca:
 
-## Setup locale
+- `POST /api/answer`
+- `POST /api/ask`
+- `POST /api/search`
 
-```bash
-nvm use
+Timeline:
 
-cd backend
-cp .env.example .env
-npm install
+- `GET /api/timeline/events`
 
-cd ../frontend
-npm install
-```
+Entità:
 
-Avvio sviluppo:
+- `GET /api/entities`
+- `GET /api/entities/search`
+- `GET /api/entities/:id`
+- `GET /api/entities/:id/context`
+- `GET /api/entities/:id/claims`
+- `GET /api/entities/:id/events`
 
-```bash
-cd backend && npm run dev
-cd frontend && npm run dev
-```
+Claims:
 
-## Ingestion e dataset
+- `GET /api/claims?documentId=...`
+- `GET /api/claims/:id`
+- `POST /api/claims/verify`
 
-La base dati strutturata vive in BigQuery. Lo script principale di backfill è:
+Investigazione:
+
+- `POST /api/agent/investigate`
+
+Storage ed evidenze:
+
+- `GET /api/evidence/documents/:id/chunks`
+- `GET /api/storage/file`
+- `GET /api/storage/metadata`
+- `PATCH /api/storage/metadata`
+
+Health:
+
+- `GET /api/health`
+
+## SSE
+
+Le route SSE principali sono:
+
+- `/api/answer`
+- `/api/agent/investigate`
+
+Eventi tipici:
+
+- `thinking`
+- `tool_call`
+- `tool_result`
+- `answer`
+- `error`
+
+## Ingestion e backfill
+
+Script principali:
+
+- `ingestion/scripts/bq-create-tables.sql`
+- `ingestion/scripts/batch-detect.js`
+
+Uso tipico per estrazione claim:
 
 ```bash
 node ingestion/scripts/batch-detect.js --phase=claims --resume
 ```
 
-Non esegue più detection automatica di contraddizioni: si occupa dell'estrazione claim dal corpus e del popolamento del layer strutturato.
+Cosa fa:
 
-## Qualità e limiti
+- enumera i documenti in Discovery Engine
+- recupera i chunk dove disponibili
+- usa Gemini per estrarre claim
+- scrive in BigQuery
+- usa fallback multimodale per PDF, immagini, audio e video quando non ci sono chunk testuali utili
 
-- Il viewer prova ad aprire PDF sulla pagina esatta e media sul timestamp quando disponibile
-- Le date inferite possono comparire in timeline, ma sono marcate come approssimate
-- La qualità finale dipende dall'allineamento reale tra corpus GCS, Discovery Engine e BigQuery
-- Il runtime richiesto è Node 20; con versioni inferiori test e tooling non sono affidabili
+Limite importante:
+
+- il backfill storico va considerato concluso solo quando `GCS ↔ DE ↔ BQ` sono coerenti
+- senza `source_anchors` e `entity_profiles` popolati, la UI resta utilizzabile ma non completa
+
+## Worker di pipeline
+
+Nel path `ingestion/workers/` sono presenti worker per:
+
+- OCR / sectioning con Document AI
+- media processing per immagini, audio e video
+- claim extraction
+- entity extraction
+
+Attenzione:
+
+- il codice supporta una pipeline multimodale ampia
+- per considerare il dataset “allineato” non basta che il supporto esista nel codice: va eseguito davvero sul corpus
+
+## Test
+
+Backend:
+
+```bash
+cd backend
+npm test
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm test
+npm run build
+```
+
+Cose da verificare sempre prima di push su `main`:
+
+- test backend verdi
+- test frontend verdi
+- build frontend verde
+- nessun riferimento legacy a feature o categorie non più operative
+- timeline ed entità con `sources[]` e `anchors[]` coerenti
+
+## Demo Checklist
+
+Flusso minimo da provare:
+
+1. aprire `/`
+2. porre una domanda fattuale con fonti
+3. aprire una citazione nel viewer
+4. verificare apertura su pagina/timestamp corretto quando disponibile
+5. aprire `/timeline`
+6. controllare un evento con più fonti
+7. aprire `/persone` e un profilo entità
+8. verificare documenti, claim, eventi e entità correlate
+9. aprire `/dossier`
+10. aprire `/investigazione`
+
+## Troubleshooting
+
+### Il backend parte ma le route evidence restituiscono 501
+
+Controllare:
+
+- `BQ_PROJECT_ID`
+- `BQ_DATASET_ID`
+- credenziali GCP valide
+
+### La chat risponde ma la timeline è vuota
+
+Cause tipiche:
+
+- `events` non popolata
+- mismatch tra `events.source_claim_ids` e `claims.id`
+- dataset non riallineato dopo reingestion
+
+### I PDF non si aprono alla pagina corretta
+
+Verificare:
+
+- presenza di `source_anchors.page_number`
+- fallback `pageReference`
+- disponibilità reale del file su GCS
+
+### Profili entità troppo lenti o instabili
+
+Se succede, manca la materializzazione di `entity_profiles` oppure non è aggiornata dopo il backfill.
+
+## Pulizia e manutenzione
+
+Linee guida di manutenzione:
+
+- evitare feature non affidabili anche se “accattivanti”
+- documentare solo ciò che è operativo o chiaramente in backlog
+- togliere codice e docs legacy invece di lasciarli convivere con il flusso nuovo
+- mantenere backend e frontend allineati sullo stesso contratto dati
+
+## Limiti noti
+
+- la qualità finale dipende ancora dal riallineamento completo del corpus storico
+- i media non-PDF possono avere ancore meno ricche del testo, a seconda del file e della pipeline eseguita
+- il ranking entità è ancora guidato soprattutto da `mention_count` e qualità canonizzazione, non da una scoring pipeline dedicata
+
+## Documentazione correlata
+
+- [docs/evidence-architecture.md](docs/evidence-architecture.md)
+- [docs/evidence-model.md](docs/evidence-model.md)
+- [docs/evaluation.md](docs/evaluation.md)
+- [docs/bigquery-schema.sql](docs/bigquery-schema.sql)

@@ -389,6 +389,15 @@ Rispondi SOLO con JSON (nessun testo aggiuntivo):
     { "text": "...", "claim_type": "fact", "entities": ["Nome1"], "confidence": 0.85 }
   ]
 }
+
+function _inferMimeType(uri) {
+  const lower = String(uri || '').toLowerCase();
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (/\.(png|jpg|jpeg|gif|webp|bmp)$/i.test(lower)) return 'image/*';
+  if (/\.(mp4|mov|mpeg|mpg|webm|avi)$/i.test(lower)) return 'video/*';
+  if (/\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(lower)) return 'audio/*';
+  return null;
+}
 `.trim();
 }
 
@@ -433,26 +442,80 @@ async function runClaimsPhase() {
     const mimeType = doc.content?.mimeType || '';
 
     // Helper: turn raw Gemini claims into BQ rows
-    const _buildRows = (claims, chunkId) => claims
-      .filter(c => c?.text?.trim())
-      .map(c => ({
-        id:               newId(),
-        text:             String(c.text).slice(0, 1000),
-        claim_type:       ['fact','interpretation','allegation','conclusion'].includes(c.claim_type)
-                          ? c.claim_type : 'fact',
-        document_id:      docId,
-        document_uri:     uri || null,
-        chunk_id:         chunkId || null,
-        page_reference:   null,
-        entity_ids:       Array.isArray(c.entities) ? c.entities.map(String).slice(0, 5) : [],
-        event_id:         null,
-        confidence:       typeof c.confidence === 'number'
-                          ? Math.max(0, Math.min(1, c.confidence)) : 0.7,
-        status:           'unverified',
-        extraction_method:'llm_extracted',
-        created_at:       now,
-        updated_at:       now,
-      }));
+    const _buildRows = (claims, chunkId) => {
+      const rows = [];
+      const anchors = [];
+      for (const c of claims.filter(claim => claim?.text?.trim())) {
+        const claimId = newId();
+        const pageReference = c.page_reference != null ? String(c.page_reference) : null;
+        const text = String(c.text).slice(0, 1000);
+        rows.push({
+          id:               claimId,
+          text,
+          claim_type:       ['fact','interpretation','allegation','conclusion'].includes(c.claim_type)
+                            ? c.claim_type : 'fact',
+          document_id:      docId,
+          document_uri:     uri || null,
+          chunk_id:         chunkId || null,
+          page_reference:   pageReference,
+          entity_ids:       Array.isArray(c.entities) ? c.entities.map(String).slice(0, 5) : [],
+          event_id:         null,
+          confidence:       typeof c.confidence === 'number'
+                            ? Math.max(0, Math.min(1, c.confidence)) : 0.7,
+          status:           'unverified',
+          extraction_method:'llm_extracted',
+          created_at:       now,
+          updated_at:       now,
+        });
+
+        const pageNumber = pageReference && /(\d{1,4})/.test(pageReference)
+          ? Number(pageReference.match(/(\d{1,4})/)[1])
+          : null;
+
+        if (pageNumber != null) {
+          anchors.push({
+            id: `${claimId}-page`,
+            document_id: docId,
+            claim_id: claimId,
+            event_id: null,
+            anchor_type: 'page',
+            page_number: pageNumber,
+            text_quote: null,
+            snippet: text.slice(0, 500),
+            time_start_seconds: null,
+            time_end_seconds: null,
+            frame_reference: null,
+            shot_reference: null,
+            anchor_confidence: 0.8,
+            source_uri: uri || null,
+            mime_type: mimeType || _inferMimeType(uri),
+            created_at: now,
+            updated_at: now,
+          });
+        }
+
+        anchors.push({
+          id: `${claimId}-text`,
+          document_id: docId,
+          claim_id: claimId,
+          event_id: null,
+          anchor_type: 'text_span',
+          page_number: pageNumber,
+          text_quote: text.slice(0, 500),
+          snippet: text.slice(0, 500),
+          time_start_seconds: null,
+          time_end_seconds: null,
+          frame_reference: null,
+          shot_reference: null,
+          anchor_confidence: 0.55,
+          source_uri: uri || null,
+          mime_type: mimeType || _inferMimeType(uri),
+          created_at: now,
+          updated_at: now,
+        });
+      }
+      return { rows, anchors };
+    };
 
     if (chunks.length === 0) {
       // No text chunks — try Gemini multimodal directly on the GCS file.
@@ -466,9 +529,10 @@ async function runClaimsPhase() {
           try {
             const result = await gemini.generateJsonFromFile(uri, mimeType, _fileClaimPrompt(title, mimeType));
             const claims = Array.isArray(result?.claims) ? result.claims : [];
-            const rows   = _buildRows(claims, null);
+            const { rows, anchors } = _buildRows(claims, null);
             if (rows.length > 0) {
               await _bqInsert('claims', rows);
+              if (anchors.length > 0) await _bqInsert('source_anchors', anchors);
               log(`  ✔ ${rows.length} claim da ${mediaKind} scritti in BQ`);
               totalClaims  += rows.length;
               totalGemCalls++;
@@ -494,6 +558,7 @@ async function runClaimsPhase() {
     log(`  ${chunks.length} chunk trovati`);
 
     const claimRows = [];
+    const anchorRows = [];
     for (let ci = 0; ci < chunks.length; ci += BATCH_SIZE) {
       const batch    = chunks.slice(ci, ci + BATCH_SIZE);
       const texts    = batch.map(c => c.content?.content || c.documentMetadata?.title || '');
@@ -511,8 +576,9 @@ async function runClaimsPhase() {
       try {
         const result = await gemini.generateJson(_claimPrompt(texts, title), 8192);
         const claims = Array.isArray(result?.claims) ? result.claims : [];
-        const rows   = _buildRows(claims, chunkIds[0] || null);
+        const { rows, anchors } = _buildRows(claims, chunkIds[0] || null);
         claimRows.push(...rows);
+        anchorRows.push(...anchors);
 
         totalGemCalls++;
         totalClaims += claims.length;
@@ -531,6 +597,9 @@ async function runClaimsPhase() {
       // Insert in batches of 500 (BQ streaming limit)
       for (let bi = 0; bi < claimRows.length; bi += 500) {
         await _bqInsert('claims', claimRows.slice(bi, bi + 500));
+      }
+      for (let bi = 0; bi < anchorRows.length; bi += 500) {
+        await _bqInsert('source_anchors', anchorRows.slice(bi, bi + 500));
       }
       ok(`  ${claimRows.length} claim scritti in BQ`);
     } else if (DRY_RUN) {

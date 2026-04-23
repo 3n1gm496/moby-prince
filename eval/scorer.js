@@ -191,7 +191,7 @@ function printSummary(results, outFile) {
   console.log(`  Flagged for review: ${needsReview}/${ran}`);
   console.log(`\n  By category:`);
 
-  const catOrder = ['factual','comparative','source_lookup','timeline','contradiction','out_of_corpus','unknown'];
+  const catOrder = ['factual','comparative','source_lookup','timeline','out_of_corpus','unknown'];
   const sorted   = catOrder.filter(c => byCat[c]).concat(Object.keys(byCat).filter(c => !catOrder.includes(c)));
   for (const cat of sorted) {
     const s = byCat[cat];

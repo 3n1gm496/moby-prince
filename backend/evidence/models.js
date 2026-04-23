@@ -208,12 +208,13 @@ function normalizeEvent(row) {
  * @property {string}      text                The factual assertion
  * @property {'fact'|'interpretation'|'allegation'|'conclusion'|'retraction'|null} claimType
  * @property {string}      documentId
+ * @property {string|null} documentUri
  * @property {string|null} chunkId
  * @property {string|null} pageReference       Human-readable: "p. 47"
  * @property {string[]}    entityIds
  * @property {string|null} eventId
  * @property {number|null} confidence          0.0–1.0
- * @property {'unverified'|'corroborated'|'contradicted'|'retracted'} status
+ * @property {'unverified'|'corroborated'|'challenged'|'retracted'} status
  * @property {'manual'|'llm_extracted'|'ner_model'|null} extractionMethod
  * @property {string}      createdAt
  * @property {string}      updatedAt
@@ -229,6 +230,7 @@ function normalizeClaim(row) {
     text:             row.text,
     claimType:        row.claim_type ?? null,
     documentId:       row.document_id,
+    documentUri:      row.document_uri ?? null,
     chunkId:          row.chunk_id ?? null,
     pageReference:    row.page_reference ?? null,
     entityIds:        row.entity_ids ?? [],
@@ -249,7 +251,7 @@ function normalizeClaim(row) {
  * @property {string}      claimId
  * @property {string}      chunkId
  * @property {string}      documentId          Denormalized for query performance
- * @property {'supports'|'contradicts'|'mentions'|'references'|'qualifies'} linkType
+ * @property {'supports'|'refutes'|'mentions'|'references'|'qualifies'} linkType
  * @property {number|null} strength            0.0–1.0
  * @property {string|null} note
  * @property {string}      createdAt
@@ -272,6 +274,125 @@ function normalizeEvidenceLink(row) {
   };
 }
 
+// ── SourceAnchor ──────────────────────────────────────────────────────────────
+
+/**
+ * @typedef {object} EvidenceSourceAnchor
+ * @property {string}      id
+ * @property {string}      documentId
+ * @property {string|null} claimId
+ * @property {string|null} eventId
+ * @property {'page'|'text_span'|'timestamp'|'frame'|'shot'} anchorType
+ * @property {number|null} pageNumber
+ * @property {string|null} textQuote
+ * @property {string|null} snippet
+ * @property {number|null} timeStartSeconds
+ * @property {number|null} timeEndSeconds
+ * @property {string|null} frameReference
+ * @property {string|null} shotReference
+ * @property {number|null} confidence
+ * @property {string|null} sourceUri
+ * @property {string|null} mimeType
+ * @property {string|null} createdAt
+ * @property {string|null} updatedAt
+ */
+
+/**
+ * @param {object} row
+ * @returns {EvidenceSourceAnchor}
+ */
+function normalizeSourceAnchor(row) {
+  return {
+    id: row.id,
+    documentId: row.document_id,
+    claimId: row.claim_id ?? null,
+    eventId: row.event_id ?? null,
+    anchorType: row.anchor_type ?? 'text_span',
+    pageNumber: row.page_number != null ? Number(row.page_number) : null,
+    textQuote: row.text_quote ?? null,
+    snippet: row.snippet ?? null,
+    timeStartSeconds: row.time_start_seconds != null ? Number(row.time_start_seconds) : null,
+    timeEndSeconds: row.time_end_seconds != null ? Number(row.time_end_seconds) : null,
+    frameReference: row.frame_reference ?? null,
+    shotReference: row.shot_reference ?? null,
+    confidence: row.anchor_confidence != null ? Number(row.anchor_confidence) : null,
+    sourceUri: row.source_uri ?? null,
+    mimeType: row.mime_type ?? null,
+    createdAt: row.created_at ? _toIso(row.created_at) : null,
+    updatedAt: row.updated_at ? _toIso(row.updated_at) : null,
+  };
+}
+
+// ── EvidenceSource ────────────────────────────────────────────────────────────
+
+/**
+ * @typedef {object} EvidenceSource
+ * @property {string}      id
+ * @property {string|null} claimId
+ * @property {string|null} documentId
+ * @property {string|null} title
+ * @property {string|null} uri
+ * @property {string|null} snippet
+ * @property {string|null} pageReference
+ * @property {string|null} mimeType
+ * @property {string|null} documentType
+ * @property {number|null} year
+ * @property {EvidenceSourceAnchor[]} anchors
+ */
+
+/**
+ * @param {object} row
+ * @returns {EvidenceSource}
+ */
+function normalizeEvidenceSource(row) {
+  const anchors = Array.isArray(row.anchors)
+    ? row.anchors
+        .filter(Boolean)
+        .map(normalizeSourceAnchor)
+    : [];
+
+  return {
+    id: row.id || row.claim_id || row.document_id || row.uri || row.title || 'source',
+    claimId: row.claim_id ?? null,
+    documentId: row.document_id ?? null,
+    title: row.title ?? null,
+    uri: row.uri ?? null,
+    snippet: row.snippet ?? null,
+    pageReference: row.page_reference ?? null,
+    mimeType: row.mime_type ?? null,
+    documentType: row.document_type ?? null,
+    year: row.year != null ? Number(row.year) : null,
+    anchors,
+  };
+}
+
+// ── EntityProfile ─────────────────────────────────────────────────────────────
+
+/**
+ * @typedef {object} EvidenceEntityProfile
+ * @property {string}      entityId
+ * @property {string|null} summary
+ * @property {string[]}    aliases
+ * @property {string|null} role
+ * @property {number|null} summaryVersion
+ * @property {string|null} updatedAt
+ */
+
+/**
+ * @param {object} row
+ * @returns {EvidenceEntityProfile}
+ */
+function normalizeEntityProfile(row) {
+  return {
+    entityId: row.entity_id,
+    summary: row.summary ?? null,
+    aliases: row.aliases ?? [],
+    role: row.role ?? null,
+    summaryVersion: row.summary_version != null ? Number(row.summary_version) : null,
+    updatedAt: row.updated_at ? _toIso(row.updated_at) : null,
+  };
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** BigQuery returns timestamps as Date objects or ISO strings; normalise to ISO. */
@@ -289,4 +410,7 @@ module.exports = {
   normalizeEvent,
   normalizeClaim,
   normalizeEvidenceLink,
+  normalizeSourceAnchor,
+  normalizeEvidenceSource,
+  normalizeEntityProfile,
 };

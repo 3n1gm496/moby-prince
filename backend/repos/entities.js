@@ -61,14 +61,56 @@ async function getById(id) {
  */
 async function search(q, limit = 20) {
   const rows = await bq.query(
-    `SELECT * FROM ${_table('entities')}
+    `SELECT e.*,
+            COALESCE(c.mention_count, 0) AS mention_count
+     FROM ${_table('entities')} e
+     LEFT JOIN (
+       SELECT eid, COUNT(*) AS mention_count
+       FROM ${_table('claims')},
+       UNNEST(entity_ids) AS eid
+       GROUP BY eid
+     ) c ON c.eid = e.id
      WHERE LOWER(canonical_name) LIKE @q
         OR EXISTS (SELECT 1 FROM UNNEST(aliases) a WHERE LOWER(a) LIKE @q)
-     ORDER BY canonical_name ASC
+     ORDER BY mention_count DESC, canonical_name ASC
      LIMIT @limit`,
     [bq.stringParam('q', `%${q.toLowerCase()}%`), bq.intParam('limit', limit)],
   );
-  return rows.map(normalizeEntity);
+  return rows.map(row => ({ ...normalizeEntity(row), mentionCount: Number(row.mention_count || 0) }));
+}
+
+async function listRelated(entityId, limit = 8) {
+  const rows = await bq.query(
+    `SELECT
+        e.*,
+        rel.co_mentions AS co_mentions
+      FROM (
+        SELECT
+          related_entity_id,
+          COUNT(*) AS co_mentions
+        FROM (
+          SELECT related_entity_id
+          FROM ${_table('claims')} c,
+          UNNEST(c.entity_ids) AS related_entity_id
+          WHERE @entityId IN UNNEST(c.entity_ids)
+            AND related_entity_id != @entityId
+        )
+        GROUP BY related_entity_id
+      ) rel
+      INNER JOIN ${_table('entities')} e
+        ON e.id = rel.related_entity_id
+      ORDER BY rel.co_mentions DESC, e.canonical_name ASC
+      LIMIT @limit`,
+    [
+      bq.stringParam('entityId', entityId),
+      bq.intParam('limit', limit),
+    ],
+  );
+
+  return rows.map((row) => ({
+    ...normalizeEntity(row),
+    coMentions: Number(row.co_mentions || 0),
+  }));
 }
 
 async function listDocuments(entityId, limit = 20) {
@@ -105,4 +147,4 @@ async function listDocuments(entityId, limit = 20) {
   }));
 }
 
-module.exports = { list, getById, search, listDocuments };
+module.exports = { list, getById, search, listDocuments, listRelated };

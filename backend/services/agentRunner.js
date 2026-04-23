@@ -84,7 +84,7 @@ const TOOL_DECLARATIONS = [
   },
   {
     name:        'verify_claim',
-    description: 'Verifica un\'affermazione fattuale rispetto al corpus documentale e restituisce se è supportata, contraddetta o inconcludente.',
+    description: 'Verifica un\'affermazione fattuale rispetto al corpus documentale e restituisce se è supportata, smentita o inconcludente.',
     parameters:  {
       type:       'OBJECT',
       properties: {

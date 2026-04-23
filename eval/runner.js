@@ -16,7 +16,7 @@
  *   --input    <file>   Benchmark JSONL path   (default: eval/benchmark.jsonl)
  *   --output   <file>   Results path           (default: eval/results/run-<ISO>.jsonl)
  *   --category <cat>    Only run this category (factual|comparative|source_lookup|
- *                                              timeline|contradiction|out_of_corpus)
+ *                                              timeline|out_of_corpus)
  *   --id       <id>     Only run this query ID (e.g. factual-001)
  *   --search            Also call /api/search for retrieval-only signals
  *   --delay    <ms>     Delay between requests (default: 500)

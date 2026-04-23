@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import CitationPanel from "../components/CitationPanel";
 import { apiFetch } from "../lib/apiFetch";
+import { dateAccuracyLabel, sourceLocationLabel } from "../lib/sourceUtils";
 
 const EVENT_TYPE_LABELS = {
   collision: "Collisione",
@@ -25,7 +26,7 @@ function yearFromEvent(event) {
 }
 
 function EventCard({ event, onSourceOpen }) {
-  const exact = event.dateAccuracy === "exact";
+  const dateLabel = dateAccuracyLabel(event.dateAccuracy);
 
   return (
     <article className="rounded-2xl border border-border bg-surface-raised p-4 md:p-5 space-y-4 surface-depth">
@@ -34,11 +35,11 @@ function EventCard({ event, onSourceOpen }) {
           {typeLabel(event.eventType)}
         </span>
         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium border ${
-          exact
+          event.dateAccuracy === "exact"
             ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
             : "border-amber-400/20 bg-amber-400/10 text-amber-300"
         }`}>
-          {exact ? "Data esplicita" : "Data inferita"}
+          {dateLabel}
         </span>
       </div>
 
@@ -67,9 +68,9 @@ function EventCard({ event, onSourceOpen }) {
                 <span className="font-medium text-text-primary">
                   {source.title || source.documentId || "Documento"}
                 </span>
-                {source.pageReference && (
+                {sourceLocationLabel(source) && (
                   <span className="text-text-secondary font-mono text-[11px]">
-                    {source.pageReference}
+                    {sourceLocationLabel(source)}
                   </span>
                 )}
               </div>
@@ -170,7 +171,10 @@ export default function Timeline() {
           </div>
           <div className="flex-1" />
           <div className="relative w-full sm:w-auto sm:min-w-[18rem]">
+            <label htmlFor="timeline-search" className="sr-only">Cerca nella timeline</label>
             <input
+              id="timeline-search"
+              aria-label="Cerca nella timeline"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Cerca eventi, fonti, pagine…"

@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { apiFetch } from "../lib/apiFetch";
 import { entityConfigFromSlug } from "../lib/entityViews";
 
 export default function EntityDirectory() {
   const { entitySlug } = useParams();
-  const navigate = useNavigate();
   const config = entityConfigFromSlug(entitySlug);
   const [entities, setEntities] = useState([]);
   const [search, setSearch] = useState("");
@@ -67,12 +66,19 @@ export default function EntityDirectory() {
             </p>
           </div>
           <div className="flex-1" />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={`Cerca ${config.plural.toLowerCase()}…`}
-            className="w-full sm:w-[20rem] rounded-xl border border-border bg-surface px-3 py-2 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50"
-          />
+          <div className="w-full sm:w-[20rem]">
+            <label htmlFor="entity-directory-search" className="sr-only">
+              Cerca {config.plural.toLowerCase()}
+            </label>
+            <input
+              id="entity-directory-search"
+              aria-label={`Cerca ${config.plural.toLowerCase()}`}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={`Cerca ${config.plural.toLowerCase()}…`}
+              className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50"
+            />
+          </div>
         </div>
       </header>
 
@@ -91,12 +97,21 @@ export default function EntityDirectory() {
           </div>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && filtered.length === 0 && (
+          <div className="rounded-2xl border border-border bg-surface-raised px-6 py-10 text-center">
+            <p className="text-[14px] font-medium text-text-primary">Nessun risultato.</p>
+            <p className="mt-1 text-[12px] text-text-secondary">
+              Prova una ricerca diversa o completa il backfill delle entità canoniche.
+            </p>
+          </div>
+        )}
+
+        {!loading && !error && filtered.length > 0 && (
           <div className="grid gap-3 md:grid-cols-2">
             {filtered.map((entity) => (
-              <button
+              <Link
                 key={entity.id}
-                onClick={() => navigate(`${config.route}/${encodeURIComponent(entity.id)}`)}
+                to={`${config.route}/${encodeURIComponent(entity.id)}`}
                 className="rounded-2xl border border-border bg-surface-raised p-4 text-left hover:border-accent/30 hover:bg-surface-hover transition-colors surface-depth"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -117,7 +132,7 @@ export default function EntityDirectory() {
                     Alias: {entity.aliases.slice(0, 4).join(" · ")}
                   </p>
                 )}
-              </button>
+              </Link>
             ))}
           </div>
         )}

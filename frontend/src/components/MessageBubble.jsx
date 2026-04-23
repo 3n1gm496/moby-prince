@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AnchorAvatar from "./AnchorAvatar";
 import EvidenceSection from "./EvidenceSection";
+import { sourceLocationLabel } from "../lib/sourceUtils";
 
 // ─── Citation helpers ─────────────────────────────────────────────────────────
 
@@ -93,6 +94,7 @@ function CitationBadge({ id, sources, onClick }) {
           {sources.map((src, i) => (
             <span key={i} className="block text-[11px] leading-snug text-text-secondary mt-0.5 first:mt-0">
               {src.title || src.uri || "—"}
+              {sourceLocationLabel(src) ? ` · ${sourceLocationLabel(src)}` : ""}
             </span>
           ))}
         </span>
@@ -152,20 +154,21 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
     // from the evidence items that reference this citation via citationIds.
     let enriched = cit;
     if (!cit.sources?.length && message.evidence?.length > 0) {
-      const related = message.evidence.filter(e => e.citationIds?.includes(cit.id));
-      if (related.length > 0) {
-        enriched = {
-          ...cit,
-          sources: related.map(e => ({
-            title:         e.title         || null,
-            uri:           e.uri           || null,
-            snippet:       e.snippet       || null,
-            pageIdentifier:e.pageIdentifier|| null,
-            documentId:    e.documentId    || null,
-          })),
-        };
-      }
-    }
+          const related = message.evidence.filter(e => e.citationIds?.includes(cit.id));
+          if (related.length > 0) {
+            enriched = {
+              ...cit,
+              sources: related.map(e => ({
+                title:         e.title         || null,
+                uri:           e.uri           || null,
+                snippet:       e.snippet       || null,
+                pageIdentifier:e.pageIdentifier|| null,
+                documentId:    e.documentId    || null,
+                anchors:       e.anchors       || [],
+              })),
+            };
+          }
+        }
     onCitationClick?.(enriched);
   }, [onCitationClick, message.evidence]);
 
