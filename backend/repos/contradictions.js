@@ -58,8 +58,8 @@ async function getById(id) {
     `SELECT c.*,
             ca.text AS claim_a_text,
             cb.text AS claim_b_text,
-            ca.source_uri AS source_a_uri,
-            cb.source_uri AS source_b_uri
+            ca.document_uri AS source_a_uri,
+            cb.document_uri AS source_b_uri
      FROM ${_table('contradictions')} c
      LEFT JOIN ${_table('claims')} ca ON ca.id = c.claim_a_id
      LEFT JOIN ${_table('claims')} cb ON cb.id = c.claim_b_id
@@ -92,7 +92,7 @@ async function listBySourceUris(sourceUris, limit = 5) {
     `SELECT cont.*
      FROM ${_table('contradictions')} cont
      INNER JOIN ${_table('claims')} ca ON ca.id = cont.claim_a_id
-     WHERE ca.source_uri IN UNNEST(@uris)
+     WHERE ca.document_uri IN UNNEST(@uris)
        AND cont.status != 'resolved'
      ORDER BY
        CASE cont.severity WHEN 'major' THEN 0 WHEN 'significant' THEN 1 ELSE 2 END

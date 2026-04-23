@@ -213,6 +213,7 @@ async function _bqDropAndRecreateClaims() {
         { name: 'text',             type: 'STRING',    mode: 'REQUIRED' },
         { name: 'claim_type',       type: 'STRING',    mode: 'REQUIRED' },
         { name: 'document_id',      type: 'STRING',    mode: 'REQUIRED' },
+        { name: 'document_uri',     type: 'STRING',    mode: 'NULLABLE' },
         { name: 'chunk_id',         type: 'STRING',    mode: 'NULLABLE' },
         { name: 'page_reference',   type: 'INT64',     mode: 'NULLABLE' },
         { name: 'entity_ids',       type: 'STRING',    mode: 'REPEATED' },
@@ -467,6 +468,7 @@ async function runClaimsPhase() {
         claim_type:       ['fact','interpretation','allegation','conclusion'].includes(c.claim_type)
                           ? c.claim_type : 'fact',
         document_id:      docId,
+        document_uri:     uri || null,
         chunk_id:         chunkId || null,
         page_reference:   null,
         entity_ids:       Array.isArray(c.entities) ? c.entities.map(String).slice(0, 5) : [],
