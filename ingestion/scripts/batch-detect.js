@@ -374,7 +374,9 @@ async function runClaimsPhase() {
 
     if (processedIds.has(docId)) { skipped++; continue; }
 
-    const title  = doc.structData?.title || doc.content?.mimeType || docId;
+    const uri     = doc.content?.uri || '';
+    const fromUri = uri ? (uri.split('/').pop() || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() : '';
+    const title   = fromUri || doc.structData?.title || docId;
     const encodedId = encodeURIComponent(decodeURIComponent(docId).replace(/\s/g, '_'));
 
     log(`[${di + 1}/${allDocs.length}] ${title.slice(0, 60)}`);
