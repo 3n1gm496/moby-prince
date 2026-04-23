@@ -12,15 +12,15 @@ const STEPS = [
   },
   {
     icon: Microscope,
-    title: "Modalità investigazione",
+    title: "Analisi investigativa",
     description:
-      "L'agente multi-step usa più strumenti in sequenza — ricerca documenti, verifica affermazioni, individua contraddizioni — per rispondere a domande complesse. Puoi seguire ogni passaggio del ragionamento.",
+      "L'agente multi-step usa più strumenti in sequenza per cercare documenti, verificare affermazioni, ricostruire eventi e seguire le entità principali del caso con fonti sempre tracciabili.",
   },
   {
     icon: FolderOpen,
     title: "Costruttore di dossier",
     description:
-      "Raccogli le prove più significative in cartelle tematiche, aggiungi annotazioni e scarica un dossier PDF pronto per la condivisione.",
+      "Raccogli le prove più significative in cartelle tematiche, controlla gli estratti indicizzati e lavora sui materiali senza perdere il collegamento alla fonte originale.",
   },
 ];
 

@@ -15,12 +15,13 @@
  */
 
 const config             = require('../config');
-const { getAccessToken } = require('./auth');
+const auth               = require('./auth');
 const { createLogger }   = require('../logger');
 const { incrementBq }    = require('./rateLimiter');
 
 const log     = createLogger('bigquery');
 const BQ_BASE = 'https://bigquery.googleapis.com/bigquery/v2';
+let accessTokenProvider = () => auth.getAccessToken();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -107,6 +108,12 @@ function isBigQueryEnabled() {
   return !!(config.bigquery?.projectId && config.bigquery?.datasetId);
 }
 
+function __setAccessTokenProvider(provider) {
+  accessTokenProvider = typeof provider === 'function'
+    ? provider
+    : () => auth.getAccessToken();
+}
+
 // ── Core operations ───────────────────────────────────────────────────────────
 
 /**
@@ -120,7 +127,7 @@ async function query(sql, params = []) {
   if (!isBigQueryEnabled()) throw new Error('BigQuery not configured (BQ_PROJECT_ID / BQ_DATASET_ID missing)');
   incrementBq();
 
-  const token = await getAccessToken();
+  const token = await accessTokenProvider();
   const body  = {
     query:        sql,
     location:     config.bigquery.location || 'EU',
@@ -170,7 +177,7 @@ async function insert(tableId, rows) {
   if (!rows || rows.length === 0) return;
   incrementBq();
 
-  const token = await getAccessToken();
+  const token = await accessTokenProvider();
   const body  = {
     rows: rows.map((row, i) => ({
       insertId: row.id ? `${row.id}` : `${Date.now()}-${i}`,
@@ -205,4 +212,13 @@ async function insert(tableId, rows) {
   log.debug({ tableId, count: rows.length }, 'BQ rows inserted');
 }
 
-module.exports = { query, insert, isBigQueryEnabled, stringParam, intParam, timestampParam, stringArrayParam };
+module.exports = {
+  query,
+  insert,
+  isBigQueryEnabled,
+  stringParam,
+  intParam,
+  timestampParam,
+  stringArrayParam,
+  __setAccessTokenProvider,
+};

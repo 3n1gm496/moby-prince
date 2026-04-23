@@ -126,25 +126,4 @@ CREATE TABLE IF NOT EXISTS `evidence.evidence_links` (
   note        STRING,
   created_at  TIMESTAMP NOT NULL
 )
-OPTIONS (description = 'Cross-reference: which chunks support or contradict a claim');
-
--- ── contradictions ────────────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS `evidence.contradictions` (
-  id                  STRING    NOT NULL,
-  claim_a_id          STRING    NOT NULL,
-  claim_b_id          STRING    NOT NULL,
-  document_a_id       STRING    NOT NULL,
-  document_b_id       STRING    NOT NULL,
-  contradiction_type  STRING,   -- factual|temporal|testimonial|interpretive|procedural
-  severity            STRING,   -- minor|significant|major
-  description         STRING,
-  status              STRING    NOT NULL DEFAULT 'open',  -- open|resolved|contested|under_review
-  resolution          STRING,
-  detected_by         STRING,   -- manual|llm_flagged
-  detected_at         TIMESTAMP,
-  resolved_at         TIMESTAMP,
-  created_at          TIMESTAMP NOT NULL,
-  updated_at          TIMESTAMP NOT NULL
-)
-OPTIONS (description = 'Detected contradictions between pairs of claims (M5)');
+OPTIONS (description = 'Cross-reference between claims and source chunks used for provenance and verification');

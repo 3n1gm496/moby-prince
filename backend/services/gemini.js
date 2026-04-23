@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Gemini REST client for backend services (contradiction detection, etc.).
+ * Gemini REST client for backend services (answer synthesis, verification, summaries).
  *
  * Uses Vertex AI generateContent endpoint with JSON response mode.
  * Mirrors the pattern in ingestion/services/gemini.js but uses the backend

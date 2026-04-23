@@ -31,13 +31,46 @@ const ANALYSIS_VIEWS = [
     ),
   },
   {
-    to:        "/contraddizioni",
-    label:     "Contraddizioni",
+    to:        "/persone",
+    label:     "Persone",
     available: true,
     icon: (
       <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-          d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-4-4H11a4 4 0 00-4 4v2m10 0H7m5-10a3 3 0 100-6 3 3 0 000 6z" />
+      </svg>
+    ),
+  },
+  {
+    to:        "/navi",
+    label:     "Navi",
+    available: true,
+    icon: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M3 18h18M6 18l2-7h8l2 7M8 11l1-4h6l1 4M12 7V3" />
+      </svg>
+    ),
+  },
+  {
+    to:        "/enti",
+    label:     "Enti",
+    available: true,
+    icon: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M3 21h18M5 21V7l7-4 7 4v14M9 10h.01M15 10h.01M9 14h.01M15 14h.01" />
+      </svg>
+    ),
+  },
+  {
+    to:        "/luoghi",
+    label:     "Luoghi",
+    available: true,
+    icon: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M12 21s-6-5.2-6-11a6 6 0 1112 0c0 5.8-6 11-6 11zM12 12a2 2 0 100-4 2 2 0 000 4z" />
       </svg>
     ),
   },
@@ -48,7 +81,7 @@ const ANALYSIS_VIEWS = [
     icon: (
       <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
     ),
   },

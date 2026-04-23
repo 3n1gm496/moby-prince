@@ -30,8 +30,6 @@ const { buildFilterExpression } = require('../filters/schema');
 const { clamp } = require('../lib/utils');
 const { sseHeaders, makeSender, makeHeartbeat } = require('../lib/sse');
 const { createLogger } = require('../logger');
-const contradictionsRepo        = require('../repos/contradictions');
-const { isBigQueryEnabled }     = require('../services/bigquery');
 
 const log    = createLogger('answer-route');
 const router = Router();
@@ -55,24 +53,6 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
 
     const normalized = normalizeAnswer(raw, filters || null);
     sendEvent('answer', normalized);
-
-    // Best-effort: surface contradictions for documents cited in this answer.
-    // Capped at 2s so a BQ cold-start never delays stream closure significantly.
-    if (isBigQueryEnabled()) {
-      try {
-        const sourceUris = _extractSourceUris(raw);
-        if (sourceUris.length > 0) {
-          const bqTimeout    = new Promise((_, rej) => setTimeout(() => rej(new Error('bq-timeout')), 2_000));
-          const contradictions = await Promise.race([
-            contradictionsRepo.listBySourceUris(sourceUris, 3),
-            bqTimeout,
-          ]);
-          if (contradictions.length > 0) {
-            sendEvent('contradictions', { contradictions, total: contradictions.length });
-          }
-        }
-      } catch (_) { /* BQ optional — silently skip on error or timeout */ }
-    }
 
     heartbeat.stop();
     res.end();
@@ -99,30 +79,5 @@ router.post('/', [validateQuery, validateSessionId, validateFilters], async (req
     res.end();
   }
 });
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Extract GCS source URIs from the raw Discovery Engine answer response.
- * The response may carry URIs in searchResults or the answer's references.
- */
-function _extractSourceUris(raw) {
-  const uris = new Set();
-
-  // Modern :answer response shape
-  for (const ref of (raw?.answer?.references || [])) {
-    const uri = ref?.chunkInfo?.documentMetadata?.uri || ref?.documentMetadata?.uri;
-    if (uri?.startsWith('gs://')) uris.add(uri);
-  }
-
-  // :search response shape (when answer embeds search results)
-  for (const result of (raw?.searchResults || [])) {
-    const uri = result?.unstructuredDocumentInfo?.uri ||
-                result?.document?.derivedStructData?.link;
-    if (uri?.startsWith('gs://')) uris.add(uri);
-  }
-
-  return [...uris].slice(0, 10);
-}
 
 module.exports = router;

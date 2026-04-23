@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS `{project}.evidence.claims` (
 )
 PARTITION BY DATE(created_at)
 CLUSTER BY document_id, status, claim_type
-OPTIONS(description='Atomic factual assertions extracted from documents. Primary unit for cross-referencing and contradiction detection.');
+OPTIONS(description='Atomic factual assertions extracted from documents. Primary unit for structured provenance, entity linking and timeline reconstruction.');
 
 -- ── 6. evidence_links ────────────────────────────────────────────────────────
 
@@ -146,27 +146,4 @@ CREATE TABLE IF NOT EXISTS `{project}.evidence.evidence_links` (
 )
 PARTITION BY DATE(created_at)
 CLUSTER BY claim_id, link_type
-OPTIONS(description='Links between claims and the chunks that support, contradict, or reference them.');
-
--- ── 7. contradictions ────────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS `{project}.evidence.contradictions` (
-  id                  STRING    NOT NULL,
-  claim_a_id          STRING    NOT NULL  OPTIONS(description='FK → evidence.claims.id'),
-  claim_b_id          STRING    NOT NULL  OPTIONS(description='FK → evidence.claims.id'),
-  document_a_id       STRING    NOT NULL  OPTIONS(description='Denormalized'),
-  document_b_id       STRING    NOT NULL  OPTIONS(description='Denormalized'),
-  contradiction_type  STRING              OPTIONS(description='factual|temporal|testimonial|interpretive|procedural'),
-  severity            STRING              OPTIONS(description='minor|significant|major'),
-  description         STRING,
-  status              STRING              OPTIONS(description='open|resolved|contested|under_review'),
-  resolution          STRING,
-  detected_by         STRING              OPTIONS(description='manual|llm_flagged'),
-  detected_at         TIMESTAMP,
-  resolved_at         TIMESTAMP,
-  created_at          TIMESTAMP NOT NULL,
-  updated_at          TIMESTAMP NOT NULL
-)
-PARTITION BY DATE(created_at)
-CLUSTER BY contradiction_type, status, severity
-OPTIONS(description='Recorded contradictions between pairs of claims across documents. Used for the Contradiction Matrix view.');
+OPTIONS(description='Links between claims and the chunks that support, mention, qualify or otherwise document them.');

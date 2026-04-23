@@ -1,30 +1,65 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import MediaPlayer from "./MediaPlayer";
+import {
+  titleFromUri,
+  resolveSourceUri,
+  inferMimeType,
+  parsePageIdentifier,
+  parseTimeIdentifier,
+  buildPdfUrl,
+} from "../lib/sourceUtils";
 
-function titleFromUri(uri) {
-  if (!uri) return null;
-  const filename = (uri.split("/").pop() || "").replace(/\.[^.]+$/, "");
-  return filename.replace(/[_-]+/g, " ").trim() || null;
-}
+function SourcePreview({ source }) {
+  const mimeType = inferMimeType(source?.uri, source?.mimeType);
+  const pageIdentifier = parsePageIdentifier(source);
+  const seekTo = parseTimeIdentifier(source);
+  const resolved = resolveSourceUri(source?.uri);
 
-function resolveUri(uri) {
-  if (!uri) return null;
-  if (uri.startsWith("gs://")) {
-    const withoutScheme = uri.slice(5);
-    const slash = withoutScheme.indexOf("/");
-    if (slash < 0) return null;
-    const path = withoutScheme.slice(slash + 1);
-    // Bug fix #4: decode first to avoid double-encoding paths that already
-    // contain percent-encoded characters (e.g. %20 → %2520).
-    let decoded;
-    try { decoded = decodeURIComponent(path); } catch { decoded = path; }
-    return `/api/storage/file?name=${encodeURIComponent(decoded)}`;
+  if (!resolved || !mimeType) return null;
+
+  if (mimeType === "application/pdf") {
+    return (
+      <iframe
+        title={source.title || "Anteprima PDF"}
+        src={buildPdfUrl(source.uri, pageIdentifier)}
+        className="w-full rounded-xl border border-border/40 bg-white"
+        style={{ height: "420px" }}
+      />
+    );
   }
-  return uri;
+
+  if (mimeType.startsWith("video/") || mimeType.startsWith("audio/")) {
+    return (
+      <MediaPlayer
+        uri={source.uri}
+        mimeType={mimeType}
+        seekTo={seekTo}
+        shots={source.shots || []}
+        transcript={source.transcript || ""}
+      />
+    );
+  }
+
+  if (mimeType.startsWith("image/")) {
+    return (
+      <div className="rounded-xl border border-border/40 overflow-hidden bg-black/20">
+        <img
+          src={resolved}
+          alt={source.title || "Anteprima immagine"}
+          className="w-full max-h-[420px] object-contain"
+        />
+      </div>
+    );
+  }
+
+  return null;
 }
 
 export default function CitationPanel({ citation, onClose }) {
   const panelRef = useRef(null);
   const touchStartX = useRef(null);
+  const initialIndex = useMemo(() => 0, []);
+  const [selectedIndex, setSelectedIndex] = useState(initialIndex);
 
   useEffect(() => {
     const handleKey = (e) => e.key === "Escape" && onClose();
@@ -32,16 +67,22 @@ export default function CitationPanel({ citation, onClose }) {
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
-  useEffect(() => { panelRef.current?.focus(); }, []);
+  useEffect(() => {
+    panelRef.current?.focus();
+    setSelectedIndex(0);
+  }, [citation]);
 
   const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
-  const handleTouchEnd   = (e) => {
+  const handleTouchEnd = (e) => {
     if (touchStartX.current === null) return;
     if (e.changedTouches[0].clientX - touchStartX.current > 80) onClose();
     touchStartX.current = null;
   };
 
   if (!citation) return null;
+
+  const sources = citation.sources || [];
+  const selectedSource = sources[selectedIndex] || sources[0] || null;
 
   return (
     <>
@@ -54,18 +95,21 @@ export default function CitationPanel({ citation, onClose }) {
         tabIndex={-1}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className="fixed right-0 top-0 bottom-0 w-full max-w-[22rem]
+        className="fixed right-0 top-0 bottom-0 w-full max-w-[38rem]
                    bg-surface-sidebar border-l border-border/50
-                   z-50 flex flex-col outline-none
-                   translate-x-0 print:hidden"
+                   z-50 flex flex-col outline-none print:hidden"
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
           <div className="flex items-center gap-2.5">
             <span className="citation-badge">{citation.id}</span>
-            <span className="text-[13px] font-medium text-text-primary">
-              {citation.sources?.length === 1 ? "Fonte" : "Fonti"}
-            </span>
+            <div>
+              <span className="block text-[13px] font-medium text-text-primary">
+                {sources.length === 1 ? "Fonte" : "Fonti"}
+              </span>
+              <span className="block text-[10px] text-text-muted">
+                Viewer unificato con ancoraggio alla fonte
+              </span>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -78,59 +122,83 @@ export default function CitationPanel({ citation, onClose }) {
           </button>
         </div>
 
-        {/* Sources */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {citation.sources.length === 0 && (
-            <p className="text-xs text-text-secondary italic">Nessuna fonte disponibile.</p>
-          )}
-          {citation.sources.map((src, i) => (
-            <div key={i} className="space-y-2">
-              {/* Title + page */}
-              <div className="flex items-start justify-between gap-3">
-                <h4 className="text-[13px] font-medium text-text-primary leading-snug flex-1">
-                  {titleFromUri(src.uri) || src.title || "Documento"}
-                </h4>
-                {src.pageIdentifier && (
-                  <span className="text-[11px] text-text-secondary font-mono whitespace-nowrap flex-shrink-0 mt-0.5">
-                    p.&thinsp;{src.pageIdentifier}
-                  </span>
-                )}
-              </div>
-
-              {/* Snippet */}
-              {src.snippet && (
-                <p className="text-xs text-text-primary leading-relaxed italic
-                               border-l border-border/60 pl-3">
-                  &ldquo;{src.snippet.slice(0, 400)}{src.snippet.length > 400 ? "…" : ""}&rdquo;
-                </p>
+        <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
+          <div className="w-full lg:w-[15rem] border-b lg:border-b-0 lg:border-r border-border/30 overflow-y-auto">
+            <div className="p-3 space-y-2">
+              {sources.length === 0 && (
+                <p className="text-xs text-text-secondary italic">Nessuna fonte disponibile.</p>
               )}
-
-              {/* Link */}
-              {resolveUri(src.uri) && (
-                <a
-                  href={resolveUri(src.uri)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] text-accent
-                             hover:text-accent-hover transition-colors"
-                >
-                  <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  {src.uri?.startsWith("gs://") ? "Apri documento" : "Documento originale"}
-                </a>
-              )}
-
-              {/* Divider between sources */}
-              {i < citation.sources.length - 1 && (
-                <div className="border-b border-border/20 pt-1" />
-              )}
+              {sources.map((source, index) => {
+                const pageIdentifier = parsePageIdentifier(source);
+                return (
+                  <button
+                    key={`${source.documentId || source.uri || source.title || index}-${index}`}
+                    onClick={() => setSelectedIndex(index)}
+                    className={`w-full text-left rounded-xl border px-3 py-2.5 transition-colors ${
+                      index === selectedIndex
+                        ? "border-accent/40 bg-accent/8"
+                        : "border-border bg-surface-raised hover:border-border/80"
+                    }`}
+                  >
+                    <p className="text-[12px] font-medium text-text-primary leading-snug">
+                      {titleFromUri(source.uri) || source.title || "Documento"}
+                    </p>
+                    {pageIdentifier && (
+                      <p className="text-[10px] text-text-secondary font-mono mt-1">
+                        p. {pageIdentifier}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-          ))}
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
+            {selectedSource && (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <h4 className="text-[14px] font-medium text-text-primary leading-snug flex-1">
+                      {titleFromUri(selectedSource.uri) || selectedSource.title || "Documento"}
+                    </h4>
+                    {parsePageIdentifier(selectedSource) && (
+                      <span className="text-[11px] text-text-secondary font-mono whitespace-nowrap flex-shrink-0 mt-0.5">
+                        p. {parsePageIdentifier(selectedSource)}
+                      </span>
+                    )}
+                  </div>
+
+                  {selectedSource.snippet && (
+                    <p className="text-xs text-text-primary leading-relaxed italic border-l border-border/60 pl-3">
+                      &ldquo;{selectedSource.snippet.slice(0, 700)}{selectedSource.snippet.length > 700 ? "…" : ""}&rdquo;
+                    </p>
+                  )}
+                </div>
+
+                <SourcePreview source={selectedSource} />
+
+                {resolveSourceUri(selectedSource.uri) && (
+                  <div className="flex flex-wrap gap-3">
+                    <a
+                      href={buildPdfUrl(selectedSource.uri, parsePageIdentifier(selectedSource))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] text-accent hover:text-accent-hover transition-colors"
+                    >
+                      <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      Apri alla fonte
+                    </a>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Footer */}
         <div className="px-5 py-3 border-t border-border/30">
           <p className="text-[10px] text-text-muted">
             Archivio Documentale · Camera dei Deputati

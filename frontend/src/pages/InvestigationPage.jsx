@@ -9,7 +9,7 @@ import { apiFetch } from "../lib/apiFetch";
 const TOOL_META = {
   search_documents:   { label: "Ricerca documenti",      icon: "🔍" },
   verify_claim:       { label: "Verifica affermazione",  icon: "✓"  },
-  list_contradictions:{ label: "Contraddizioni",         icon: "⚡"  },
+  list_timeline_events:{ label: "Eventi timeline",       icon: "🗓"  },
   get_entity_info:    { label: "Entità",                 icon: "👤"  },
   translate_text:     { label: "Traduzione",             icon: "🌐"  },
 };
@@ -17,11 +17,11 @@ const TOOL_META = {
 // ── Suggested queries ─────────────────────────────────────────────────────────
 
 const SUGGESTIONS = [
-  "Quali testimoni della Guardia Costiera contraddicono la perizia RINA sulla visibilità?",
   "Ricostruisci i movimenti della nave Agip Abruzzo nelle ore precedenti la collisione.",
-  "Chi erano i principali responsabili del coordinamento dei soccorsi quella notte?",
-  "Quali incongruenze emergono tra le varie testimonianze sul momento dell'impatto?",
   "Quali documenti descrivono le comunicazioni radio nelle ore dell'incendio?",
+  "Quali fonti ricostruiscono la sequenza dei soccorsi nella notte del 10 aprile 1991?",
+  "Quali figure istituzionali emergono dagli atti sulla gestione dell'emergenza?",
+  "Mostrami gli eventi parlamentari principali con le fonti che li sostengono.",
 ];
 
 // ── Sub-components ────────────────────────────────────────────────────────────

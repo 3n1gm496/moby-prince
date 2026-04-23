@@ -15,7 +15,7 @@ Calls the Vertex AI Search `:search` API. Returns ranked chunks or documents wit
 **Use when:**
 - Building the evidence panel: fast, cheap, deterministic
 - Debugging: which passages does the system actually retrieve?
-- Implementing contradiction analysis: retrieve the same query with different filters and compare
+- Implementing source comparison workflows: retrieve the same query with different filters and compare
 - Export / bulk tooling that doesn't need synthesis
 
 **Limitations:**
@@ -29,7 +29,7 @@ Calls the Vertex AI Search `:answer` API (v1alpha). Internally performs a search
 **Use when:**
 - User poses a research question that requires synthesis across passages
 - Multi-turn investigation session (session continuity via `sessionId`)
-- Generating a summarised view of conflicting evidence
+- Generating a summarised view of evidence spread across multiple documents
 
 **Limitations:**
 - Slower and more expensive than pure search

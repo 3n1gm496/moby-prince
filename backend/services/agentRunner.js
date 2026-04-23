@@ -30,8 +30,8 @@ const de             = require('./discoveryEngine');
 const translation    = require('./translation');
 const claimsRepo     = require('../repos/claims');
 const entitiesRepo   = require('../repos/entities');
-const contradictionsRepo = require('../repos/contradictions');
-const detector       = require('./contradictionDetector');
+const eventsRepo     = require('../repos/events');
+const verifier       = require('./claimVerifier');
 const { isBigQueryEnabled } = require('./bigquery');
 
 const log       = createLogger('agent-runner');
@@ -57,12 +57,12 @@ Sei un investigatore specializzato nel disastro del Moby Prince (traghetto incen
 nel porto di Livorno il 10 aprile 1991, 140 vittime).
 
 Il tuo compito è rispondere a domande complesse usando gli strumenti disponibili:
-ricerca documenti, verifica affermazioni, analisi contraddizioni, recupero entità.
+ricerca documenti, verifica affermazioni, recupero entità e ricostruzione di eventi.
 
 Istruzioni operative:
 - Usa gli strumenti in sequenza logica: cerca prima, poi analizza, poi sintetizza
 - Cita sempre le fonti documentali quando affermi un fatto
-- Segnala esplicitamente se trovi contraddizioni tra testimonianze
+- Distingui chiaramente tra fatti documentati, inferenze plausibili e punti ancora incerti
 - Rispondi sempre in italiano
 - La risposta finale deve essere strutturata: fatto accertato / incerto / controverso
 `.trim();
@@ -94,13 +94,13 @@ const TOOL_DECLARATIONS = [
     },
   },
   {
-    name:        'list_contradictions',
-    description: 'Recupera le contraddizioni documentali rilevate nel corpus. Utile per comparare testimonianze in conflitto.',
+    name:        'list_timeline_events',
+    description: 'Recupera eventi della timeline strutturata del caso, con data, tipo e fonti collegate.',
     parameters:  {
       type:       'OBJECT',
       properties: {
-        severity:   { type: 'STRING', description: 'Filtra per gravità: minor | significant | major' },
-        limit:      { type: 'INTEGER', description: 'Max risultati (default 5)' },
+        eventType: { type: 'STRING', description: 'Tipo evento opzionale: collision|fire|rescue|communication|navigation|administrative|judicial|parliamentary' },
+        limit: { type: 'INTEGER', description: 'Max risultati (default 5)' },
       },
     },
   },
@@ -147,6 +147,7 @@ async function _executeTool(name, args) {
           title:    sd.title      || doc.id || '(sconosciuto)',
           source:   sd.institution|| null,
           year:     sd.year       || null,
+          page:     r.chunk?.pageSpan?.pageStart || r.chunk?.pageIdentifier || null,
           excerpt:  text.slice(0, 500),
         };
       });
@@ -156,22 +157,27 @@ async function _executeTool(name, args) {
     case 'verify_claim': {
       const text       = args.text || '';
       const candidates = await claimsRepo.findSimilar(text, [], 5);
-      return detector.verifyClaim(text, candidates);
+      return verifier.verifyClaim(text, candidates);
     }
 
-    case 'list_contradictions': {
-      if (!isBigQueryEnabled()) return { contradictions: [], note: 'BQ not configured' };
-      const items = await contradictionsRepo.list({
-        severity: args.severity || undefined,
+    case 'list_timeline_events': {
+      if (!isBigQueryEnabled()) return { events: [], note: 'BQ not configured' };
+      const items = await eventsRepo.listTimeline({
+        eventType: args.eventType || undefined,
         limit:    Math.min(args.limit || 5, 10),
       });
       return {
-        contradictions: items.map(c => ({
-          id:          c.id,
-          severity:    c.severity,
-          type:        c.contradictionType,
-          description: c.description,
-          status:      c.status,
+        events: items.map((event) => ({
+          id: event.id,
+          dateLabel: event.dateLabel,
+          dateAccuracy: event.dateAccuracy,
+          title: event.title,
+          eventType: event.eventType,
+          description: event.description,
+          sources: event.sources?.slice(0, 3).map((source) => ({
+            title: source.title,
+            pageReference: source.pageReference,
+          })) || [],
         })),
         total: items.length,
       };

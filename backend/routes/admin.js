@@ -7,8 +7,9 @@
  *
  * Returns:
  *   sessions        { count }
- *   contradictions  { open, total }
  *   documents       { total }  (BigQuery; 0 when BQ not configured)
+ *   entities        { total }
+ *   events          { total }
  *   rateLimiter     { gemini: { count, limit }, bq: { count, limit }, resetAt }
  *
  * Protected by the same X-API-Key middleware as all other /api routes.
@@ -34,34 +35,35 @@ router.get('/stats', async (req, res, next) => {
 
     // BQ stats — optional; fail gracefully
     let documentsTotal = 0;
-    let contradictionsOpen  = 0;
-    let contradictionsTotal = 0;
+    let entitiesTotal = 0;
+    let eventsTotal = 0;
 
     if (isBigQueryEnabled()) {
       const bq = require('../services/bigquery');
-      const [docRows, contrRows] = await Promise.allSettled([
+      const [docRows, entityRows, eventRows] = await Promise.allSettled([
         bq.query('SELECT COUNT(*) AS cnt FROM `evidence.documents`'),
-        bq.query('SELECT status, COUNT(*) AS cnt FROM `evidence.contradictions` GROUP BY status'),
+        bq.query('SELECT COUNT(*) AS cnt FROM `evidence.entities`'),
+        bq.query('SELECT COUNT(*) AS cnt FROM `evidence.events`'),
       ]);
 
       if (docRows.status === 'fulfilled' && docRows.value.length > 0) {
         documentsTotal = Number(docRows.value[0].cnt || 0);
       }
-      if (contrRows.status === 'fulfilled') {
-        for (const row of contrRows.value) {
-          const cnt = Number(row.cnt || 0);
-          contradictionsTotal += cnt;
-          if (row.status === 'open') contradictionsOpen += cnt;
-        }
+      if (entityRows.status === 'fulfilled' && entityRows.value.length > 0) {
+        entitiesTotal = Number(entityRows.value[0].cnt || 0);
+      }
+      if (eventRows.status === 'fulfilled' && eventRows.value.length > 0) {
+        eventsTotal = Number(eventRows.value[0].cnt || 0);
       }
     }
 
     log.debug({ sessionCount }, 'Admin stats served');
 
     res.json({
-      sessions:       { count: sessionCount },
-      contradictions: { open: contradictionsOpen, total: contradictionsTotal },
-      documents:      { total: documentsTotal },
+      sessions:  { count: sessionCount },
+      documents: { total: documentsTotal },
+      entities:  { total: entitiesTotal },
+      events:    { total: eventsTotal },
       rateLimiter,
     });
   } catch (err) {

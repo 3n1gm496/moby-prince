@@ -71,4 +71,38 @@ async function search(q, limit = 20) {
   return rows.map(normalizeEntity);
 }
 
-module.exports = { list, getById, search };
+async function listDocuments(entityId, limit = 20) {
+  const rows = await bq.query(
+    `SELECT
+        d.id,
+        d.title,
+        d.source_uri,
+        d.document_type,
+        d.institution,
+        d.year,
+        COUNT(*) AS mention_count
+      FROM ${_table('claims')} c
+      INNER JOIN ${_table('documents')} d
+        ON d.id = c.document_id
+      WHERE @entityId IN UNNEST(c.entity_ids)
+      GROUP BY d.id, d.title, d.source_uri, d.document_type, d.institution, d.year
+      ORDER BY mention_count DESC, d.year DESC, d.title ASC
+      LIMIT @limit`,
+    [
+      bq.stringParam('entityId', entityId),
+      bq.intParam('limit', limit),
+    ],
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title || row.id,
+    uri: row.source_uri || null,
+    documentType: row.document_type || null,
+    institution: row.institution || null,
+    year: row.year != null ? Number(row.year) : null,
+    mentionCount: Number(row.mention_count || 0),
+  }));
+}
+
+module.exports = { list, getById, search, listDocuments };

@@ -12,7 +12,7 @@
 
 const { Router } = require('express');
 const claimsRepo = require('../repos/claims');
-const detector   = require('../services/contradictionDetector');
+const verifier   = require('../services/claimVerifier');
 const { isBigQueryEnabled } = require('../services/bigquery');
 
 const router = Router();
@@ -56,7 +56,7 @@ router.post('/verify', async (req, res, next) => {
 
   try {
     const candidates = await claimsRepo.findSimilar(text.trim(), [], 5);
-    const result     = await detector.verifyClaim(text.trim(), candidates);
+    const result     = await verifier.verifyClaim(text.trim(), candidates);
     res.json(result);
   } catch (err) {
     next(err);

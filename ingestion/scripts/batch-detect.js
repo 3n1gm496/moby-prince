@@ -2,15 +2,11 @@
 'use strict';
 
 /**
- * batch-detect.js — Batch claim extraction + contradiction detection
+ * batch-detect.js — Batch claim extraction for the structured evidence layer
  *
  * Fase 1 (claims): lista tutti i documenti da Vertex AI Search, recupera i
  *   chunk per ciascuno, chiede a Gemini di estrarre le affermazioni fattuali,
  *   le scrive in evidence.claims su BigQuery.
- *
- * Fase 2 (detect): carica tutti i claim da BQ, costruisce coppie candidate
- *   per sovrapposizione di entità, chiama Gemini per valutare le contraddizioni,
- *   scrive i risultati in evidence.contradictions.
  *
  * Utilizzo:
  *   node ingestion/scripts/batch-detect.js [opzioni]
@@ -18,11 +14,9 @@
  * Opzioni:
  *   --dry-run          Stima token e costo senza chiamare le API
  *   --phase=claims     Solo estrazione claim
- *   --phase=detect     Solo detection (richiede claim già in BQ)
- *   --phase=all        Entrambe le fasi (default)
+ *   --phase=all        Alias di compatibilità, esegue comunque solo l'estrazione claim
  *   --delay=800        ms di pausa tra chiamate Gemini (default: 800)
  *   --batch=5          Chunk per chiamata Gemini in fase claims (default: 5)
- *   --max-pairs=200    Coppie massime valutate in fase detect (default: 200)
  *   --resume           Salta documenti già processati (legge progress.json)
  *
  * Variabili d'ambiente (stesso backend/.env):
@@ -54,10 +48,9 @@ if (!PROJECT) { console.error('GOOGLE_CLOUD_PROJECT non impostato.'); process.ex
 const ARGS         = process.argv.slice(2);
 const DRY_RUN      = ARGS.includes('--dry-run');
 const _phaseRaw    = (ARGS.find(a => a.startsWith('--phase=')) || '--phase=all').split('=')[1];
-const PHASE        = _phaseRaw === '1' ? 'claims' : _phaseRaw === '2' ? 'detect' : _phaseRaw;
+const PHASE        = _phaseRaw === '1' || _phaseRaw === '2' ? 'claims' : _phaseRaw;
 const DELAY_MS     = parseInt((ARGS.find(a => a.startsWith('--delay='))     || '--delay=800').split('=')[1],  10);
 const BATCH_SIZE   = parseInt((ARGS.find(a => a.startsWith('--batch='))     || '--batch=5').split('=')[1],   10);
-const MAX_PAIRS    = parseInt((ARGS.find(a => a.startsWith('--max-pairs=')) || '--max-pairs=200').split('=')[1], 10);
 const RESUME       = ARGS.includes('--resume');
 const RESET_CLAIMS = ARGS.includes('--reset-claims');
 
@@ -399,26 +392,6 @@ Rispondi SOLO con JSON (nessun testo aggiuntivo):
 `.trim();
 }
 
-// ── Gemini: contradiction evaluation ─────────────────────────────────────────
-
-function _pairPrompt(claimA, claimB) {
-  return `
-Sei un analista specializzato nel disastro del Moby Prince (10 aprile 1991).
-Valuta se le due affermazioni si contraddicono.
-
-Affermazione A (doc ${claimA.document_id?.slice(0, 8) || '?'}…): "${claimA.text?.slice(0, 300)}"
-Affermazione B (doc ${claimB.document_id?.slice(0, 8) || '?'}…): "${claimB.text?.slice(0, 300)}"
-
-Rispondi SOLO con JSON:
-{
-  "isContradiction": true/false,
-  "contradictionType": "factual" | "temporal" | "testimonial" | "interpretive" | "procedural" | null,
-  "severity": "minor" | "significant" | "major" | null,
-  "description": "Spiega in 1-2 frasi (null se non si contraddicono)"
-}
-`.trim();
-}
-
 // ── PHASE 1: Extract claims from corpus ───────────────────────────────────────
 
 async function runClaimsPhase() {
@@ -588,160 +561,12 @@ async function runClaimsPhase() {
   }
 }
 
-// ── PHASE 2: Detect contradictions across all claims ─────────────────────────
-
-async function runDetectPhase() {
-  log('=== FASE 2: Detection contraddizioni ===');
-
-  // Load all claims from BQ
-  log('Caricamento claim da BigQuery...');
-  const rows = await _bqQuery(
-    `SELECT id, text, claim_type, document_id, entity_ids, event_id, confidence
-     FROM \`${PROJECT}.${DATASET}.claims\`
-     WHERE status = 'unverified' AND confidence >= 0.6
-     ORDER BY created_at DESC
-     LIMIT 10000`,
-  );
-  log(`Claim caricati: ${rows.length}`);
-
-  if (rows.length < 2) {
-    warn('Meno di 2 claim disponibili — impossibile rilevare contraddizioni.');
-    return;
-  }
-
-  // Build candidate pairs: claims that share an entity name via text overlap,
-  // from DIFFERENT documents. Use simple keyword overlap as proxy since
-  // entity_ids may not be populated yet.
-  log('Costruzione coppie candidate...');
-  const pairs = _buildCandidatePairs(rows);
-  log(`Coppie candidate: ${pairs.length}  (max: ${MAX_PAIRS})`);
-
-  if (DRY_RUN) {
-    const inputTokens  = pairs.length * 600;
-    const outputTokens = pairs.length * 100;
-    const costInput    = (inputTokens  / 1_000_000) * 0.075;
-    const costOutput   = (outputTokens / 1_000_000) * 0.30;
-    log(`  Costo stimato FASE 2 : $${(costInput + costOutput).toFixed(3)}`);
-    return;
-  }
-
-  const now = new Date().toISOString();
-  let detected = 0;
-
-  for (let pi = 0; pi < pairs.length; pi++) {
-    const [a, b] = pairs[pi];
-
-    if ((pi + 1) % 20 === 0) {
-      log(`  ${pi + 1}/${pairs.length} coppie valutate — ${detected} contraddizioni rilevate`);
-    }
-
-    let result;
-    try {
-      result = await gemini.generateJson(_pairPrompt(a, b));
-    } catch (err) {
-      warn(`Gemini error coppia ${pi}: ${err.message}`);
-      await sleep(DELAY_MS * 2);
-      continue;
-    }
-
-    if (result?.isContradiction === true) {
-      const VALID_TYPES = new Set(['factual','temporal','testimonial','interpretive','procedural']);
-      const VALID_SEV   = new Set(['minor','significant','major']);
-      const row = {
-        id:                 newId(),
-        claim_a_id:         a.id,
-        claim_b_id:         b.id,
-        document_a_id:      a.document_id,
-        document_b_id:      b.document_id,
-        contradiction_type: VALID_TYPES.has(result.contradictionType) ? result.contradictionType : null,
-        severity:           VALID_SEV.has(result.severity) ? result.severity : 'minor',
-        description:        typeof result.description === 'string'
-                            ? result.description.slice(0, 500) : null,
-        status:             'open',
-        resolution:         null,
-        detected_by:        'llm_flagged',
-        detected_at:        now,
-        resolved_at:        null,
-        created_at:         now,
-        updated_at:         now,
-      };
-      await _bqInsert('contradictions', [row]);
-      detected++;
-      ok(`  Contraddizione: ${row.severity} (${row.contradiction_type || 'n/d'}) — ${(result.description || '').slice(0, 80)}`);
-    }
-
-    await sleep(DELAY_MS);
-  }
-
-  log('');
-  log(`Fase detection completata:`);
-  log(`  Coppie valutate      : ${pairs.length}`);
-  log(`  Contraddizioni       : ${detected}`);
-}
-
-// Fisher-Yates shuffle (in-place, deterministic via simple random)
-function _shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-function _buildCandidatePairs(claims) {
-  const pairs        = [];
-  const seen         = new Set();
-  // Max pairs per document-pair to avoid clustering on the same two documents
-  const docPairCount = new Map();
-  const MAX_PER_DOC_PAIR = 3;
-
-  // Shuffle to avoid always picking the same top-N claims
-  const shuffled = _shuffle([...claims]);
-
-  // Build keyword sets for each claim (words ≥5 chars, excluding ultra-common terms)
-  const STOPWORDS = new Set(['moby','prince','della','delle','nella','negli','sono','stato',
-                              'essere','hanno','questo','questi','quella','quelle','aveva']);
-  const kwSets = shuffled.map(c =>
-    new Set(
-      (c.text || '').toLowerCase().split(/\W+/)
-        .filter(w => w.length >= 5 && !STOPWORDS.has(w)),
-    ),
-  );
-
-  for (let i = 0; i < shuffled.length && pairs.length < MAX_PAIRS; i++) {
-    for (let j = i + 1; j < shuffled.length && pairs.length < MAX_PAIRS; j++) {
-      const a = shuffled[i];
-      const b = shuffled[j];
-
-      if (a.document_id === b.document_id) continue;
-
-      // Limit pairs per document-pair for diversity
-      const docKey = [a.document_id, b.document_id].sort().join('|');
-      if ((docPairCount.get(docKey) || 0) >= MAX_PER_DOC_PAIR) continue;
-
-      // Must share at least 2 significant keywords
-      let shared = 0;
-      for (const kw of kwSets[i]) {
-        if (kwSets[j].has(kw)) { shared++; if (shared >= 2) break; }
-      }
-      if (shared < 2) continue;
-
-      const key = [a.id, b.id].sort().join('|');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      docPairCount.set(docKey, (docPairCount.get(docKey) || 0) + 1);
-      pairs.push([a, b]);
-    }
-  }
-  return pairs;
-}
-
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
   console.log('');
   console.log('╔══════════════════════════════════════════════════╗');
-  console.log('║   Moby Prince — Batch claim + contradiction      ║');
+  console.log('║   Moby Prince — Batch claim extraction           ║');
   console.log('╚══════════════════════════════════════════════════╝');
   console.log('');
   log(`Progetto    : ${PROJECT}`);
@@ -751,13 +576,15 @@ async function main() {
   log(`Fase        : ${PHASE}`);
   log(`Delay       : ${DELAY_MS} ms`);
   log(`Chunk/batch : ${BATCH_SIZE}`);
-  log(`Max coppie  : ${MAX_PAIRS}`);
   log(`Dry run     : ${DRY_RUN ? 'SÌ — nessuna scrittura' : 'no'}`);
   log(`Resume      : ${RESUME}`);
   console.log('');
 
-  if (PHASE === 'claims' || PHASE === 'all') await runClaimsPhase();
-  if (PHASE === 'detect' || PHASE === 'all') await runDetectPhase();
+  if (!['claims', 'all'].includes(PHASE)) {
+    throw new Error(`Fase non supportata: ${PHASE}. Usa --phase=claims o --phase=all.`);
+  }
+
+  await runClaimsPhase();
 
   console.log('');
   log('Script completato.');

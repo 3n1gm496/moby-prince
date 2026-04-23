@@ -5,7 +5,7 @@
  *
  * These are plain JavaScript objects used as the canonical shape contract
  * between the BigQuery schema (docs/evidence-model.md) and the API routes
- * (backend/routes/timeline.js, contradictions.js, dossier.js — planned).
+ * (backend/routes/timeline.js, entities.js, dossier.js).
  *
  * Usage pattern:
  *   const row = await bq.query(EVENTS_BY_DATE);
@@ -272,51 +272,6 @@ function normalizeEvidenceLink(row) {
   };
 }
 
-// ── Contradiction ─────────────────────────────────────────────────────────────
-
-/**
- * @typedef {object} EvidenceContradiction
- * @property {string}      id
- * @property {string}      claimAId
- * @property {string}      claimBId
- * @property {string}      documentAId
- * @property {string}      documentBId
- * @property {'factual'|'temporal'|'testimonial'|'interpretive'|'procedural'|null} contradictionType
- * @property {'minor'|'significant'|'major'|null} severity
- * @property {string|null} description
- * @property {'open'|'resolved'|'contested'|'under_review'} status
- * @property {string|null} resolution
- * @property {'manual'|'llm_flagged'|null} detectedBy
- * @property {string|null} detectedAt
- * @property {string|null} resolvedAt
- * @property {string}      createdAt
- * @property {string}      updatedAt
- */
-
-/**
- * @param {object} row
- * @returns {EvidenceContradiction}
- */
-function normalizeContradiction(row) {
-  return {
-    id:                 row.id,
-    claimAId:           row.claim_a_id,
-    claimBId:           row.claim_b_id,
-    documentAId:        row.document_a_id,
-    documentBId:        row.document_b_id,
-    contradictionType:  row.contradiction_type ?? null,
-    severity:           row.severity ?? null,
-    description:        row.description ?? null,
-    status:             row.status ?? 'open',
-    resolution:         row.resolution ?? null,
-    detectedBy:         row.detected_by ?? null,
-    detectedAt:         row.detected_at ? _toIso(row.detected_at) : null,
-    resolvedAt:         row.resolved_at ? _toIso(row.resolved_at) : null,
-    createdAt:          _toIso(row.created_at),
-    updatedAt:          _toIso(row.updated_at),
-  };
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** BigQuery returns timestamps as Date objects or ISO strings; normalise to ISO. */
@@ -334,5 +289,4 @@ module.exports = {
   normalizeEvent,
   normalizeClaim,
   normalizeEvidenceLink,
-  normalizeContradiction,
 };

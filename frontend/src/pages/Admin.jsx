@@ -131,10 +131,15 @@ export default function Admin() {
                   sub="in BigQuery"
                 />
                 <StatCard
-                  label="Contraddizioni aperte"
-                  value={stats.contradictions?.open}
-                  sub={`su ${stats.contradictions?.total ?? 0} totali`}
-                  accent={stats.contradictions?.open > 0}
+                  label="Entita"
+                  value={stats.entities?.total}
+                  sub="profili canonici"
+                />
+                <StatCard
+                  label="Eventi"
+                  value={stats.events?.total}
+                  sub="timeline strutturata"
+                  accent={(stats.events?.total ?? 0) > 0}
                 />
               </div>
             </section>

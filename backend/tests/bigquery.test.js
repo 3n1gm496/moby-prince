@@ -1,19 +1,27 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ── Mock dependencies before importing the module under test ──────────────────
 
-vi.mock('../config', () => ({
+vi.mock('../config.js', () => ({
   default: { bigquery: { projectId: 'test-project', datasetId: 'evidence', location: 'EU' } },
 }));
 
-vi.mock('../services/auth', () => ({
+vi.mock('../services/auth.js', () => ({
   getAccessToken: vi.fn().mockResolvedValue('fake-token'),
 }));
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('bigquery.query()', () => {
-  beforeEach(() => { vi.stubGlobal('fetch', vi.fn()); });
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(async () => {
+    const mod = await import('../services/bigquery.js');
+    mod.__setAccessTokenProvider();
+  });
 
   it('throws when jobComplete is false', async () => {
     globalThis.fetch.mockResolvedValueOnce({
@@ -21,7 +29,8 @@ describe('bigquery.query()', () => {
       json: () => Promise.resolve({ jobComplete: false, jobReference: { jobId: 'job-123' } }),
     });
 
-    const { query } = await import('../services/bigquery.js');
+    const { query, __setAccessTokenProvider } = await import('../services/bigquery.js');
+    __setAccessTokenProvider(async () => 'fake-token');
     await expect(query('SELECT 1')).rejects.toThrow(/timed out/i);
   });
 
@@ -35,7 +44,8 @@ describe('bigquery.query()', () => {
       }),
     });
 
-    const { query } = await import('../services/bigquery.js');
+    const { query, __setAccessTokenProvider } = await import('../services/bigquery.js');
+    __setAccessTokenProvider(async () => 'fake-token');
     const rows = await query('SELECT id FROM t');
     expect(rows).toEqual([{ id: 'abc' }]);
   });
