@@ -49,4 +49,20 @@ describe('bigquery.query()', () => {
     const rows = await query('SELECT id FROM t');
     expect(rows).toEqual([{ id: 'abc' }]);
   });
+
+  it('normalizes BigQuery TIMESTAMP seconds to ISO strings', async () => {
+    globalThis.fetch.mockResolvedValueOnce({
+      ok:   true,
+      json: () => Promise.resolve({
+        jobComplete: true,
+        schema: { fields: [{ name: 'occurred_at', type: 'TIMESTAMP', mode: 'NULLABLE' }] },
+        rows:   [{ f: [{ v: '-4.418496E8' }] }],
+      }),
+    });
+
+    const { query, __setAccessTokenProvider } = await import('../services/bigquery.js');
+    __setAccessTokenProvider(async () => 'fake-token');
+    const rows = await query('SELECT occurred_at FROM t');
+    expect(rows).toEqual([{ occurred_at: '1956-01-01T00:00:00.000Z' }]);
+  });
 });

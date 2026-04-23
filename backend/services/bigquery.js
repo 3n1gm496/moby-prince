@@ -78,7 +78,17 @@ function _coerce(type, v) {
   if (type === 'BOOLEAN' || type === 'BOOL') return v === true || v === 'true';
   if (type === 'INTEGER' || type === 'INT64') return Number(v);
   if (type === 'FLOAT' || type === 'FLOAT64' || type === 'NUMERIC' || type === 'BIGNUMERIC') return Number(v);
-  return v; // STRING, TIMESTAMP, DATE, etc. — return as-is
+  if (type === 'TIMESTAMP') return _coerceTimestamp(v);
+  return v; // STRING, DATE, etc. — return as-is
+}
+
+function _coerceTimestamp(value) {
+  if (value instanceof Date) return value.toISOString();
+  const text = String(value);
+  const numeric = Number(text);
+  if (Number.isFinite(numeric)) return new Date(numeric * 1000).toISOString();
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? text : parsed.toISOString();
 }
 
 // ── Exported helpers ──────────────────────────────────────────────────────────

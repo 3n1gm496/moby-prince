@@ -280,11 +280,26 @@ Script principali:
 
 - `ingestion/scripts/bq-create-tables.sql`
 - `ingestion/scripts/batch-detect.js`
+- `ingestion/scripts/backfill-structured-layer.js`
 
 Uso tipico per estrazione claim:
 
 ```bash
 node ingestion/scripts/batch-detect.js --phase=claims --resume
+```
+
+Uso tipico per riallineare il layer strutturato:
+
+```bash
+node ingestion/scripts/backfill-structured-layer.js --phases=documents,anchors --replace
+node ingestion/scripts/backfill-structured-layer.js --phases=entities,profiles --replace --entity-threshold=0.86
+node ingestion/scripts/backfill-structured-layer.js --phases=events --replace --event-threshold=0.86
+```
+
+Per recuperare un intervallo specifico di claim candidati evento senza cancellare gli eventi gia scritti:
+
+```bash
+node ingestion/scripts/backfill-structured-layer.js --phases=events --event-offset=1305 --event-limit=45 --event-batch=15 --event-threshold=0.86
 ```
 
 Cosa fa:
@@ -294,11 +309,15 @@ Cosa fa:
 - usa Gemini per estrarre claim
 - scrive in BigQuery
 - usa fallback multimodale per PDF, immagini, audio e video quando non ci sono chunk testuali utili
+- materializza documenti, source anchor testuali, entita canoniche, profili entita ed eventi timeline ad alta soglia
+- scarta eventi senza claim sorgente reale e ID entita non canonici
+- evita insert streaming per `events`, perche la tabella e partizionata su date storiche
 
 Limite importante:
 
 - il backfill storico va considerato concluso solo quando `GCS ↔ DE ↔ BQ` sono coerenti
 - senza `source_anchors` e `entity_profiles` popolati, la UI resta utilizzabile ma non completa
+- gli anchor pagina PDF richiedono `page_reference` affidabile o reprocessing OCR/Document AI: gli anchor testuali non bastano per aprire automaticamente la pagina esatta
 
 ## Worker di pipeline
 
