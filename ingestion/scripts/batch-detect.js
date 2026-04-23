@@ -165,6 +165,11 @@ async function _bqInsert(tableId, rows) {
   const data = await res.json();
   if (data.insertErrors?.length) {
     warn(`BQ insert ${tableId}: ${data.insertErrors.length} errors`);
+    for (const ie of data.insertErrors.slice(0, 3)) {
+      for (const e of (ie.errors || [])) {
+        warn(`  row[${ie.index}] ${e.reason}: ${e.message} (location: ${e.location})`);
+      }
+    }
   }
 }
 
