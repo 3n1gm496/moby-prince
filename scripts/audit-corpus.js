@@ -50,6 +50,7 @@ async function main() {
     },
     counts: await collectCounts(),
     mismatches: await collectMismatches(),
+    quality: await collectQuality(),
   };
 
   const rendered = render(report, FORMAT);
@@ -143,11 +144,11 @@ async function collectMismatches() {
 
   const samples = await Promise.all([
     safeQueryRows(['events', 'claims'], `
-      SELECT id, title, date_text
+      SELECT e.id, e.title, e.date_text
       FROM \`${PROJECT}.${DATASET}.events\` e
       LEFT JOIN UNNEST(IFNULL(e.source_claim_ids, ARRAY<STRING>[])) claim_id
       LEFT JOIN \`${PROJECT}.${DATASET}.claims\` c ON c.id = claim_id
-      GROUP BY id, title, date_text
+      GROUP BY e.id, e.title, e.date_text
       HAVING COUNT(c.id) = 0
       LIMIT 10
     `),
@@ -171,6 +172,74 @@ async function collectMismatches() {
     samples: {
       eventsWithoutSources: samples[0],
       entities: samples[1],
+    },
+  };
+}
+
+async function collectQuality() {
+  const rows = await Promise.all([
+    safeQuerySingleRow(['documents'], `
+      SELECT
+        COUNTIF(normalized_uri IS NULL OR TRIM(normalized_uri) = '') AS documents_without_normalized_uri,
+        COUNTIF(chunk_count IS NULL) AS documents_without_chunk_count,
+        COUNTIF(ocr_quality IS NULL OR TRIM(ocr_quality) = '') AS documents_without_ocr_quality,
+        COUNTIF(parent_document_id IS NOT NULL) AS documents_with_split_parent
+      FROM \`${PROJECT}.${DATASET}.documents\`
+    `),
+    safeQuerySingleRow(['claims'], `
+      SELECT
+        COUNTIF(page_reference IS NOT NULL) AS claims_with_page_reference,
+        COUNTIF(page_reference IS NULL) AS claims_without_page_reference
+      FROM \`${PROJECT}.${DATASET}.claims\`
+    `),
+    safeQueryRows(['documents'], `
+      SELECT document_type, COUNT(*) AS documents
+      FROM \`${PROJECT}.${DATASET}.documents\`
+      GROUP BY document_type
+      ORDER BY documents DESC, document_type
+    `),
+    safeQueryRows(['documents'], `
+      SELECT REGEXP_EXTRACT(LOWER(source_uri), r'\\.([a-z0-9]+)$') AS ext, COUNT(*) AS documents
+      FROM \`${PROJECT}.${DATASET}.documents\`
+      GROUP BY ext
+      ORDER BY documents DESC, ext
+    `),
+    safeQueryRows(['claims'], `
+      SELECT extraction_method, COUNT(*) AS claims
+      FROM \`${PROJECT}.${DATASET}.claims\`
+      GROUP BY extraction_method
+      ORDER BY claims DESC, extraction_method
+    `),
+    safeQueryRows(['source_anchors'], `
+      SELECT anchor_type, COUNT(*) AS anchors
+      FROM \`${PROJECT}.${DATASET}.source_anchors\`
+      GROUP BY anchor_type
+      ORDER BY anchors DESC, anchor_type
+    `),
+    safeQueryRows(['entities'], `
+      SELECT entity_type, COUNT(*) AS entities
+      FROM \`${PROJECT}.${DATASET}.entities\`
+      GROUP BY entity_type
+      ORDER BY entities DESC, entity_type
+    `),
+    safeQueryRows(['events'], `
+      SELECT date_precision, COUNT(*) AS events
+      FROM \`${PROJECT}.${DATASET}.events\`
+      GROUP BY date_precision
+      ORDER BY events DESC, date_precision
+    `),
+  ]);
+
+  return {
+    documentCoverage: rows[0] || {},
+    claimCoverage: rows[1] || {},
+    distributions: {
+      documentTypes: rows[2],
+      fileExtensions: rows[3],
+      claimExtractionMethods: rows[4],
+      anchorTypes: rows[5],
+      entityTypes: rows[6],
+      eventDatePrecision: rows[7],
     },
   };
 }
@@ -234,6 +303,12 @@ async function queryRows(sql) {
   return bq.query(sql);
 }
 
+async function safeQuerySingleRow(requiredTables, sql) {
+  if (!(await allTablesExist(requiredTables))) return null;
+  const rows = await queryRows(sql);
+  return rows[0] || null;
+}
+
 async function safeQuerySingleValue(requiredTables, sql) {
   if (!(await allTablesExist(requiredTables))) return null;
   return querySingleValue(sql);
@@ -274,6 +349,22 @@ function renderText(report) {
     if (key === 'samples') continue;
     lines.push(`- ${key}: ${value}`);
   }
+  lines.push('');
+  lines.push('Quality');
+  for (const [key, value] of Object.entries(report.quality.documentCoverage || {})) {
+    lines.push(`- ${key}: ${value}`);
+  }
+  for (const [key, value] of Object.entries(report.quality.claimCoverage || {})) {
+    lines.push(`- ${key}: ${value}`);
+  }
+  lines.push('');
+  lines.push('Distributions');
+  for (const [label, rows] of Object.entries(report.quality.distributions || {})) {
+    lines.push(`- ${label}:`);
+    for (const row of rows || []) {
+      lines.push(`  - ${JSON.stringify(row)}`);
+    }
+  }
   return `${lines.join('\n')}\n`;
 }
 
@@ -300,12 +391,29 @@ function renderMarkdown(report) {
       .filter(([key]) => key !== 'samples')
       .map(([key, value]) => `| ${key} | ${value} |`),
     '',
+    `## Quality`,
+    '',
+    `| Check | Value |`,
+    `|---|---:|`,
+    ...Object.entries(report.quality.documentCoverage || {}).map(([key, value]) => `| ${key} | ${value} |`),
+    ...Object.entries(report.quality.claimCoverage || {}).map(([key, value]) => `| ${key} | ${value} |`),
+    '',
     `## Samples`,
     '',
     '```json',
     JSON.stringify(report.mismatches.samples, null, 2),
     '```',
     '',
+    `## Distributions`,
+    '',
+    ...Object.entries(report.quality.distributions || {}).flatMap(([label, rows]) => [
+      `### ${label}`,
+      '',
+      '```json',
+      JSON.stringify(rows || [], null, 2),
+      '```',
+      '',
+    ]),
   ].join('\n');
 }
 

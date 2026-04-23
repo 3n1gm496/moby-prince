@@ -185,6 +185,7 @@ Vedi anche:
 - [docs/evidence-model.md](docs/evidence-model.md)
 - [docs/evidence-architecture.md](docs/evidence-architecture.md)
 - [docs/bigquery-schema.sql](docs/bigquery-schema.sql)
+- [docs/runbooks/reprocessing-corpus.md](docs/runbooks/reprocessing-corpus.md)
 
 ## Provenance e viewer
 
@@ -426,6 +427,8 @@ node scripts/audit-corpus.js --format=markdown --output=docs/reports/corpus-audi
 La matrice critica persistita del progetto e in:
 
 - [docs/audit-matrix.md](docs/audit-matrix.md)
+- [docs/reports/corpus-audit-latest.md](docs/reports/corpus-audit-latest.md)
+- [docs/runbooks/reprocessing-corpus.md](docs/runbooks/reprocessing-corpus.md)
 
 ## Limiti noti
 
@@ -439,4 +442,6 @@ La matrice critica persistita del progetto e in:
 - [docs/evidence-model.md](docs/evidence-model.md)
 - [docs/evaluation.md](docs/evaluation.md)
 - [docs/audit-matrix.md](docs/audit-matrix.md)
+- [docs/reports/corpus-audit-latest.md](docs/reports/corpus-audit-latest.md)
+- [docs/runbooks/reprocessing-corpus.md](docs/runbooks/reprocessing-corpus.md)
 - [docs/bigquery-schema.sql](docs/bigquery-schema.sql)
