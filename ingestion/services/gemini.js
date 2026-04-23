@@ -35,6 +35,22 @@ function _endpoint() {
 
 function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// Try to salvage a truncated JSON response by finding the last complete object
+// in the "claims" array and closing the structure.
+function _repairJson(text) {
+  // Find last closing brace that ends a claim object
+  const lastBrace = text.lastIndexOf('}');
+  if (lastBrace === -1) return null;
+  const candidates = [
+    text.slice(0, lastBrace + 1) + ']}',   // object was last item, array and root still open
+    text.slice(0, lastBrace + 1) + ']\n}', // same, pretty variant
+  ];
+  for (const candidate of candidates) {
+    try { return JSON.parse(candidate); } catch {}
+  }
+  return null;
+}
+
 /**
  * Send a prompt expecting a JSON response.
  * Retries automatically on 429 (rate limit) with exponential backoff.
@@ -97,8 +113,10 @@ async function generateJson(prompt, maxOutputTokens = 2048) {
     try {
       return JSON.parse(text);
     } catch (parseErr) {
-      // Log the raw text to help diagnose truncation
       process.stderr.write(`\n[gemini] JSON parse error: ${parseErr.message}\nRaw (first 500): ${text.slice(0, 500)}\n`);
+      // Best-effort repair: find the last complete claim object and close the structure.
+      const repaired = _repairJson(text);
+      if (repaired) return repaired;
       throw new Error(`Gemini JSON parse failed: ${parseErr.message}`);
     }
   }

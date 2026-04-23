@@ -290,24 +290,27 @@ async function getChunksForDocument(docId, encodedDocId, title) {
     documentMetadata: { title: c.documentMetadata?.title || title || '' },
   });
 
-  // Attempt 1: filter by document.id (Discovery Engine filter expression).
-  // This returns all indexed chunks for the document without relying on query relevance.
-  try {
-    const body = {
-      query:    '.',   // minimal non-empty query; filter does the real work
-      pageSize: 100,
-      filter:   `document.id: ANY("${docId}")`,
-      contentSearchSpec: {
-        searchResultMode: 'CHUNKS',
-        chunkSpec: { numPreviousChunks: 0, numNextChunks: 0 },
-      },
-    };
-    const data    = await _post(DE_SEARCH, body);
-    const results = data.results || [];
-    const chunks  = results.map(r => r.chunk).filter(Boolean);
-    if (chunks.length > 0) return chunks.map(toChunk);
-  } catch (filterErr) {
-    // filter expression may not be supported; fall through to title-based search
+  // Attempt 1: filter by document id — try two syntaxes Discovery Engine may accept.
+  // Always apply _chunkBelongsToDoc to verify the filter actually worked.
+  for (const filterExpr of [`id: ANY("${docId}")`, `document.id: ANY("${docId}")`]) {
+    try {
+      const body = {
+        query:    '.',
+        pageSize: 100,
+        filter:   filterExpr,
+        contentSearchSpec: {
+          searchResultMode: 'CHUNKS',
+          chunkSpec: { numPreviousChunks: 0, numNextChunks: 0 },
+        },
+      };
+      const data    = await _post(DE_SEARCH, body);
+      const results = data.results || [];
+      const chunks  = results.map(r => r.chunk).filter(Boolean)
+                             .filter(c => _chunkBelongsToDoc(c, docId));
+      if (chunks.length > 0) return chunks.map(toChunk);
+    } catch (filterErr) {
+      // this filter syntax not supported; try next
+    }
   }
 
   // Attempt 2: title-based search + in-process filter by document ID.
