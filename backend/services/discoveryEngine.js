@@ -298,8 +298,19 @@ async function getDocumentChunks(documentId) {
   }
 
   // Search-based fallback: retrieve chunks via :search filtered to this document.
+  // Fetch the document first to get a meaningful search query from its URI/title.
+  let searchQuery = documentId;
+  try {
+    const doc  = await getDocument(documentId);
+    const uri  = doc.content?.uri || '';
+    const sd   = doc.structData   || {};
+    // Prefer filename from URI (most reliable), then structData.title, then ID
+    const fromUri = uri ? (uri.split('/').pop() || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() : '';
+    searchQuery = fromUri || sd.title || documentId;
+  } catch { /* ignore — fall back to ID as query */ }
+
   const body = {
-    query:    documentId,
+    query:    searchQuery,
     pageSize: 100,
     contentSearchSpec: {
       searchResultMode: 'CHUNKS',
@@ -318,10 +329,10 @@ async function getDocumentChunks(documentId) {
       return ci > 0 ? parts[ci - 1] === documentId : (c.name || '').includes(documentId);
     })
     .map(c => ({
-      name:             c.name || '',
-      content:          c.content || '',
-      pageIdentifier:   c.pageSpan?.pageStart ?? null,
-      relevanceScore:   null,
+      name:           c.name || '',
+      content:        c.content || '',
+      pageIdentifier: c.pageSpan?.pageStart ?? null,
+      relevanceScore: null,
     }));
 
   return { chunks };

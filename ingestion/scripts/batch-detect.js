@@ -51,13 +51,14 @@ const ENGINE_ID     = process.env.ENGINE_ID;
 
 if (!PROJECT) { console.error('GOOGLE_CLOUD_PROJECT non impostato.'); process.exit(1); }
 
-const ARGS       = process.argv.slice(2);
-const DRY_RUN    = ARGS.includes('--dry-run');
-const PHASE      = (ARGS.find(a => a.startsWith('--phase=')) || '--phase=all').split('=')[1];
-const DELAY_MS   = parseInt((ARGS.find(a => a.startsWith('--delay='))  || '--delay=800').split('=')[1],  10);
-const BATCH_SIZE = parseInt((ARGS.find(a => a.startsWith('--batch='))  || '--batch=5').split('=')[1],   10);
-const MAX_PAIRS  = parseInt((ARGS.find(a => a.startsWith('--max-pairs=')) || '--max-pairs=200').split('=')[1], 10);
-const RESUME     = ARGS.includes('--resume');
+const ARGS         = process.argv.slice(2);
+const DRY_RUN      = ARGS.includes('--dry-run');
+const PHASE        = (ARGS.find(a => a.startsWith('--phase=')) || '--phase=all').split('=')[1];
+const DELAY_MS     = parseInt((ARGS.find(a => a.startsWith('--delay='))     || '--delay=800').split('=')[1],  10);
+const BATCH_SIZE   = parseInt((ARGS.find(a => a.startsWith('--batch='))     || '--batch=5').split('=')[1],   10);
+const MAX_PAIRS    = parseInt((ARGS.find(a => a.startsWith('--max-pairs=')) || '--max-pairs=200').split('=')[1], 10);
+const RESUME       = ARGS.includes('--resume');
+const RESET_CLAIMS = ARGS.includes('--reset-claims');
 
 const PROGRESS_FILE = path.join(__dirname, '../../.batch-detect-progress.json');
 
@@ -242,12 +243,9 @@ async function getChunksForDocument(docId, encodedDocId, title) {
 
     if (matched.length > 0) return matched.map(toChunk);
 
-    // Accept all returned chunks (best-effort; may include other docs).
-    const all = results.map(r => r.chunk).filter(Boolean);
-    if (all.length > 0) {
-      warn(`  Usando ${all.length} chunk da ricerca non filtrata per ${docId.slice(0, 12)}`);
-      return all.map(toChunk);
-    }
+    // No matched chunks for this document — skip rather than returning unrelated chunks.
+    // Returning unrelated chunks causes claims to be attributed to the wrong document,
+    // which breaks contradiction detection (pairs look related but aren't contradictory).
   } catch (err) {
     warn(`Search fallback failed for ${docId}: ${err.message}`);
   }
@@ -306,6 +304,13 @@ Rispondi SOLO con JSON:
 
 async function runClaimsPhase() {
   log('=== FASE 1: Estrazione claim ===');
+
+  if (RESET_CLAIMS && !DRY_RUN) {
+    log('--reset-claims: cancellazione claim esistenti da BigQuery...');
+    await _bqQuery(`DELETE FROM \`${PROJECT}.${DATASET}.claims\` WHERE TRUE`);
+    if (fs.existsSync(PROGRESS_FILE)) fs.unlinkSync(PROGRESS_FILE);
+    log('Claim eliminati. Ripartenza da zero.');
+  }
 
   const progress      = loadProgress();
   const processedIds  = new Set(progress.processedDocIds || []);
