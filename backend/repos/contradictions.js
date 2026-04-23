@@ -38,15 +38,24 @@ async function list({ status, severity, documentId, limit = 50 } = {}) {
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const rows = await bq.query(
-    `SELECT * FROM ${_table('contradictions')}
+    `SELECT cont.*,
+            ca.text AS claim_a_text,
+            cb.text AS claim_b_text
+     FROM ${_table('contradictions')} cont
+     LEFT JOIN ${_table('claims')} ca ON ca.id = cont.claim_a_id
+     LEFT JOIN ${_table('claims')} cb ON cb.id = cont.claim_b_id
      ${where}
      ORDER BY
-       CASE severity WHEN 'major' THEN 0 WHEN 'significant' THEN 1 ELSE 2 END,
-       detected_at DESC
+       CASE cont.severity WHEN 'major' THEN 0 WHEN 'significant' THEN 1 ELSE 2 END,
+       cont.detected_at DESC
      LIMIT @limit`,
     params,
   );
-  return rows.map(normalizeContradiction);
+  return rows.map(row => ({
+    ...normalizeContradiction(row),
+    claimAText: row.claim_a_text || null,
+    claimBText: row.claim_b_text || null,
+  }));
 }
 
 /**

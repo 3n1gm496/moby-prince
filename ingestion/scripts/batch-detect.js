@@ -679,22 +679,45 @@ async function runDetectPhase() {
   log(`  Contraddizioni       : ${detected}`);
 }
 
-function _buildCandidatePairs(claims) {
-  const pairs = [];
-  const seen  = new Set();
+// Fisher-Yates shuffle (in-place, deterministic via simple random)
+function _shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
-  // Build keyword sets for each claim (words ≥5 chars)
-  const kwSets = claims.map(c =>
-    new Set((c.text || '').toLowerCase().split(/\W+/).filter(w => w.length >= 5)),
+function _buildCandidatePairs(claims) {
+  const pairs        = [];
+  const seen         = new Set();
+  // Max pairs per document-pair to avoid clustering on the same two documents
+  const docPairCount = new Map();
+  const MAX_PER_DOC_PAIR = 3;
+
+  // Shuffle to avoid always picking the same top-N claims
+  const shuffled = _shuffle([...claims]);
+
+  // Build keyword sets for each claim (words ≥5 chars, excluding ultra-common terms)
+  const STOPWORDS = new Set(['moby','prince','della','delle','nella','negli','sono','stato',
+                              'essere','hanno','questo','questi','quella','quelle','aveva']);
+  const kwSets = shuffled.map(c =>
+    new Set(
+      (c.text || '').toLowerCase().split(/\W+/)
+        .filter(w => w.length >= 5 && !STOPWORDS.has(w)),
+    ),
   );
 
-  for (let i = 0; i < claims.length && pairs.length < MAX_PAIRS; i++) {
-    for (let j = i + 1; j < claims.length && pairs.length < MAX_PAIRS; j++) {
-      const a = claims[i];
-      const b = claims[j];
+  for (let i = 0; i < shuffled.length && pairs.length < MAX_PAIRS; i++) {
+    for (let j = i + 1; j < shuffled.length && pairs.length < MAX_PAIRS; j++) {
+      const a = shuffled[i];
+      const b = shuffled[j];
 
-      // Must be from different documents
       if (a.document_id === b.document_id) continue;
+
+      // Limit pairs per document-pair for diversity
+      const docKey = [a.document_id, b.document_id].sort().join('|');
+      if ((docPairCount.get(docKey) || 0) >= MAX_PER_DOC_PAIR) continue;
 
       // Must share at least 2 significant keywords
       let shared = 0;
@@ -706,6 +729,7 @@ function _buildCandidatePairs(claims) {
       const key = [a.id, b.id].sort().join('|');
       if (seen.has(key)) continue;
       seen.add(key);
+      docPairCount.set(docKey, (docPairCount.get(docKey) || 0) + 1);
       pairs.push([a, b]);
     }
   }
