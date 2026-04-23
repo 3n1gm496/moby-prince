@@ -80,6 +80,8 @@ class ClaimExtractorWorker extends BaseWorker {
   async run(job, context = {}) {
     const { storage } = context;
     const uri = job.normalizedUri || job.sourceUri;
+    const canonicalDocumentId = job.documentId || job.meta?.canonical_document_id || job.jobId;
+    const canonicalSourceUri = job.meta?.canonical_source_uri || job.sourceUri || uri;
 
     // ── Read text ──────────────────────────────────────────────────────────────
     let text = '';
@@ -119,8 +121,8 @@ class ClaimExtractorWorker extends BaseWorker {
         id:                _newId(),
         text:              c.text.trim().slice(0, 500),
         claim_type:        _sanitizeClaimType(c.claimType),
-        document_id:       job.documentId || job.jobId,
-        document_uri:      uri || null,
+        document_id:       canonicalDocumentId,
+        document_uri:      canonicalSourceUri || null,
         chunk_id:          null,
         page_reference:    job.meta?.page_start != null ? String(job.meta.page_start) : null,
         entity_ids:        Array.isArray(c.entities) ? c.entities.map(String).slice(0, 5) : [],
@@ -138,25 +140,27 @@ class ClaimExtractorWorker extends BaseWorker {
 
     // ── Purge stale claims for this document before re-inserting ──────────────
     // Prevents duplicates when a document is re-ingested (e.g. corpus backfill).
-    const documentId = job.documentId || job.jobId;
-    try {
-      const dataset = process.env.BQ_DATASET_ID || 'evidence';
-      await bq.dml(
-        `DELETE FROM \`${dataset}.claims\` WHERE document_id = @documentId`,
-        { documentId },
-      );
-    } catch (err) {
-      this.logger.warn(
-        { jobId: job.jobId, error: err.message },
-        'Claim extraction: could not purge existing claims — proceeding anyway',
-      );
+    const shouldPurgeClaims = job.meta?.purge_claims !== false;
+    if (shouldPurgeClaims) {
+      try {
+        const dataset = process.env.BQ_DATASET_ID || 'evidence';
+        await bq.dml(
+          `DELETE FROM \`${dataset}.claims\` WHERE document_id = @documentId`,
+          { documentId: canonicalDocumentId },
+        );
+      } catch (err) {
+        this.logger.warn(
+          { jobId: job.jobId, error: err.message, documentId: canonicalDocumentId },
+          'Claim extraction: could not purge existing claims — proceeding anyway',
+        );
+      }
     }
 
     // ── Insert into BQ ─────────────────────────────────────────────────────────
     try {
       await bq.insert('claims', claims);
       this.logger.info(
-        { jobId: job.jobId, claimsCount: claims.length },
+        { jobId: job.jobId, claimsCount: claims.length, documentId: canonicalDocumentId },
         'Claims extracted and inserted into BQ',
       );
     } catch (err) {

@@ -97,6 +97,7 @@ BUCKET_QUARANTINE=
 DOCAI_PROCESSOR_ID=
 DOCAI_LAYOUT_PROCESSOR_ID=
 DOCAI_FORCE_ALL_PDFS=false
+INDEX_SKIP_NORMALIZED_CHILDREN=true
 ```
 
 ### 2. Installazione
@@ -159,6 +160,12 @@ Flusso logico:
 3. Discovery Engine indicizza i documenti/chunk per la ricerca semantica
 4. BigQuery conserva il layer strutturato autorevole
 5. backend e frontend consumano lo stesso contratto di provenance
+
+Nota sul reprocessing PDF-first:
+
+- i PDF originali restano i documenti canonici del datastore Discovery Engine
+- i child `normalized` generati da Document AI servono a OCR, page map, claim extraction e provenance precisa
+- per default `INDEX_SKIP_NORMALIZED_CHILDREN=true` evita di tentare l’indicizzazione DE dei child HTML, che il datastore corrente non accetta come documenti canonici
 
 ## Modello dati strutturato
 

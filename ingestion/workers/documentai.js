@@ -30,6 +30,7 @@
 const path = require('path');
 const { BaseWorker } = require('./base');
 const { createJob } = require('../state/job');
+const { toDocumentId } = require('../lib/documentId');
 
 const DOCAI_LOCATION = process.env.DOCAI_LOCATION || 'eu';
 // Headings: short all-caps or Title Case lines (< 120 chars), possibly ending without a period
@@ -223,6 +224,10 @@ class DocumentAIWorker extends BaseWorker {
         if (layoutType)           extraMeta.layout_type  = layoutType;
         if (sec.pageStart != null) extraMeta.page_start  = sec.pageStart;
         if (sec.pageEnd   != null) extraMeta.page_end    = sec.pageEnd;
+        extraMeta.skip_indexing = true;
+        extraMeta.canonical_document_id = toDocumentId(job.originalFilename);
+        extraMeta.canonical_source_uri = job.sourceUri;
+        extraMeta.purge_claims = i === 0;
         return createJob(uri, {
           originalFilename: `${stem}_part_${String(i + 1).padStart(3, '0')}.html`,
           parentJobId:      job.jobId,

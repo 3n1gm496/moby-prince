@@ -90,6 +90,11 @@ const config = {
   docai: {
     forceAllPdfs: optional('DOCAI_FORCE_ALL_PDFS', 'false') === 'true',
   },
+
+  // Indexing controls for reprocessing pipelines
+  index: {
+    skipNormalizedChildren: optional('INDEX_SKIP_NORMALIZED_CHILDREN', 'true') === 'true',
+  },
 };
 
 module.exports = config;

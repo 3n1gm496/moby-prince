@@ -31,9 +31,8 @@
  * Set INDEX_DRY_RUN=true to force dry-run mode in any environment.
  */
 
-const crypto = require('crypto');
-
 const { BaseWorker } = require('./base');
+const { toDocumentId } = require('../lib/documentId');
 
 const IMPORT_TIMEOUT_MS = 60_000;
 
@@ -55,8 +54,28 @@ class IndexerWorker extends BaseWorker {
   async run(job, context = {}) {
     let updated = job.startIndexing();
     const uri   = updated.normalizedUri || updated.sourceUri;
+    const skipIndexing =
+      job.meta?.skip_indexing === true ||
+      (
+        this._config.index?.skipNormalizedChildren === true &&
+        !!job.parentJobId &&
+        ['text/plain', 'text/html'].includes(job.mimeType)
+      );
 
     this.logger.info({ jobId: job.jobId, uri, dryRun: this._dryRun }, 'Indexing document');
+
+    if (skipIndexing) {
+      const canonicalDocumentId = job.meta?.canonical_document_id || updated.documentId || updated.jobId;
+      this.logger.info(
+        { jobId: job.jobId, canonicalDocumentId, parentJobId: job.parentJobId },
+        'Skipping Discovery Engine indexing for normalized child document',
+      );
+      return this.ok(updated.complete(canonicalDocumentId), {
+        skipped: true,
+        reason: 'normalized-child',
+        documentId: canonicalDocumentId,
+      });
+    }
 
     if (this._dryRun || !this._config.dataStoreId) {
       this.logger.warn(
@@ -87,7 +106,7 @@ class IndexerWorker extends BaseWorker {
     const cfg = this._config;
 
     const token    = await getAccessToken();
-    const docId    = _toDocumentId(job.originalFilename);
+    const docId    = toDocumentId(job.originalFilename);
     const endpoint = `https://${cfg.location}-discoveryengine.googleapis.com/v1/projects/${cfg.projectId}/locations/${cfg.location}/collections/default_collection/dataStores/${cfg.dataStoreId}/branches/0/documents/${encodeURIComponent(docId)}?allowMissing=true`;
 
     const body = uri.startsWith('gs://')
@@ -281,16 +300,5 @@ function _extractMetadata(filename, uri) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function _toDocumentId(filename) {
-  const hash = crypto.createHash('sha1').update(filename).digest('hex').slice(0, 8);
-  const slug = filename
-    .toLowerCase()
-    .replace(/\.[^.]+$/, '')
-    .replace(/[^a-z0-9_-]/g, '-')
-    .replace(/-{2,}/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return `${slug}-${hash}`.slice(0, 63);
-}
 
 module.exports = { IndexerWorker };

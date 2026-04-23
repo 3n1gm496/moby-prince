@@ -153,7 +153,11 @@ async function _analyzeEntities(text, projectId) {
   const token = await getAccessToken();
   const res   = await fetch('https://language.googleapis.com/v1/documents:analyzeEntities', {
     method:  'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'X-Goog-User-Project': projectId,
+    },
     body: JSON.stringify({
       document:     { type: 'PLAIN_TEXT', language: 'it', content: text },
       encodingType: 'UTF8',
