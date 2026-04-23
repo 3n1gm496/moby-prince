@@ -22,15 +22,15 @@ async function list({ status, severity, documentId, limit = 50 } = {}) {
   const params     = [];
 
   if (status) {
-    conditions.push('status = @status');
+    conditions.push('cont.status = @status');
     params.push(bq.stringParam('status', status));
   }
   if (severity) {
-    conditions.push('severity = @severity');
+    conditions.push('cont.severity = @severity');
     params.push(bq.stringParam('severity', severity));
   }
   if (documentId) {
-    conditions.push('(document_a_id = @docId OR document_b_id = @docId)');
+    conditions.push('(cont.document_a_id = @docId OR cont.document_b_id = @docId)');
     params.push(bq.stringParam('docId', documentId));
   }
   params.push(bq.intParam('limit', limit));
@@ -46,7 +46,7 @@ async function list({ status, severity, documentId, limit = 50 } = {}) {
      LEFT JOIN ${_table('claims')} cb ON cb.id = cont.claim_b_id
      ${where}
      ORDER BY
-       CASE cont.severity WHEN 'major' THEN 0 WHEN 'significant' THEN 1 ELSE 2 END,
+       CASE cont.severity WHEN 'major' THEN 0 WHEN 'significant' THEN 1 ELSE 2 END ASC,
        cont.detected_at DESC
      LIMIT @limit`,
     params,

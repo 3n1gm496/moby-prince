@@ -190,7 +190,7 @@ function _redactUrl(url) {
  * @param {{ maxResults?: number, filter?: string, modelVersion?: string }} opts
  */
 async function answer(queryText, sessionId = null, {
-  maxResults    = 10,
+  maxResults    = 20,
   filter        = null,
   modelVersion  = 'stable',
 } = {}) {
@@ -207,7 +207,7 @@ async function answer(queryText, sessionId = null, {
     searchSpec: {
       searchParams: {
         searchResultMode: 'CHUNKS',
-        maxReturnResults: Math.min(maxResults, 20),
+        maxReturnResults: Math.min(maxResults, 100),
         ...(filter ? { filter } : {}),
       },
     },

@@ -25,14 +25,18 @@ function buildCitations(answerObj) {
   return answerObj.citations.map((citation, idx) => {
     const rawSources = citation.sources || [];
 
+    // DE :answerQuery API uses "referenceId" (string index) in CitationSource objects.
+    // Some SDK versions may expose it as "referenceIndex" — try both.
+    const _refId = (src) => src.referenceId ?? src.referenceIndex;
+
     // Collect the reference indices this citation maps to (for linking to evidence[])
     const referenceIndices = rawSources
-      .map(src => parseInt(src.referenceIndex, 10))
+      .map(src => parseInt(_refId(src), 10))
       .filter(n => !Number.isNaN(n));
 
     const sources = rawSources
       .map(src => {
-        const refIdx = parseInt(src.referenceIndex, 10);
+        const refIdx = parseInt(_refId(src), 10);
         const ref    = answerObj.references[refIdx];
         if (!ref) return null;
 
@@ -48,7 +52,7 @@ function buildCitations(answerObj) {
           title:
             unstructured.title ||
             docMeta.title ||
-            `Documento ${src.referenceIndex}`,
+            `Documento ${_refId(src)}`,
           uri,
           snippet:
             unstructured.chunkContents?.[0]?.content ||
