@@ -348,6 +348,31 @@ async function getChunksForDocument(docId, encodedDocId, title) {
 
 // ── Gemini: claim extraction ──────────────────────────────────────────────────
 
+function _fileClaimPrompt(documentTitle, mimeType) {
+  const kind = mimeType.startsWith('video/') ? 'video'
+             : mimeType.startsWith('audio/') ? 'audio'
+             : mimeType.startsWith('image/') ? 'immagine'
+             : 'documento';
+  return `
+Sei un analista storico specializzato nel disastro del Moby Prince (10 aprile 1991).
+Documento: "${documentTitle || 'senza titolo'}" (${kind})
+
+Analizza il contenuto del ${kind} allegato ed estrai TUTTE le affermazioni fattuali verificabili.
+Per ogni affermazione indica:
+- text: la dichiarazione esatta (massimo 300 caratteri)
+- claim_type: "fact" | "interpretation" | "allegation" | "conclusion"
+- entities: array di nomi propri menzionati (persone, navi, enti — max 5)
+- confidence: 0.0-1.0
+
+Rispondi SOLO con JSON (nessun testo aggiuntivo):
+{
+  "claims": [
+    { "text": "...", "claim_type": "fact", "entities": ["Nome1"], "confidence": 0.85 }
+  ]
+}
+`.trim();
+}
+
 function _claimPrompt(chunkTexts, documentTitle) {
   const numbered = chunkTexts.map((t, i) => `[Chunk ${i + 1}] ${t.slice(0, 600)}`).join('\n\n');
   return `
@@ -430,9 +455,62 @@ async function runClaimsPhase() {
 
     log(`[${di + 1}/${allDocs.length}] ${title.slice(0, 60)}`);
 
-    const chunks = await getChunksForDocument(docId, encodedId, title);
+    const chunks   = await getChunksForDocument(docId, encodedId, title);
+    const mimeType = doc.content?.mimeType || '';
+
+    // Helper: turn raw Gemini claims into BQ rows
+    const _buildRows = (claims, chunkId) => claims
+      .filter(c => c?.text?.trim())
+      .map(c => ({
+        id:               newId(),
+        text:             String(c.text).slice(0, 1000),
+        claim_type:       ['fact','interpretation','allegation','conclusion'].includes(c.claim_type)
+                          ? c.claim_type : 'fact',
+        document_id:      docId,
+        chunk_id:         chunkId || null,
+        page_reference:   null,
+        entity_ids:       Array.isArray(c.entities) ? c.entities.map(String).slice(0, 5) : [],
+        event_id:         null,
+        confidence:       typeof c.confidence === 'number'
+                          ? Math.max(0, Math.min(1, c.confidence)) : 0.7,
+        status:           'unverified',
+        extraction_method:'llm_extracted',
+        created_at:       now,
+        updated_at:       now,
+      }));
+
     if (chunks.length === 0) {
-      warn(`  Nessun chunk trovato — saltato`);
+      // No text chunks — try Gemini multimodal directly on the GCS file.
+      // This covers video, audio, images and PDFs not found in search results.
+      if (uri && gemini.SUPPORTED_FILE_MIMES.has(mimeType)) {
+        const mediaKind = mimeType.startsWith('video/') ? 'video'
+                        : mimeType.startsWith('audio/') ? 'audio'
+                        : mimeType.startsWith('image/') ? 'immagine' : 'file';
+        log(`  Nessun chunk — elaborazione diretta ${mediaKind} via Vertex AI`);
+        if (!DRY_RUN) {
+          try {
+            const result = await gemini.generateJsonFromFile(uri, mimeType, _fileClaimPrompt(title, mimeType));
+            const claims = Array.isArray(result?.claims) ? result.claims : [];
+            const rows   = _buildRows(claims, null);
+            if (rows.length > 0) {
+              await _bqInsert('claims', rows);
+              log(`  ✔ ${rows.length} claim da ${mediaKind} scritti in BQ`);
+              totalClaims  += rows.length;
+              totalGemCalls++;
+            } else {
+              warn(`  Nessun claim estratto dal ${mediaKind}`);
+            }
+          } catch (fileErr) {
+            warn(`  Elaborazione ${mediaKind} fallita: ${fileErr.message}`);
+          }
+        } else {
+          totalGemCalls++;
+          totalClaims += 3;
+          process.stdout.write('M');
+        }
+      } else {
+        warn(`  Nessun chunk e MIME non supportato (${mimeType || 'sconosciuto'}) — saltato`);
+      }
       processedIds.add(docId);
       saveProgress({ processedDocIds: [...processedIds] });
       continue;
@@ -442,18 +520,15 @@ async function runClaimsPhase() {
 
     const claimRows = [];
     for (let ci = 0; ci < chunks.length; ci += BATCH_SIZE) {
-      const batch     = chunks.slice(ci, ci + BATCH_SIZE);
-      const texts     = batch.map(c => c.content?.content || c.documentMetadata?.title || '');
-      const chunkIds  = batch.map(c => (c.name || '').split('/').pop() || '');
+      const batch    = chunks.slice(ci, ci + BATCH_SIZE);
+      const texts    = batch.map(c => c.content?.content || c.documentMetadata?.title || '');
+      const chunkIds = batch.map(c => (c.name || '').split('/').pop() || '');
 
       if (texts.every(t => !t.trim())) continue;
 
-      const estimatedTokensIn  = texts.join('').length / 4 + 400;
-      const estimatedTokensOut = 600;
-
       if (DRY_RUN) {
         totalGemCalls++;
-        totalClaims += 3; // media stimata
+        totalClaims += 3;
         process.stdout.write('.');
         continue;
       }
@@ -461,28 +536,8 @@ async function runClaimsPhase() {
       try {
         const result = await gemini.generateJson(_claimPrompt(texts, title), 8192);
         const claims = Array.isArray(result?.claims) ? result.claims : [];
-
-        for (let idx = 0; idx < claims.length; idx++) {
-          const c = claims[idx];
-          if (!c?.text?.trim()) continue;
-          claimRows.push({
-            id:               newId(),
-            text:             String(c.text).slice(0, 1000),
-            claim_type:       ['fact','interpretation','allegation','conclusion'].includes(c.claim_type)
-                              ? c.claim_type : 'fact',
-            document_id:      docId,
-            chunk_id:         chunkIds[0] || null,
-            page_reference:   null,
-            entity_ids:       Array.isArray(c.entities) ? c.entities.map(String).slice(0, 5) : [],
-            event_id:         null,
-            confidence:       typeof c.confidence === 'number'
-                              ? Math.max(0, Math.min(1, c.confidence)) : 0.7,
-            status:           'unverified',
-            extraction_method:'llm_extracted',
-            created_at:       now,
-            updated_at:       now,
-          });
-        }
+        const rows   = _buildRows(claims, chunkIds[0] || null);
+        claimRows.push(...rows);
 
         totalGemCalls++;
         totalClaims += claims.length;
