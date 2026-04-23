@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../lib/apiFetch";
-import { entityConfigFromSlug } from "../lib/entityViews";
+import { ENTITY_VIEW_CONFIG, entityConfigFromSlug } from "../lib/entityViews";
 
 export default function EntityDirectory() {
   const { entitySlug } = useParams();
-  const config = entityConfigFromSlug(entitySlug);
+  const [searchParams] = useSearchParams();
+  const requestedSlug = entitySlug || searchParams.get("tab") || "persone";
+  const activeSlug = entityConfigFromSlug(requestedSlug) ? requestedSlug : "persone";
+  const config = entityConfigFromSlug(activeSlug) || ENTITY_VIEW_CONFIG.persone;
   const [entities, setEntities] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -60,9 +63,9 @@ export default function EntityDirectory() {
           </Link>
           <span className="text-border/60">·</span>
           <div className="min-w-0">
-            <h1 className="text-[15px] font-semibold">{config.plural}</h1>
+            <h1 className="text-[15px] font-semibold">Entità</h1>
             <p className="text-[11px] text-text-muted">
-              Indice pulito e ricercabile delle {config.plural.toLowerCase()} nel corpus
+              Indice unico del corpus: persone, navi, enti e luoghi
             </p>
           </div>
           <div className="flex-1" />
@@ -79,6 +82,23 @@ export default function EntityDirectory() {
               className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-[12px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50"
             />
           </div>
+        </div>
+        <div className="max-w-5xl mx-auto px-5 pb-3 flex gap-1 overflow-x-auto" role="tablist" aria-label="Categorie entità">
+          {Object.entries(ENTITY_VIEW_CONFIG).map(([slug, item]) => (
+            <Link
+              key={slug}
+              to={`/entita?tab=${slug}`}
+              role="tab"
+              aria-selected={slug === activeSlug}
+              className={`rounded-full border px-3 py-1.5 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                slug === activeSlug
+                  ? "border-accent/30 bg-accent/10 text-accent"
+                  : "border-transparent text-text-secondary hover:text-text-primary hover:bg-surface-raised"
+              }`}
+            >
+              {item.plural}
+            </Link>
+          ))}
         </div>
       </header>
 
@@ -111,7 +131,7 @@ export default function EntityDirectory() {
             {filtered.map((entity) => (
               <Link
                 key={entity.id}
-                to={`${config.route}/${encodeURIComponent(entity.id)}`}
+                to={`${config.profileRoute}/${encodeURIComponent(entity.id)}`}
                 className="rounded-2xl border border-border bg-surface-raised p-4 text-left hover:border-accent/30 hover:bg-surface-hover transition-colors surface-depth"
               >
                 <div className="flex items-start justify-between gap-3">

@@ -3,25 +3,29 @@ export const ENTITY_VIEW_CONFIG = {
     type: "PERSON",
     singular: "Persona",
     plural: "Persone",
-    route: "/persone",
+    route: "/entita?tab=persone",
+    profileRoute: "/entita/persone",
   },
   navi: {
     type: "VESSEL",
     singular: "Nave",
     plural: "Navi",
-    route: "/navi",
+    route: "/entita?tab=navi",
+    profileRoute: "/entita/navi",
   },
   enti: {
     type: "ORGANIZATION",
     singular: "Ente",
     plural: "Enti",
-    route: "/enti",
+    route: "/entita?tab=enti",
+    profileRoute: "/entita/enti",
   },
   luoghi: {
     type: "LOCATION",
     singular: "Luogo",
     plural: "Luoghi",
-    route: "/luoghi",
+    route: "/entita?tab=luoghi",
+    profileRoute: "/entita/luoghi",
   },
 };
 

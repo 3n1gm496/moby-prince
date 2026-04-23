@@ -33,6 +33,10 @@ function _tablePath(tableId) {
   return `${_projectPath()}/datasets/${config.bigquery.datasetId}/tables/${tableId}/insertAll`;
 }
 
+function _tableMetadataPath(tableId) {
+  return `${_projectPath()}/datasets/${config.bigquery.datasetId}/tables/${encodeURIComponent(tableId)}`;
+}
+
 /**
  * Map a BigQuery row (f[]/v[] format) to a plain JS object using the schema
  * field list. Handles nested RECORDs and REPEATED (array) fields recursively.
@@ -167,6 +171,34 @@ async function query(sql, params = []) {
 }
 
 /**
+ * Check whether a table exists without emitting an error for the normal
+ * "not found yet" case used during staged evidence backfills.
+ *
+ * @param {string} tableId Table name within config.bigquery.datasetId
+ * @returns {Promise<boolean>}
+ */
+async function tableExists(tableId) {
+  if (!isBigQueryEnabled()) throw new Error('BigQuery not configured');
+
+  const token = await accessTokenProvider();
+  const res = await fetch(_tableMetadataPath(tableId), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (res.status === 404) return false;
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    log.error({ tableId, status: res.status, detail: errText.slice(0, 300) }, 'BQ table metadata lookup failed');
+    throw new Error(`BigQuery table lookup failed (${res.status}): ${errText.slice(0, 200)}`);
+  }
+
+  return true;
+}
+
+/**
  * Stream-insert rows into a BQ table.
  *
  * @param {string}   tableId     Table name within config.bigquery.datasetId
@@ -215,6 +247,7 @@ async function insert(tableId, rows) {
 module.exports = {
   query,
   insert,
+  tableExists,
   isBigQueryEnabled,
   stringParam,
   intParam,

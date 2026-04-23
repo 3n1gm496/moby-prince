@@ -231,7 +231,7 @@ export default function EntityProfile() {
                   {(payload.relatedEntities || []).map((related) => {
                     const relatedConfig = entityConfigFromType(related.entityType);
                     const relatedHref = relatedConfig
-                      ? `${relatedConfig.route}/${encodeURIComponent(related.id)}`
+                      ? `${relatedConfig.profileRoute}/${encodeURIComponent(related.id)}`
                       : config.route;
                     const meta = [relatedConfig?.singular, related.role, `${related.coMentions || 0} co-citazioni`]
                       .filter(Boolean)

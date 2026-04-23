@@ -35,6 +35,8 @@ export default function App() {
           <Route path="/dossier" element={<DossierBuilder />} />
           <Route path="/investigazione" element={<InvestigationPage />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/entita" element={<EntityDirectory />} />
+          <Route path="/entita/:entitySlug(persone|navi|enti|luoghi)/:entityId" element={<EntityProfile />} />
           <Route path="/:entitySlug(persone|navi|enti|luoghi)" element={<EntityDirectory />} />
           <Route path="/:entitySlug(persone|navi|enti|luoghi)/:entityId" element={<EntityProfile />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -14,8 +14,25 @@ const bq = require('../services/bigquery');
 const { normalizeEvent, normalizeEvidenceSource } = require('../evidence/models');
 const config = require('../config');
 
+const TABLE_EXISTS_CACHE_MS = 60_000;
+let sourceAnchorsTableState = { checkedAt: 0, exists: null };
+
 function _table(t) {
   return `\`${config.bigquery.projectId}.${config.bigquery.datasetId}.${t}\``;
+}
+
+async function _hasSourceAnchorsTable() {
+  const now = Date.now();
+  if (
+    sourceAnchorsTableState.exists !== null
+    && now - sourceAnchorsTableState.checkedAt < TABLE_EXISTS_CACHE_MS
+  ) {
+    return sourceAnchorsTableState.exists;
+  }
+
+  const exists = await bq.tableExists('source_anchors');
+  sourceAnchorsTableState = { checkedAt: now, exists };
+  return exists;
 }
 
 function _parsePageNumber(pageReference) {
@@ -114,6 +131,104 @@ function _buildTimelineEvent(row) {
   };
 }
 
+function _eventRow(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    event_type: row.event_type,
+    occurred_at: row.occurred_at,
+    date_text: row.date_text,
+    date_precision: row.date_precision,
+    location: row.location,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    entity_ids: row.entity_ids,
+    source_claim_ids: row.source_claim_ids,
+    is_disputed: row.is_disputed,
+    dispute_notes: row.dispute_notes,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    sources: [],
+  };
+}
+
+function _anchorFromFlatRow(row) {
+  if (!row.anchor_id) return null;
+  return {
+    id: row.anchor_id,
+    document_id: row.anchor_document_id,
+    claim_id: row.anchor_claim_id,
+    event_id: row.anchor_event_id,
+    anchor_type: row.anchor_type,
+    page_number: row.anchor_page_number,
+    text_quote: row.anchor_text_quote,
+    snippet: row.anchor_snippet,
+    time_start_seconds: row.anchor_time_start_seconds,
+    time_end_seconds: row.anchor_time_end_seconds,
+    frame_reference: row.anchor_frame_reference,
+    shot_reference: row.anchor_shot_reference,
+    anchor_confidence: row.anchor_confidence,
+    source_uri: row.anchor_source_uri,
+    mime_type: row.anchor_mime_type,
+    created_at: row.anchor_created_at,
+    updated_at: row.anchor_updated_at,
+  };
+}
+
+function _sourceFromFlatRow(row) {
+  if (!row.source_claim_id && !row.source_document_id && !row.source_uri && !row.source_title) return null;
+  return {
+    id: row.source_id || row.source_claim_id || row.source_document_id,
+    claim_id: row.source_claim_id,
+    snippet: row.source_snippet,
+    page_reference: row.source_page_reference,
+    document_id: row.source_document_id,
+    title: row.source_title,
+    uri: row.source_uri,
+    document_type: row.source_document_type,
+    year: row.source_year,
+    normalized_uri: row.source_normalized_uri,
+    mime_type: row.source_mime_type,
+    anchors: [],
+  };
+}
+
+function _aggregateTimelineRows(rows) {
+  const events = new Map();
+
+  for (const row of rows) {
+    if (!events.has(row.id)) {
+      events.set(row.id, {
+        event: _eventRow(row),
+        sourcesByKey: new Map(),
+      });
+    }
+
+    const bucket = events.get(row.id);
+    const source = _sourceFromFlatRow(row);
+    if (!source) continue;
+
+    const sourceKey = source.claim_id || source.document_id || source.uri || source.title;
+    if (!bucket.sourcesByKey.has(sourceKey)) {
+      bucket.sourcesByKey.set(sourceKey, source);
+    }
+
+    const anchor = _anchorFromFlatRow(row);
+    if (anchor) {
+      const current = bucket.sourcesByKey.get(sourceKey);
+      if (!current.anchors.some((item) => item.id === anchor.id)) {
+        current.anchors.push(anchor);
+      }
+    }
+  }
+
+  return Array.from(events.values()).map(({ event, sourcesByKey }) => {
+    event.sources = Array.from(sourcesByKey.values());
+    return _buildTimelineEvent(event);
+  });
+}
+
 async function list({ from, to, eventType, limit = 200 } = {}) {
   const conditions = [];
   const params = [];
@@ -172,60 +287,84 @@ function _timelineWhere({ from, to, eventType, entityId }) {
 }
 
 function _timelineQuery({ includeAnchors }) {
-  const anchorsSelect = includeAnchors
-    ? `ARRAY(
-         SELECT AS STRUCT
-           a.id,
-           a.document_id,
-           a.claim_id,
-           a.event_id,
-           a.anchor_type,
-           a.page_number,
-           a.text_quote,
-           a.snippet,
-           a.time_start_seconds,
-           a.time_end_seconds,
-           a.frame_reference,
-           a.shot_reference,
-           a.anchor_confidence,
-           COALESCE(a.source_uri, d.source_uri, c.document_uri) AS source_uri,
-           a.mime_type,
-           a.created_at,
-           a.updated_at
-         FROM ${_table('source_anchors')} a
-         WHERE a.document_id = c.document_id
-           AND (a.claim_id = c.id OR a.event_id = e.id)
-         ORDER BY a.anchor_confidence DESC NULLS LAST,
-                  a.page_number ASC NULLS LAST,
-                  a.time_start_seconds ASC NULLS LAST
-       )`
-    : '[]';
+  const anchorJoin = includeAnchors
+    ? `LEFT JOIN ${_table('source_anchors')} a
+         ON a.document_id = c.document_id
+        AND (a.claim_id = c.id OR a.event_id = e.id)`
+    : '';
+  const anchorFields = includeAnchors
+    ? `
+      a.id AS anchor_id,
+      a.document_id AS anchor_document_id,
+      a.claim_id AS anchor_claim_id,
+      a.event_id AS anchor_event_id,
+      a.anchor_type AS anchor_type,
+      a.page_number AS anchor_page_number,
+      a.text_quote AS anchor_text_quote,
+      a.snippet AS anchor_snippet,
+      a.time_start_seconds AS anchor_time_start_seconds,
+      a.time_end_seconds AS anchor_time_end_seconds,
+      a.frame_reference AS anchor_frame_reference,
+      a.shot_reference AS anchor_shot_reference,
+      a.anchor_confidence AS anchor_confidence,
+      COALESCE(a.source_uri, d.source_uri, c.document_uri) AS anchor_source_uri,
+      a.mime_type AS anchor_mime_type,
+      a.created_at AS anchor_created_at,
+      a.updated_at AS anchor_updated_at`
+    : `
+      NULL AS anchor_id,
+      NULL AS anchor_document_id,
+      NULL AS anchor_claim_id,
+      NULL AS anchor_event_id,
+      NULL AS anchor_type,
+      NULL AS anchor_page_number,
+      NULL AS anchor_text_quote,
+      NULL AS anchor_snippet,
+      NULL AS anchor_time_start_seconds,
+      NULL AS anchor_time_end_seconds,
+      NULL AS anchor_frame_reference,
+      NULL AS anchor_shot_reference,
+      NULL AS anchor_confidence,
+      NULL AS anchor_source_uri,
+      NULL AS anchor_mime_type,
+      NULL AS anchor_created_at,
+      NULL AS anchor_updated_at`;
 
   return `
+    WITH selected_events AS (
+      SELECT e.*
+      FROM ${_table('events')} e
+      __WHERE__
+      ORDER BY e.occurred_at ASC NULLS LAST, e.created_at ASC
+      LIMIT @limit
+    )
     SELECT
       e.*,
-      ARRAY(
-        SELECT AS STRUCT
-          c.id AS id,
-          c.id AS claim_id,
-          c.text AS snippet,
-          CAST(c.page_reference AS STRING) AS page_reference,
-          c.document_id AS document_id,
-          COALESCE(d.title, c.document_id) AS title,
-          COALESCE(d.source_uri, c.document_uri) AS uri,
-          d.document_type AS document_type,
-          d.year AS year,
-          d.normalized_uri AS normalized_uri,
-          NULL AS mime_type,
-          ${anchorsSelect} AS anchors
-        FROM UNNEST(IFNULL(e.source_claim_ids, [])) AS source_claim_id
-        LEFT JOIN ${_table('claims')} c
-          ON c.id = source_claim_id
-        LEFT JOIN ${_table('documents')} d
-          ON d.id = c.document_id
-        WHERE c.id IS NOT NULL
-      ) AS sources
-    FROM ${_table('events')} e
+      c.id AS source_id,
+      c.id AS source_claim_id,
+      c.text AS source_snippet,
+      CAST(c.page_reference AS STRING) AS source_page_reference,
+      c.document_id AS source_document_id,
+      COALESCE(d.title, c.document_id) AS source_title,
+      COALESCE(d.source_uri, c.document_uri) AS source_uri,
+      d.document_type AS source_document_type,
+      d.year AS source_year,
+      d.normalized_uri AS source_normalized_uri,
+      NULL AS source_mime_type,
+      ${anchorFields}
+    FROM selected_events e
+    LEFT JOIN UNNEST(IFNULL(e.source_claim_ids, ARRAY<STRING>[])) AS source_claim_id
+    LEFT JOIN ${_table('claims')} c
+      ON c.id = source_claim_id
+    LEFT JOIN ${_table('documents')} d
+      ON d.id = c.document_id
+    ${anchorJoin}
+    ORDER BY e.occurred_at ASC NULLS LAST,
+             e.created_at ASC,
+             source_claim_id ASC,
+             anchor_confidence DESC NULLS LAST,
+             anchor_page_number ASC NULLS LAST,
+             anchor_time_start_seconds ASC NULLS LAST
   `;
 }
 
@@ -233,29 +372,26 @@ async function _listTimelineInternal({ from, to, eventType, entityId, limit = 50
   const { where, params } = _timelineWhere({ from, to, eventType, entityId });
   params.push(bq.intParam('limit', limit));
 
-  try {
-    const rows = await bq.query(
-      `${_timelineQuery({ includeAnchors: true })}
-       ${where}
-       ORDER BY e.occurred_at ASC NULLS LAST, e.created_at ASC
-       LIMIT @limit`,
-      params,
-    );
-    return rows.map(_buildTimelineEvent);
-  } catch (err) {
-    if (!/source_anchors/i.test(err.message || '') && !/not found/i.test(err.message || '')) {
-      throw err;
+  if (await _hasSourceAnchorsTable()) {
+    try {
+      const rows = await bq.query(
+        _timelineQuery({ includeAnchors: true }).replace('__WHERE__', where),
+        params,
+      );
+      return _aggregateTimelineRows(rows);
+    } catch (err) {
+      if (!/source_anchors/i.test(err.message || '') && !/not found/i.test(err.message || '')) {
+        throw err;
+      }
+      sourceAnchorsTableState = { checkedAt: Date.now(), exists: false };
     }
-
-    const rows = await bq.query(
-      `${_timelineQuery({ includeAnchors: false })}
-       ${where}
-       ORDER BY e.occurred_at ASC NULLS LAST, e.created_at ASC
-       LIMIT @limit`,
-      params,
-    );
-    return rows.map(_buildTimelineEvent);
   }
+
+  const rows = await bq.query(
+    _timelineQuery({ includeAnchors: false }).replace('__WHERE__', where),
+    params,
+  );
+  return _aggregateTimelineRows(rows);
 }
 
 async function listTimeline({ from, to, eventType, limit = 500 } = {}) {
