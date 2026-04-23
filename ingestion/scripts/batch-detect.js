@@ -282,7 +282,35 @@ async function getChunksForDocument(docId, encodedDocId, title) {
     // 404 → chunk storage not enabled; fall through to search API
   }
 
-  // Search-based fallback: query by title and keep chunks from this document.
+  // Search-based fallback: filter by document.id so we only get chunks from
+  // this specific document regardless of semantic relevance.
+  const toChunk = c => ({
+    name:    c.name || c.id || '',
+    content: { content: c.content || '' },
+    documentMetadata: { title: c.documentMetadata?.title || title || '' },
+  });
+
+  // Attempt 1: filter by document.id (Discovery Engine filter expression).
+  // This returns all indexed chunks for the document without relying on query relevance.
+  try {
+    const body = {
+      query:    '.',   // minimal non-empty query; filter does the real work
+      pageSize: 100,
+      filter:   `document.id: ANY("${docId}")`,
+      contentSearchSpec: {
+        searchResultMode: 'CHUNKS',
+        chunkSpec: { numPreviousChunks: 0, numNextChunks: 0 },
+      },
+    };
+    const data    = await _post(DE_SEARCH, body);
+    const results = data.results || [];
+    const chunks  = results.map(r => r.chunk).filter(Boolean);
+    if (chunks.length > 0) return chunks.map(toChunk);
+  } catch (filterErr) {
+    // filter expression may not be supported; fall through to title-based search
+  }
+
+  // Attempt 2: title-based search + in-process filter by document ID.
   try {
     const body = {
       query:    title || docId,
@@ -295,28 +323,19 @@ async function getChunksForDocument(docId, encodedDocId, title) {
     const data    = await _post(DE_SEARCH, body);
     const results = data.results || [];
 
-    const toChunk = c => ({
-      name:    c.name || c.id || '',
-      content: { content: c.content || '' },
-      documentMetadata: { title: c.documentMetadata?.title || title || '' },
-    });
-
-    // Prefer chunks whose resource name encodes this document's ID.
     const allChunks = results.map(r => r.chunk).filter(Boolean);
     const matched   = allChunks.filter(c => _chunkBelongsToDoc(c, docId));
 
     if (matched.length > 0) return matched.map(toChunk);
 
-    // Log first few chunk names so we can diagnose encoding mismatches.
+    // Diagnostic log when nothing matches.
     if (allChunks.length > 0) {
       warn(`  0/${allChunks.length} chunk corrispondono — cercato docId="${docId}"`);
       warn(`  Esempi chunk.name: ${allChunks.slice(0, 3).map(c => c.name).join(' | ')}`);
     } else {
       warn(`  Nessun chunk restituito dalla ricerca per query="${title}"`);
     }
-    // No matched chunks for this document — skip rather than returning unrelated chunks.
-    // Returning unrelated chunks causes claims to be attributed to the wrong document,
-    // which breaks contradiction detection (pairs look related but aren't contradictory).
+    // No matched chunks — skip rather than returning unrelated chunks.
   } catch (err) {
     warn(`Search fallback failed for ${docId}: ${err.message}`);
   }
