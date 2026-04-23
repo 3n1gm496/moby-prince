@@ -13,9 +13,9 @@ set -euo pipefail
 PROJECT="${GOOGLE_CLOUD_PROJECT:?Set GOOGLE_CLOUD_PROJECT}"
 SA_NAME="ingest-sa"
 SA_EMAIL="${SA_NAME}@${PROJECT}.iam.gserviceaccount.com"
-RAW_BUCKET="${BUCKET_RAW:-${PROJECT}-corpus-raw}"
-NORM_BUCKET="${BUCKET_NORMALIZED:-${PROJECT}-corpus-normalized}"
-QUAR_BUCKET="${BUCKET_QUARANTINE:-${PROJECT}-corpus-quarantine}"
+RAW_BUCKET="${BUCKET_RAW:-${GCS_BUCKET:-${PROJECT}-corpus-raw}}"
+NORM_BUCKET="${BUCKET_NORMALIZED:-${RAW_BUCKET}-normalized}"
+QUAR_BUCKET="${BUCKET_QUARANTINE:-${RAW_BUCKET}-quarantine}"
 
 echo "Setting up IAM for ingestion pipeline..."
 echo "  Project: ${PROJECT}"

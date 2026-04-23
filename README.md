@@ -93,6 +93,10 @@ TRUST_IAP_HEADERS=false
 GCS_BUCKET=
 BUCKET_RAW=
 BUCKET_NORMALIZED=
+BUCKET_QUARANTINE=
+DOCAI_PROCESSOR_ID=
+DOCAI_LAYOUT_PROCESSOR_ID=
+DOCAI_FORCE_ALL_PDFS=false
 ```
 
 ### 2. Installazione
@@ -315,6 +319,7 @@ Cosa fa:
 - materializza documenti, source anchor testuali, entita canoniche, profili entita ed eventi timeline ad alta soglia
 - scarta eventi senza claim sorgente reale e ID entita non canonici
 - evita insert streaming per `events`, perche la tabella e partizionata su date storiche
+- la config ingestion usa `GCS_BUCKET` come fallback del corpus raw reale quando `BUCKET_RAW` non e impostato
 
 Limite importante:
 
@@ -425,6 +430,11 @@ node scripts/audit-corpus.js --format=markdown --output=docs/reports/corpus-audi
 node scripts/inventory-corpus.js --format=markdown --output=docs/reports/corpus-inventory.md --json-output=docs/reports/corpus-inventory.json
 node scripts/snapshot-evidence.js --dry-run --format=markdown --output=docs/reports/evidence-snapshot-plan.md
 node scripts/snapshot-evidence.js --format=markdown --output=docs/reports/evidence-snapshot-latest.md
+node scripts/provision-normalized-layer.js --format=markdown --output=docs/reports/normalized-layer-status.md
+node scripts/provision-normalized-layer.js --create-missing --format=markdown --output=docs/reports/normalized-layer-status.md
+node scripts/provision-docai-processors.js --format=markdown --output=docs/reports/docai-processors-status.md
+node scripts/provision-docai-processors.js --create-missing --format=markdown --output=docs/reports/docai-processors-status.md
+node scripts/plan-pdf-reprocessing.js --format=markdown --output=docs/reports/pdf-reprocessing-plan.md
 ```
 
 La matrice critica persistita del progetto e in:
@@ -433,6 +443,10 @@ La matrice critica persistita del progetto e in:
 - [docs/reports/corpus-audit-latest.md](docs/reports/corpus-audit-latest.md)
 - [docs/reports/corpus-inventory-latest.md](docs/reports/corpus-inventory-latest.md)
 - [docs/reports/evidence-snapshot-latest.md](docs/reports/evidence-snapshot-latest.md)
+- [docs/reports/normalized-layer-status.md](docs/reports/normalized-layer-status.md)
+- [docs/reports/pdf-reprocessing-plan.md](docs/reports/pdf-reprocessing-plan.md)
+- [docs/reports/docai-processors-status.md](docs/reports/docai-processors-status.md)
+- [docs/reports/pdf-reprocessing-smoke.md](docs/reports/pdf-reprocessing-smoke.md)
 - [docs/runbooks/reprocessing-corpus.md](docs/runbooks/reprocessing-corpus.md)
 
 ## Limiti noti
@@ -450,5 +464,9 @@ La matrice critica persistita del progetto e in:
 - [docs/reports/corpus-audit-latest.md](docs/reports/corpus-audit-latest.md)
 - [docs/reports/corpus-inventory-latest.md](docs/reports/corpus-inventory-latest.md)
 - [docs/reports/evidence-snapshot-latest.md](docs/reports/evidence-snapshot-latest.md)
+- [docs/reports/normalized-layer-status.md](docs/reports/normalized-layer-status.md)
+- [docs/reports/pdf-reprocessing-plan.md](docs/reports/pdf-reprocessing-plan.md)
+- [docs/reports/docai-processors-status.md](docs/reports/docai-processors-status.md)
+- [docs/reports/pdf-reprocessing-smoke.md](docs/reports/pdf-reprocessing-smoke.md)
 - [docs/runbooks/reprocessing-corpus.md](docs/runbooks/reprocessing-corpus.md)
 - [docs/bigquery-schema.sql](docs/bigquery-schema.sql)

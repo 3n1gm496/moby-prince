@@ -2,7 +2,7 @@
 
 /**
  * DocumentAIWorker — routes large PDFs through Document AI, extracts logical
- * sections, writes them as .txt files to the normalized bucket, and creates
+ * sections, writes them as .html files to the normalized bucket, and creates
  * child IngestionJobs for each section.
  *
  * Activated when:
@@ -44,11 +44,17 @@ class DocumentAIWorker extends BaseWorker {
   }
 
   shouldRun(job) {
+    const forceAllPdfs = this._config.docai?.forceAllPdfs === true;
     return (
       job.status === 'VALIDATING' &&
       job.mimeType === 'application/pdf' &&
-      job.fileSizeBytes != null &&
-      job.fileSizeBytes >= this._config.split.pdfCriticalBytes
+      (
+        forceAllPdfs ||
+        (
+          job.fileSizeBytes != null &&
+          job.fileSizeBytes >= this._config.split.pdfCriticalBytes
+        )
+      )
     );
   }
 
@@ -183,16 +189,16 @@ class DocumentAIWorker extends BaseWorker {
         return this.halt(job.fail('PARSE_FAILURE', 'Document AI output contains no extractable text'));
       }
 
-      // ── 6. Write section .txt files to normalized bucket ───────────────────
+      // ── 6. Write section .html files to normalized bucket ──────────────────
       const stem = path.basename(job.originalFilename, path.extname(job.originalFilename));
       const normalizedUris = [];
 
       for (let i = 0; i < sections.length; i++) {
-        const partName = `moby-prince/${stem}_part_${String(i + 1).padStart(3, '0')}.txt`;
+        const partName = `moby-prince/${stem}_part_${String(i + 1).padStart(3, '0')}.html`;
         const content  = _formatSection(sections[i]);
 
         await storage.bucket(normalizedBucket).file(partName).save(content, {
-          contentType: 'text/plain; charset=utf-8',
+          contentType: 'text/html; charset=utf-8',
           metadata: {
             jobId:     job.jobId,
             pageStart: String(sections[i].pageStart),
@@ -218,9 +224,9 @@ class DocumentAIWorker extends BaseWorker {
         if (sec.pageStart != null) extraMeta.page_start  = sec.pageStart;
         if (sec.pageEnd   != null) extraMeta.page_end    = sec.pageEnd;
         return createJob(uri, {
-          originalFilename: `${stem}_part_${String(i + 1).padStart(3, '0')}.txt`,
+          originalFilename: `${stem}_part_${String(i + 1).padStart(3, '0')}.html`,
           parentJobId:      job.jobId,
-          mimeType:         'text/plain',
+          mimeType:         'text/html',
           ...extraMeta,
         }, this._config.retry.maxAttempts);
       });
@@ -444,11 +450,37 @@ function _detectHeading(pageText) {
 }
 
 function _formatSection(section) {
-  const header  = section.heading
-    ? `${section.heading}\n${'─'.repeat(Math.min(section.heading.length, 60))}\n\n`
+  const heading = section.heading
+    ? `<h1>${_escapeHtml(section.heading)}</h1>`
     : '';
-  const pageRef = `[Pagine ${section.pageStart}–${section.pageEnd}]\n\n`;
-  return header + pageRef + section.text;
+  const pageRef = `<p data-page-start="${section.pageStart}" data-page-end="${section.pageEnd}">Pagine ${section.pageStart}&ndash;${section.pageEnd}</p>`;
+  const body = section.text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${_escapeHtml(paragraph).replace(/\n/g, '<br />')}</p>`)
+    .join('\n');
+
+  return [
+    '<!doctype html>',
+    '<html lang="it">',
+    '<head><meta charset="utf-8" /></head>',
+    '<body>',
+    heading,
+    pageRef,
+    body,
+    '</body>',
+    '</html>',
+  ].join('\n');
+}
+
+function _escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 module.exports = { DocumentAIWorker };

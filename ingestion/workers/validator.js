@@ -85,7 +85,7 @@ class ValidatorWorker extends BaseWorker {
 
     const stat      = fs.statSync(filePath);
     const ext       = path.extname(filePath).toLowerCase();
-    const mimeType  = _extToMime(ext) || job.mimeType;
+    const mimeType  = _normalizeMime(_extToMime(ext) || job.mimeType);
     const sizeBytes = stat.size;
 
     if (sizeBytes === 0) {
@@ -131,7 +131,7 @@ class ValidatorWorker extends BaseWorker {
       const { bucket, name } = _parseGcsUri(gcsUri);
       const [metadata] = await storage.bucket(bucket).file(name).getMetadata();
       const sizeBytes  = parseInt(metadata.size, 10);
-      const mimeType   = metadata.contentType || job.mimeType;
+      const mimeType   = _normalizeMime(metadata.contentType || job.mimeType);
 
       if (sizeBytes === 0) {
         return { error: { code: 'VALIDATION_FAILURE', message: 'GCS object is empty' } };
@@ -160,6 +160,10 @@ class ValidatorWorker extends BaseWorker {
 
 function _extToMime(ext) {
   return { '.pdf': 'application/pdf', '.txt': 'text/plain', '.html': 'text/html', '.json': 'application/json' }[ext] || null;
+}
+
+function _normalizeMime(value) {
+  return String(value || '').split(';')[0].trim().toLowerCase();
 }
 
 function _mb(bytes) { return (bytes / 1_000_000).toFixed(1); }

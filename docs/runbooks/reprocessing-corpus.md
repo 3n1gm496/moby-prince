@@ -9,6 +9,10 @@ Report di riferimento:
 - [Corpus Audit Latest](../reports/corpus-audit-latest.md)
 - [Corpus Inventory Latest](../reports/corpus-inventory-latest.md)
 - [Evidence Snapshot Latest](../reports/evidence-snapshot-latest.md)
+- [Normalized Layer Status](../reports/normalized-layer-status.md)
+- [PDF Reprocessing Plan](../reports/pdf-reprocessing-plan.md)
+- [Document AI Processors Status](../reports/docai-processors-status.md)
+- [PDF Reprocessing Smoke](../reports/pdf-reprocessing-smoke.md)
 - [Audit Matrix](../audit-matrix.md)
 
 ## Avanzamento gia' eseguito
@@ -17,12 +21,18 @@ Fasi completate sul corpus live il `2026-04-23`:
 
 - Fase 0: snapshot dataset creato con label `pre_reprocessing_20260423t165446`
 - Fase 1: inventory bucket completato
+- Fase 2: bucket `normalized` e `quarantine` creati
+- Fase 2 smoke: Document AI PDF-first verificato su un PDF reale
 
 Esito sintetico:
 
 - `245/245` documenti allineati fra GCS, BigQuery e Discovery Engine
 - `1` artefatto legacy reale: `gs://moby-prince/_timeline/events.json`
 - `8` marker di cartella GCS classificati come `supporting`, non come orfani
+- `moby-prince-normalized` e `moby-prince-quarantine` creati in `EU`
+- processor Document AI creati in `eu`
+- smoke PDF-first riuscito fino alla generazione dei normalized outputs
+- blocco residuo: reindex Discovery Engine dei child normalized ancora incompatibile
 
 ## Stato live rilevato
 
@@ -172,6 +182,14 @@ Accettazione:
 - `documents_without_normalized_uri = 0`
 - `documents_without_ocr_quality = 0`
 - `documents_without_chunk_count = 0`
+
+Stato corrente:
+
+- bucket `normalized` e `quarantine` creati
+- configurazione ingestion riallineata al bucket reale `moby-prince`
+- campagna PDF-first pianificata su `244` PDF
+- processor Document AI OCR/Layout creati e attivi
+- blocco residuo: indexing Discovery Engine dei normalized child
 
 ### Fase 3. Page map e split strutturato
 

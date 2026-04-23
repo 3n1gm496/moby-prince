@@ -202,7 +202,7 @@ function _basename(uri) {
 
 function _guessMime(uri) {
   const ext = uri.split('.').pop()?.toLowerCase();
-  return { pdf: 'application/pdf', txt: 'text/plain', json: 'application/json' }[ext] || 'application/octet-stream';
+  return { pdf: 'application/pdf', txt: 'text/plain', html: 'text/html', htm: 'text/html', json: 'application/json' }[ext] || 'application/octet-stream';
 }
 
 module.exports = { IngestionJob, createJob, NON_RETRYABLE_CODES, TERMINAL_STATES };

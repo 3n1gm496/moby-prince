@@ -25,6 +25,10 @@ function required(name) {
 // ── GCS bucket names ──────────────────────────────────────────────────────────
 
 const project = optional('GOOGLE_CLOUD_PROJECT');
+const sharedCorpusBucket = optional('GCS_BUCKET');
+const defaultRawBucket = sharedCorpusBucket || (project ? `${project}-corpus-raw` : null);
+const defaultNormalizedBucket = sharedCorpusBucket ? `${sharedCorpusBucket}-normalized` : (project ? `${project}-corpus-normalized` : null);
+const defaultQuarantineBucket = sharedCorpusBucket ? `${sharedCorpusBucket}-quarantine` : (project ? `${project}-corpus-quarantine` : null);
 
 const config = {
   // GCP project (used for Discovery Engine import)
@@ -35,9 +39,9 @@ const config = {
 
   // GCS bucket names (leave unset to run against local filesystem)
   buckets: {
-    raw:        optional('BUCKET_RAW',        project ? `${project}-corpus-raw`        : null),
-    normalized: optional('BUCKET_NORMALIZED', project ? `${project}-corpus-normalized` : null),
-    quarantine: optional('BUCKET_QUARANTINE', project ? `${project}-corpus-quarantine` : null),
+    raw:        optional('BUCKET_RAW',        defaultRawBucket),
+    normalized: optional('BUCKET_NORMALIZED', defaultNormalizedBucket),
+    quarantine: optional('BUCKET_QUARANTINE', defaultQuarantineBucket),
   },
 
   // Local filesystem directories used when GCS buckets are not configured
@@ -81,6 +85,11 @@ const config = {
 
   // Gemini claim extractor (optional — Vertex AI region for Gemini 2.0 Flash)
   geminiLocation: optional('GEMINI_LOCATION', 'us-central1'),
+
+  // Document AI campaign mode
+  docai: {
+    forceAllPdfs: optional('DOCAI_FORCE_ALL_PDFS', 'false') === 'true',
+  },
 };
 
 module.exports = config;

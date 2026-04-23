@@ -2,7 +2,7 @@
 
 /**
  * IndexerWorker — creates or updates a single document in the Vertex AI Search
- * (Discovery Engine) datastore via the synchronous PUT document API.
+ * (Discovery Engine) datastore via the synchronous document patch API.
  *
  * Two import modes:
  *   INLINE   — document content included directly in the request body
@@ -10,7 +10,7 @@
  *   GCS_URI  — document stored in GCS; DE fetches it via content.uri
  *              (production path for all real documents)
  *
- * The single-document PUT is synchronous: a 2xx response means the document
+ * The single-document PATCH is synchronous: a 2xx response means the document
  * has been created/updated and is available for search (after indexing lag).
  * This is distinct from the batch importDocuments API, which returns an LRO.
  *
@@ -88,7 +88,7 @@ class IndexerWorker extends BaseWorker {
 
     const token    = await getAccessToken();
     const docId    = _toDocumentId(job.originalFilename);
-    const endpoint = `https://${cfg.location}-discoveryengine.googleapis.com/v1/projects/${cfg.projectId}/locations/${cfg.location}/collections/default_collection/dataStores/${cfg.dataStoreId}/branches/0/documents/${encodeURIComponent(docId)}`;
+    const endpoint = `https://${cfg.location}-discoveryengine.googleapis.com/v1/projects/${cfg.projectId}/locations/${cfg.location}/collections/default_collection/dataStores/${cfg.dataStoreId}/branches/0/documents/${encodeURIComponent(docId)}?allowMissing=true`;
 
     const body = uri.startsWith('gs://')
       ? _buildGcsImportBody(docId, uri, job)
@@ -100,7 +100,7 @@ class IndexerWorker extends BaseWorker {
     let res;
     try {
       res = await fetch(endpoint, {
-        method:  'PUT',
+        method:  'PATCH',
         headers: {
           Authorization:         `Bearer ${token}`,
           'Content-Type':        'application/json',

@@ -15,7 +15,7 @@ REGION="${GCP_REGION:-europe-west1}"
 JOB_NAME="moby-ingest-pipeline"
 TRIGGER_NAME="moby-ingest-gcs-trigger"
 SA_EMAIL="ingest-sa@${PROJECT}.iam.gserviceaccount.com"
-RAW_BUCKET="${BUCKET_RAW:-${PROJECT}-corpus-raw}"
+RAW_BUCKET="${BUCKET_RAW:-${GCS_BUCKET:-${PROJECT}-corpus-raw}}"
 
 echo "Creating Eventarc trigger '${TRIGGER_NAME}'..."
 echo "  Bucket:  ${RAW_BUCKET}"

@@ -143,6 +143,7 @@ function inferMimeType(uri) {
   const lower = String(uri || '').toLowerCase();
   if (lower.endsWith('.pdf')) return 'application/pdf';
   if (lower.endsWith('.txt')) return 'text/plain';
+  if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'text/html';
   if (lower.endsWith('.json')) return 'application/json';
   return 'application/octet-stream';
 }
