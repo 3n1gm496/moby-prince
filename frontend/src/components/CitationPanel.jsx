@@ -1,5 +1,11 @@
 import { useEffect, useRef } from "react";
 
+function titleFromUri(uri) {
+  if (!uri) return null;
+  const filename = (uri.split("/").pop() || "").replace(/\.[^.]+$/, "");
+  return filename.replace(/[_-]+/g, " ").trim() || null;
+}
+
 function resolveUri(uri) {
   if (!uri) return null;
   if (uri.startsWith("gs://")) {
@@ -82,7 +88,7 @@ export default function CitationPanel({ citation, onClose }) {
               {/* Title + page */}
               <div className="flex items-start justify-between gap-3">
                 <h4 className="text-[13px] font-medium text-text-primary leading-snug flex-1">
-                  {src.title}
+                  {titleFromUri(src.uri) || src.title || "Documento"}
                 </h4>
                 {src.pageIdentifier && (
                   <span className="text-[11px] text-text-secondary font-mono whitespace-nowrap flex-shrink-0 mt-0.5">

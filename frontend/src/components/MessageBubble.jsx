@@ -149,8 +149,26 @@ export default function MessageBubble({ message, onCitationClick, onFollowUp, on
 
   const handleBadgeClick = useCallback((cit) => {
     setActiveCitId(cit.id);
-    onCitationClick?.(cit);
-  }, [onCitationClick]);
+    // If the citation has no sources (missing from DE response), build them
+    // from the evidence items that reference this citation via citationIds.
+    let enriched = cit;
+    if (!cit.sources?.length && message.evidence?.length > 0) {
+      const related = message.evidence.filter(e => e.citationIds?.includes(cit.id));
+      if (related.length > 0) {
+        enriched = {
+          ...cit,
+          sources: related.map(e => ({
+            title:         e.title         || null,
+            uri:           e.uri           || null,
+            snippet:       e.snippet       || null,
+            pageIdentifier:e.pageIdentifier|| null,
+            documentId:    e.documentId    || null,
+          })),
+        };
+      }
+    }
+    onCitationClick?.(enriched);
+  }, [onCitationClick, message.evidence]);
 
   const handleCopy = () => {
     let text = message.text;

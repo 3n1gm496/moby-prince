@@ -270,23 +270,21 @@ const EvidenceSection = forwardRef(function EvidenceSection(
   const [open, setOpen] = useState(false);
   const itemRefs = useRef({});
 
-  // Auto-open and scroll to highlighted item when a citation badge is clicked
+  // When a citation badge is clicked, highlight the matching evidence item.
+  // Do NOT auto-open or scroll — CitationPanel handles that interaction.
+  // Only scroll if the section is already open (user expanded it manually).
   useEffect(() => {
-    if (activeCitationId == null) return;
-    setOpen(true);
-    // Wait for React to render the open state before scrolling
+    if (activeCitationId == null || !open) return;
     const timer = setTimeout(() => {
       const targetIdx = evidence?.findIndex(
         (item) => item.citationIds?.includes(activeCitationId)
       );
       if (targetIdx >= 0 && itemRefs.current[targetIdx]) {
         itemRefs.current[targetIdx].scrollIntoView({ behavior: "smooth", block: "nearest" });
-      } else {
-        ref?.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
       }
     }, 80);
     return () => clearTimeout(timer);
-  }, [activeCitationId, evidence]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeCitationId, evidence, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!evidence || evidence.length === 0) return null;
 
