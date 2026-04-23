@@ -124,7 +124,24 @@ function normaliseDate(raw) {
   return s;
 }
 
-function parseEvents(answerText) {
+// Extract source document refs from a Discovery Engine :answer response.
+function _extractLinkedDocs(answer) {
+  const refs = answer?.references || [];
+  return refs
+    .map(r => {
+      const info = r.unstructuredDocumentInfo || r.chunkInfo?.documentMetadata || {};
+      const name = info.document || '';
+      const id   = name.split('/').pop() || '';
+      return {
+        id,
+        title: info.title || id,
+        uri:   info.uri   || '',
+      };
+    })
+    .filter(d => d.id);
+}
+
+function parseEvents(answerText, linkedDocs = []) {
   const events  = [];
   let idx       = 0;
   let skipped   = 0;
@@ -153,7 +170,7 @@ function parseEvents(answerText) {
       title,
       description,
       importance:   1,
-      linkedDocs:   [],
+      linkedDocs,
       _aiGenerated: true,
     });
   }
@@ -199,8 +216,13 @@ router.post('/generate', async (req, res, next) => {
 
   try {
     const raw        = await de.answer(prompt, null, { maxResults: 20, modelVersion: 'stable' });
-    const answerText = (raw.answer ?? raw)?.answerText ?? '';
-    const { events: aiEvents, skipped } = parseEvents(answerText);
+    const answer     = raw.answer ?? raw;
+    const answerText = answer?.answerText ?? '';
+
+    // Extract referenced documents from the answer response.
+    const linkedDocs = _extractLinkedDocs(answer);
+
+    const { events: aiEvents, skipped } = parseEvents(answerText, linkedDocs);
 
     if (aiEvents.length === 0) {
       return res.status(422).json({
