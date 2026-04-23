@@ -53,7 +53,8 @@ if (!PROJECT) { console.error('GOOGLE_CLOUD_PROJECT non impostato.'); process.ex
 
 const ARGS         = process.argv.slice(2);
 const DRY_RUN      = ARGS.includes('--dry-run');
-const PHASE        = (ARGS.find(a => a.startsWith('--phase=')) || '--phase=all').split('=')[1];
+const _phaseRaw    = (ARGS.find(a => a.startsWith('--phase=')) || '--phase=all').split('=')[1];
+const PHASE        = _phaseRaw === '1' ? 'claims' : _phaseRaw === '2' ? 'detect' : _phaseRaw;
 const DELAY_MS     = parseInt((ARGS.find(a => a.startsWith('--delay='))     || '--delay=800').split('=')[1],  10);
 const BATCH_SIZE   = parseInt((ARGS.find(a => a.startsWith('--batch='))     || '--batch=5').split('=')[1],   10);
 const MAX_PAIRS    = parseInt((ARGS.find(a => a.startsWith('--max-pairs=')) || '--max-pairs=200').split('=')[1], 10);
