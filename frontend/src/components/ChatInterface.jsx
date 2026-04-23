@@ -644,41 +644,14 @@ export default function ChatInterface() {
 
 function WelcomeScreen() {
   return (
-    <div className="w-full max-w-[640px] px-5 pb-10 flex flex-col items-center gap-6">
-
-      {/* Identity block */}
-      <div className="text-center space-y-2 pt-4">
-        <p className="text-[10px] font-medium text-text-muted uppercase tracking-[0.24em]">
-          10 aprile 1991 &nbsp;·&nbsp; Porto di Livorno
-        </p>
-        <h1 className="font-serif text-[34px] font-semibold text-text-primary leading-tight">
-          Archivio Moby Prince
-        </h1>
-        <p className="text-[11px] text-text-secondary leading-relaxed max-w-[380px] mx-auto">
-          Commissione parlamentare di inchiesta sulle cause del disastro
-          del traghetto Moby Prince · Camera dei Deputati
-        </p>
-      </div>
-
-      {/* Divider */}
-      <div className="w-16 h-px bg-border/40" />
-
-      {/* Capability pills */}
-      <div className="flex flex-wrap justify-center gap-2">
-        {[
-          "Testimonianze",
-          "Atti parlamentari",
-          "Perizie tecniche",
-          "Sentenze",
-          "Documenti riservati",
-        ].map(label => (
-          <span key={label}
-                className="text-[11px] px-3 py-1 rounded-full border border-border/50
-                           bg-surface-raised text-text-secondary">
-            {label}
-          </span>
-        ))}
-      </div>
+    <div className="w-full max-w-[560px] px-5 pb-10 flex flex-col items-center gap-3 pt-6">
+      <h1 className="font-serif text-[36px] font-semibold text-text-primary leading-tight tracking-tight">
+        Archivio Moby Prince
+      </h1>
+      <p className="text-[12px] text-text-secondary leading-relaxed text-center max-w-[400px]">
+        Commissione parlamentare di inchiesta sulle cause del disastro
+        del traghetto Moby Prince · Camera dei Deputati
+      </p>
     </div>
   );
 }
