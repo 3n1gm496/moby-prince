@@ -150,29 +150,41 @@ async function _bqQuery(sql) {
 
 async function _bqInsert(tableId, rows) {
   if (DRY_RUN || rows.length === 0) return;
-  const token = await getAccessToken();
   const body  = { rows: rows.map(r => ({ insertId: newId(), json: r })) };
-  const res   = await fetch(
-    `${BQ_BASE}/tables/${tableId}/insertAll`,
-    {
-      method:  'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
-    },
-  );
-  if (!res.ok) {
-    const t = await res.text().catch(() => '');
-    throw new Error(`BQ insert ${tableId} failed (${res.status}): ${t.slice(0, 200)}`);
-  }
-  const data = await res.json();
-  if (data.insertErrors?.length) {
-    warn(`BQ insert ${tableId}: ${data.insertErrors.length} errors`);
-    for (const ie of data.insertErrors.slice(0, 3)) {
-      for (const e of (ie.errors || [])) {
-        warn(`  row[${ie.index}] ${e.reason}: ${e.message} (location: ${e.location})`);
+  // Retry on 404: table may not yet be visible after a recent CREATE (BQ propagation lag).
+  const delays = [2000, 5000, 10000];
+  let lastErr;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    if (attempt > 0) {
+      warn(`BQ insert ${tableId}: tabella non ancora disponibile, attendo ${delays[attempt-1]/1000}s...`);
+      await new Promise(r => setTimeout(r, delays[attempt - 1]));
+    }
+    const token = await getAccessToken();
+    const res   = await fetch(
+      `${BQ_BASE}/tables/${tableId}/insertAll`,
+      {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      },
+    );
+    if (res.status === 404) { lastErr = new Error(`Table ${tableId} not found (404)`); continue; }
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      throw new Error(`BQ insert ${tableId} failed (${res.status}): ${t.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    if (data.insertErrors?.length) {
+      warn(`BQ insert ${tableId}: ${data.insertErrors.length} errors`);
+      for (const ie of data.insertErrors.slice(0, 3)) {
+        for (const e of (ie.errors || [])) {
+          warn(`  row[${ie.index}] ${e.reason}: ${e.message} (location: ${e.location})`);
+        }
       }
     }
+    return; // success
   }
+  throw lastErr || new Error(`BQ insert ${tableId}: tabella non trovata dopo 3 tentativi`);
 }
 
 async function _bqDropAndRecreateClaims() {
@@ -425,7 +437,7 @@ async function runClaimsPhase() {
       }
 
       try {
-        const result = await gemini.generateJson(_claimPrompt(texts, title));
+        const result = await gemini.generateJson(_claimPrompt(texts, title), 8192);
         const claims = Array.isArray(result?.claims) ? result.claims : [];
 
         for (let idx = 0; idx < claims.length; idx++) {

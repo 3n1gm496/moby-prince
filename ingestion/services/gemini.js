@@ -94,7 +94,13 @@ async function generateJson(prompt, maxOutputTokens = 2048) {
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) throw new Error('Gemini returned empty content');
 
-    return JSON.parse(text);
+    try {
+      return JSON.parse(text);
+    } catch (parseErr) {
+      // Log the raw text to help diagnose truncation
+      process.stderr.write(`\n[gemini] JSON parse error: ${parseErr.message}\nRaw (first 500): ${text.slice(0, 500)}\n`);
+      throw new Error(`Gemini JSON parse failed: ${parseErr.message}`);
+    }
   }
 
   throw new Error(`Gemini API: quota superata dopo ${MAX_RETRIES} tentativi. Riprova tra qualche minuto.`);
