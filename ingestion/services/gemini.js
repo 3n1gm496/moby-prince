@@ -108,9 +108,9 @@ async function generateJson(prompt, maxOutputTokens = 2048) {
     }
     clearTimeout(timerId);
 
-    if (res.status === 429) {
+    if (res.status === 429 || res.status === 503) {
       const waitS = RETRY_BASE_S * Math.pow(3, attempt - 1);
-      process.stderr.write(`\n[gemini] 429 — attendo ${waitS}s (tentativo ${attempt}/${MAX_RETRIES})...\n`);
+      process.stderr.write(`\n[gemini] ${res.status} — attendo ${waitS}s (tentativo ${attempt}/${MAX_RETRIES})...\n`);
       await _sleep(waitS * 1000);
       continue;
     }
