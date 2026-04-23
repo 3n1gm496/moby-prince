@@ -27,6 +27,38 @@ function _docTitle(sd, doc) {
   if (fromUri) return fromUri;
   return sd?.title || doc?.name?.split('/').pop() || '';
 }
+
+// Extract a 4-digit year (1980–2030) from free text: titles, URIs, filenames.
+function _yearFromText(text) {
+  if (!text) return null;
+  const m = text.match(/\b(19[89]\d|20[0-2]\d)\b/);
+  return m ? Number(m[1]) : null;
+}
+
+const _TIMELINE_STOPWORDS = new Set([
+  'moby','prince','della','delle','degli','dello','negli','nella','nelle',
+  'sono','stato','stati','stata','essere','hanno','anno','caso','legge',
+  'comma','articolo','documento','atti','parlamentari','commissione',
+]);
+
+// Assign up to maxDocs linked docs to each event using keyword overlap between
+// the event title and the doc title. Falls back to empty array when no match.
+function _assignDocsToEvents(events, allDocs) {
+  if (!allDocs || allDocs.length === 0) return events;
+  return events.map(ev => {
+    const titleWords = new Set(
+      ev.title.toLowerCase().split(/\W+/)
+        .filter(w => w.length >= 4 && !_TIMELINE_STOPWORDS.has(w))
+    );
+    if (titleWords.size === 0) return { ...ev, linkedDocs: [] };
+
+    const matched = allDocs.filter(d => {
+      const words = (d.title || '').toLowerCase().split(/\W+/);
+      return words.some(w => w.length >= 4 && titleWords.has(w));
+    });
+    return { ...ev, linkedDocs: matched.slice(0, 3) };
+  });
+}
 const { isBigQueryEnabled } = require('../services/bigquery');
 
 const router      = Router();
@@ -47,15 +79,20 @@ router.get('/documents', async (req, res, next) => {
     do {
       const data = await de.listDocuments(pageToken, 100);
       (data.documents || []).forEach(doc => {
-        const sd = doc.structData || {};
+        const sd    = doc.structData || {};
+        const title = _docTitle(sd, doc);
+        const uri   = doc.content?.uri || null;
+        const year  = sd.year
+          ? Number(sd.year)
+          : _yearFromText(title) ?? _yearFromText(uri);
         allDocs.push({
           id:           doc.name?.split('/').pop() || '',
-          title:        _docTitle(sd, doc),
-          year:         sd.year         ? Number(sd.year) : null,
+          title,
+          year,
           documentType: sd.documentType || null,
           institution:  sd.institution  || null,
           legislature:  sd.legislature  || null,
-          uri:          doc.content?.uri || null,
+          uri,
         });
       });
       pageToken = data.nextPageToken || null;
@@ -185,7 +222,7 @@ function parseEvents(answerText, linkedDocs = []) {
       title,
       description,
       importance:   1,
-      linkedDocs,
+      linkedDocs:   [],
       _aiGenerated: true,
     });
   }
@@ -220,13 +257,16 @@ router.post('/generate', async (req, res, next) => {
 
   const prompt = [
     'Basandoti esclusivamente sui documenti dell\'archivio del caso Moby Prince,',
-    'elenca in ordine cronologico almeno 25 eventi storici, giudiziari e parlamentari.',
-    'Per ogni evento usa ESATTAMENTE questo formato su una riga separata (senza numerazione):',
+    'elenca in ordine cronologico ALMENO 60 eventi storici, giudiziari e parlamentari importanti.',
+    'Includi: l\'incidente del 10 aprile 1991, i soccorsi mancati, le prime indagini, i procedimenti penali,',
+    'le sentenze, le riaperture del caso, le audizioni della commissione parlamentare (2018-2022),',
+    'le relazioni ufficiali, i testimoni chiave, le perizie tecniche e gli atti di governo.',
+    'Per ogni evento usa ESATTAMENTE questo formato su una riga separata (senza numerazione, senza intestazioni):',
     'DATA | TIPO | TITOLO | DESCRIZIONE',
-    'DATA = YYYY-MM-DD (YYYY-01-01 se ignoti mese/giorno, YYYY-MM-01 se ignoto solo il giorno)',
+    'DATA = YYYY-MM-DD (YYYY-01-01 se ignoti mese e giorno, YYYY-MM-01 se ignoto solo il giorno)',
     'TIPO = uno tra: evento, udienza, sentenza, relazione, commissione',
-    'TITOLO = massimo 10 parole',
-    'DESCRIZIONE = 1-2 frasi.',
+    'TITOLO = massimo 8 parole, specifico e informativo',
+    'DESCRIZIONE = 1-2 frasi concise che spiegano il contesto e la rilevanza.',
   ].join(' ');
 
   try {
@@ -237,7 +277,9 @@ router.post('/generate', async (req, res, next) => {
     // Extract referenced documents from the answer response.
     const linkedDocs = _extractLinkedDocs(answer);
 
-    const { events: aiEvents, skipped } = parseEvents(answerText, linkedDocs);
+    const { events: rawAiEvents, skipped } = parseEvents(answerText, []);
+    // Assign linked docs per event via title keyword matching (cheaper than per-event search).
+    const aiEvents = _assignDocsToEvents(rawAiEvents, linkedDocs);
 
     if (aiEvents.length === 0) {
       return res.status(422).json({

@@ -28,11 +28,10 @@ const EVENT_TYPES = [
 ];
 
 const FILTERS = [
-  { id: "all",         label: "Tutti"       },
-  { id: "curated",     label: "Eventi"      },
-  { id: "documento",   label: "Documenti"   },
-  { id: "sentenza",    label: "Sentenze"    },
-  { id: "commissione", label: "Commissioni" },
+  { id: "all",       label: "Tutti"     },
+  { id: "curated",   label: "Eventi"    },
+  { id: "documento", label: "Documenti" },
+  { id: "sentenza",  label: "Sentenze"  },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -145,18 +144,18 @@ function CuratedEventCard({ event, onEdit, onDelete, onDocClick }) {
         )}
 
         {event.linkedDocs?.length > 0 && (
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {event.linkedDocs.map((doc, i) => (
-              <button key={i} onClick={() => onDocClick(doc)}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px]
-                                 bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                {doc.title || doc.id}
-              </button>
-            ))}
+          <div className="mt-2 pt-2 border-t border-border/20 flex flex-wrap gap-x-3 gap-y-0.5">
+            {event.linkedDocs.map((doc, i) => {
+              const filename = (doc.uri?.split("/").pop() || doc.title || "")
+                .replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || doc.title || doc.id;
+              return (
+                <button key={i} onClick={() => onDocClick(doc)}
+                        className="text-[10px] text-text-muted hover:text-accent transition-colors truncate max-w-[240px]"
+                        title={filename}>
+                  {filename}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -476,10 +475,9 @@ export default function Timeline() {
   }, [deDocs, curated]);
 
   const filtered = useMemo(() => allItems.filter(item => {
-    if (filter === "curated"     && item._kind !== "curated")                               return false;
-    if (filter === "documento"   && item._kind !== "document")                              return false;
-    if (filter === "sentenza"    && (item._kind !== "curated" || item.type !== "sentenza")) return false;
-    if (filter === "commissione" && (item._kind !== "curated" || item.type !== "commissione")) return false;
+    if (filter === "curated"   && item._kind !== "curated")                               return false;
+    if (filter === "documento" && item._kind !== "document")                              return false;
+    if (filter === "sentenza"  && (item._kind !== "curated" || item.type !== "sentenza")) return false;
     if (search) {
       const q = search.toLowerCase();
       return (item.title || "").toLowerCase().includes(q) || (item.description || "").toLowerCase().includes(q);
