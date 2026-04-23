@@ -24,6 +24,7 @@ const engineId    = required('ENGINE_ID');
 const dataStoreId = optional('DATA_STORE_ID');
 const gcsBucket   = optional('GCS_BUCKET');
 const apiKey      = optional('API_KEY');
+const trustIapHeaders = optional('TRUST_IAP_HEADERS', 'false') === 'true';
 
 // Validate FRONTEND_ORIGIN is a real URL (misconfiguration in prod would silently break CORS)
 const frontendOriginRaw = optional('FRONTEND_ORIGIN', 'http://localhost:5173');
@@ -46,6 +47,7 @@ const config = {
   dataStoreId,
   gcsBucket,
   apiKey,
+  trustIapHeaders,
   frontendOrigin: frontendOriginRaw,
 
   // BigQuery evidence layer (optional)
@@ -112,6 +114,7 @@ config.printStartup = function printStartup(log) {
     gcsBucket:      config.gcsBucket   ?? '(not set)',
     frontendOrigin: config.frontendOrigin,
     apiKeyEnabled:  !!config.apiKey,
+    trustIapHeaders: config.trustIapHeaders,
     bqDataset:      `${config.bigquery.projectId}.${config.bigquery.datasetId}`,
   }, 'Server configuration loaded');
 
@@ -123,6 +126,9 @@ config.printStartup = function printStartup(log) {
   }
   if (!config.apiKey && config.isProd) {
     log.warn({}, 'API_KEY is not set — all API endpoints are publicly accessible');
+  }
+  if (config.trustIapHeaders && !config.isProd) {
+    log.warn({}, 'TRUST_IAP_HEADERS is enabled outside production — use only behind trusted proxies/IAP');
   }
 };
 

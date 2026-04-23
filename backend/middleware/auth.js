@@ -5,6 +5,10 @@ const { createLogger } = require('../logger');
 
 const log = createLogger('auth');
 
+function trustIapHeadersEnabled() {
+  return config.trustIapHeaders || process.env.TRUST_IAP_HEADERS === 'true';
+}
+
 /**
  * Optional API key authentication.
  *
@@ -23,9 +27,24 @@ const log = createLogger('auth');
 function requireApiKey(req, res, next) {
   if (!config.apiKey) return next();
 
+  const trustIapHeaders = trustIapHeadersEnabled();
+
+  if (trustIapHeaders) {
+    const iapUser = req.headers['x-goog-authenticated-user-email'];
+    if (typeof iapUser === 'string' && iapUser.startsWith('accounts.google.com:')) {
+      return next();
+    }
+  }
+
   const provided = req.headers['x-api-key'];
   if (!provided || provided !== config.apiKey) {
-    log.warn({ ip: req.ip, path: req.path, hasKey: !!provided }, 'Invalid or missing API key');
+    log.warn({
+      ip: req.ip,
+      path: req.path,
+      hasKey: !!provided,
+      trustIapHeaders,
+      hasIapUser: !!req.headers['x-goog-authenticated-user-email'],
+    }, 'Invalid or missing API key');
     return res.status(401).json({ error: 'Chiave API non valida o mancante.' });
   }
   next();

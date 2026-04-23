@@ -16,6 +16,8 @@
 #   SERVICE_NAME       Cloud Run service name          (default: moby-prince-backend)
 #   IMAGE_TAG          Docker image tag                (default: git short SHA)
 #   FRONTEND_ORIGIN    Allowed CORS origin             (default: https://$SERVICE_NAME-*.run.app)
+#   API_KEY            Shared secret for protected /api routes
+#   TRUST_IAP_HEADERS  true to trust IAP identity headers instead of X-API-Key
 #
 # Prerequisites (one-time setup):
 #   gcloud artifacts repositories create moby-prince \
@@ -34,6 +36,9 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${AR_REPO}/${SERVICE_NAME}:${IMAGE_TA
 
 ENGINE_ID="${ENGINE_ID:?ENGINE_ID must be set}"
 DATA_STORE_ID="${DATA_STORE_ID:-}"
+FRONTEND_ORIGIN="${FRONTEND_ORIGIN:-}"
+API_KEY="${API_KEY:-}"
+TRUST_IAP_HEADERS="${TRUST_IAP_HEADERS:-false}"
 
 echo "▶ Building image: ${IMAGE}"
 gcloud builds submit \
@@ -57,7 +62,10 @@ gcloud run deploy "${SERVICE_NAME}" \
   --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT}" \
   --set-env-vars="GCP_LOCATION=${GCP_LOCATION:-eu}" \
   --set-env-vars="ENGINE_ID=${ENGINE_ID}" \
+  --set-env-vars="TRUST_IAP_HEADERS=${TRUST_IAP_HEADERS}" \
   ${DATA_STORE_ID:+--set-env-vars="DATA_STORE_ID=${DATA_STORE_ID}"} \
+  ${FRONTEND_ORIGIN:+--set-env-vars="FRONTEND_ORIGIN=${FRONTEND_ORIGIN}"} \
+  ${API_KEY:+--set-env-vars="API_KEY=${API_KEY}"} \
   --service-account="moby-prince-backend@${PROJECT}.iam.gserviceaccount.com"
 
 SERVICE_URL=$(gcloud run services describe "${SERVICE_NAME}" \

@@ -17,7 +17,7 @@ Superfici disponibili:
 
 - `Chat` su `/` con risposte grounded e pannello fonti unificato
 - `Timeline` su `/timeline` con eventi cronologici, accuratezza data e viewer condiviso
-- `Persone`, `Navi`, `Enti`, `Luoghi` con directory separate e profili dedicati
+- `Entità` su `/entita` con tab `persone`, `navi`, `enti`, `luoghi` e profili dedicati
 - `Dossier` su `/dossier` per raccolta e consultazione materiali su GCS
 - `Investigazione` su `/investigazione` per analisi multi-step più profonda
 - `Admin` su `/admin` per metriche operative essenziali
@@ -89,6 +89,8 @@ GEMINI_MODEL=gemini-2.5-flash-lite
 GEMINI_API_KEY=
 FRONTEND_ORIGIN=http://localhost:5173
 API_KEY=
+TRUST_IAP_HEADERS=false
+GCS_BUCKET=
 BUCKET_RAW=
 BUCKET_NORMALIZED=
 ```
@@ -368,7 +370,7 @@ Flusso minimo da provare:
 4. verificare apertura su pagina/timestamp corretto quando disponibile
 5. aprire `/timeline`
 6. controllare un evento con più fonti
-7. aprire `/persone` e un profilo entità
+7. aprire `/entita?tab=persone` e un profilo entità
 8. verificare documenti, claim, eventi e entità correlate
 9. aprire `/dossier`
 10. aprire `/investigazione`
@@ -412,6 +414,19 @@ Linee guida di manutenzione:
 - togliere codice e docs legacy invece di lasciarli convivere con il flusso nuovo
 - mantenere backend e frontend allineati sullo stesso contratto dati
 
+## Audit operativo
+
+Per il controllo end-to-end del corpus e dei mismatch principali:
+
+```bash
+node scripts/audit-corpus.js
+node scripts/audit-corpus.js --format=markdown --output=docs/reports/corpus-audit.md
+```
+
+La matrice critica persistita del progetto e in:
+
+- [docs/audit-matrix.md](docs/audit-matrix.md)
+
 ## Limiti noti
 
 - la qualità finale dipende ancora dal riallineamento completo del corpus storico
@@ -423,4 +438,5 @@ Linee guida di manutenzione:
 - [docs/evidence-architecture.md](docs/evidence-architecture.md)
 - [docs/evidence-model.md](docs/evidence-model.md)
 - [docs/evaluation.md](docs/evaluation.md)
+- [docs/audit-matrix.md](docs/audit-matrix.md)
 - [docs/bigquery-schema.sql](docs/bigquery-schema.sql)

@@ -11,7 +11,8 @@ All configuration is read from environment variables at startup. The server thro
 | `GCP_LOCATION` | no | `eu` | Discovery Engine region (`eu`, `global`, `us`) |
 | `DATA_STORE_ID` | no | — | Datastore ID for chunk-level evidence lookup. If unset, `/api/evidence/documents/:id/chunks` returns 501. |
 | `GCS_BUCKET` | no | — | GCS bucket name for the corpus. Enables `/api/storage/*` endpoints. |
-| `API_KEY` | no | — | Shared secret for `/api/*` endpoints. Pass via `X-API-Key` header. Strongly recommended in production. |
+| `API_KEY` | no | — | Shared secret for `/api/*` endpoints. Pass via `X-API-Key` header. Required in production unless `TRUST_IAP_HEADERS=true` behind IAP or a trusted proxy. |
+| `TRUST_IAP_HEADERS` | no | `false` | When `true`, protected routes also accept trusted `X-Goog-Authenticated-User-*` headers from IAP instead of `X-API-Key`. Never enable outside trusted ingress. |
 | `PORT` | no | `3001` | TCP port the HTTP server listens on. Cloud Run sets this automatically. |
 | `NODE_ENV` | no | `development` | `production` enables NDJSON structured logging and disables coloured TTY output. |
 | `LOG_LEVEL` | no | `debug` (dev) / `info` (prod) | Minimum log severity: `debug`, `info`, `warn`, `error` |
@@ -53,6 +54,11 @@ The service account needs these roles:
 | `roles/discoveryengine.viewer` | Query Vertex AI Search (answer + search endpoints) |
 | `roles/datastore.user` | Read/write Firestore (ingestion job state, if enabled) |
 
+Client authentication for `/api/*` is separate from ADC:
+
+- default: `X-API-Key`
+- optional: trusted IAP headers when `TRUST_IAP_HEADERS=true`
+
 ---
 
 ## IAP-protected deployments
@@ -64,7 +70,8 @@ X-Goog-Authenticated-User-Email: accounts.google.com:user@example.com
 X-Goog-Authenticated-User-ID: accounts.google.com:123456789
 ```
 
-The backend does not validate these headers itself — IAP guarantees they are present only for authenticated users. If you want to use the email in application logic, read `req.headers['x-goog-authenticated-user-email']`.
+When `TRUST_IAP_HEADERS=true`, protected routes accept these headers as an alternative to `X-API-Key`.
+If `TRUST_IAP_HEADERS=false`, they are ignored for authentication.
 
 **Important:** never trust these headers when IAP is NOT configured. In that case, any caller could spoof them.
 

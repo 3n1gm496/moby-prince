@@ -83,6 +83,7 @@ gcloud projects add-iam-policy-binding "${PROJECT}" \
 # From repo root:
 ENGINE_ID=your-engine-id \
 DATA_STORE_ID=your-datastore-id \
+API_KEY=your-shared-api-key \
   ./deploy/backend.sh
 ```
 
@@ -90,7 +91,10 @@ The script builds via Cloud Build, deploys to Cloud Run with `--no-allow-unauthe
 
 ### 3. Identity-Aware Proxy (IAP)
 
-The Cloud Run service is deployed without public access. IAP is the recommended access control mechanism for a solo analyst tool.
+The Cloud Run service is deployed without public access. IAP is the recommended ingress control, but the application still needs an explicit client-auth choice:
+
+- `API_KEY` on every protected `/api/*` route
+- or `TRUST_IAP_HEADERS=true` so the backend accepts trusted IAP identity headers
 
 ```bash
 # Enable IAP for Cloud Run
@@ -102,7 +106,8 @@ gcloud projects add-iam-policy-binding "${PROJECT}" \
   --role="roles/iap.httpsResourceAccessor"
 ```
 
-When IAP is active, every request carries an `X-Goog-Authenticated-User-Email` header the backend can read if needed. The backend does not implement its own authentication — it relies entirely on IAP.
+When IAP is active, every request carries an `X-Goog-Authenticated-User-Email` header.
+The backend only accepts that header for auth if `TRUST_IAP_HEADERS=true`; otherwise it still requires `X-API-Key`.
 
 ### 4. Deploy the frontend
 
@@ -133,6 +138,13 @@ The backend only allows requests from `FRONTEND_ORIGIN`. Set it in the Cloud Run
 ```bash
 gcloud run services update moby-prince-backend \
   --update-env-vars FRONTEND_ORIGIN=https://your-frontend-domain.com
+```
+
+If you want IAP-backed application auth instead of `X-API-Key`:
+
+```bash
+gcloud run services update moby-prince-backend \
+  --update-env-vars TRUST_IAP_HEADERS=true
 ```
 
 ---
