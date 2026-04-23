@@ -174,6 +174,50 @@ async function _bqInsert(tableId, rows) {
   }
 }
 
+async function _bqDropAndRecreateClaims() {
+  const token   = await getAccessToken();
+  const baseUrl = `https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT}/datasets/${DATASET}/tables`;
+
+  // Drop (ignore 404 if table doesn't exist yet)
+  const del = await fetch(`${baseUrl}/claims`, {
+    method:  'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!del.ok && del.status !== 404) {
+    throw new Error(`BQ drop claims failed (${del.status})`);
+  }
+
+  // Recreate with original partitioning + clustering
+  const create = await fetch(baseUrl, {
+    method:  'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      tableReference: { projectId: PROJECT, datasetId: DATASET, tableId: 'claims' },
+      timePartitioning: { type: 'DAY', field: 'created_at' },
+      clustering:       { fields: ['document_id', 'status', 'claim_type'] },
+      schema: { fields: [
+        { name: 'id',               type: 'STRING',    mode: 'REQUIRED' },
+        { name: 'text',             type: 'STRING',    mode: 'REQUIRED' },
+        { name: 'claim_type',       type: 'STRING',    mode: 'REQUIRED' },
+        { name: 'document_id',      type: 'STRING',    mode: 'REQUIRED' },
+        { name: 'chunk_id',         type: 'STRING',    mode: 'NULLABLE' },
+        { name: 'page_reference',   type: 'INT64',     mode: 'NULLABLE' },
+        { name: 'entity_ids',       type: 'STRING',    mode: 'REPEATED' },
+        { name: 'event_id',         type: 'STRING',    mode: 'NULLABLE' },
+        { name: 'confidence',       type: 'FLOAT64',   mode: 'NULLABLE' },
+        { name: 'status',           type: 'STRING',    mode: 'NULLABLE' },
+        { name: 'extraction_method',type: 'STRING',    mode: 'NULLABLE' },
+        { name: 'created_at',       type: 'TIMESTAMP', mode: 'NULLABLE' },
+        { name: 'updated_at',       type: 'TIMESTAMP', mode: 'NULLABLE' },
+      ]},
+    }),
+  });
+  if (!create.ok) {
+    const t = await create.text().catch(() => '');
+    throw new Error(`BQ recreate claims failed (${create.status}): ${t.slice(0, 200)}`);
+  }
+}
+
 // ── Vertex AI Search: list documents + chunks ─────────────────────────────────
 
 async function listAllDocuments() {
@@ -306,14 +350,8 @@ async function runClaimsPhase() {
   log('=== FASE 1: Estrazione claim ===');
 
   if (RESET_CLAIMS && !DRY_RUN) {
-    log('--reset-claims: ricreazione tabella claims (svuota streaming buffer)...');
-    // BQ does not allow DELETE on tables with rows in the streaming buffer.
-    // CREATE OR REPLACE TABLE ... AS SELECT ... WHERE FALSE atomically replaces
-    // the table with an empty copy preserving the same schema.
-    await _bqQuery(
-      `CREATE OR REPLACE TABLE \`${PROJECT}.${DATASET}.claims\`
-       AS SELECT * FROM \`${PROJECT}.${DATASET}.claims\` WHERE FALSE`,
-    );
+    log('--reset-claims: drop + recreate tabella claims...');
+    await _bqDropAndRecreateClaims();
     if (fs.existsSync(PROGRESS_FILE)) fs.unlinkSync(PROGRESS_FILE);
     log('Tabella claims svuotata. Ripartenza da zero.');
   }
