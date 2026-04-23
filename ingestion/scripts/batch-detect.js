@@ -306,10 +306,16 @@ async function runClaimsPhase() {
   log('=== FASE 1: Estrazione claim ===');
 
   if (RESET_CLAIMS && !DRY_RUN) {
-    log('--reset-claims: cancellazione claim esistenti da BigQuery...');
-    await _bqQuery(`DELETE FROM \`${PROJECT}.${DATASET}.claims\` WHERE TRUE`);
+    log('--reset-claims: ricreazione tabella claims (svuota streaming buffer)...');
+    // BQ does not allow DELETE on tables with rows in the streaming buffer.
+    // CREATE OR REPLACE TABLE ... AS SELECT ... WHERE FALSE atomically replaces
+    // the table with an empty copy preserving the same schema.
+    await _bqQuery(
+      `CREATE OR REPLACE TABLE \`${PROJECT}.${DATASET}.claims\`
+       AS SELECT * FROM \`${PROJECT}.${DATASET}.claims\` WHERE FALSE`,
+    );
     if (fs.existsSync(PROGRESS_FILE)) fs.unlinkSync(PROGRESS_FILE);
-    log('Claim eliminati. Ripartenza da zero.');
+    log('Tabella claims svuotata. Ripartenza da zero.');
   }
 
   const progress      = loadProgress();
