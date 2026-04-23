@@ -373,7 +373,7 @@ async function runClaimsPhase() {
             document_id:      docId,
             chunk_id:         chunkIds[0] || null,
             page_reference:   null,
-            entity_ids:       null,
+            entity_ids:       Array.isArray(c.entities) ? c.entities.map(String).slice(0, 5) : [],
             event_id:         null,
             confidence:       typeof c.confidence === 'number'
                               ? Math.max(0, Math.min(1, c.confidence)) : 0.7,
