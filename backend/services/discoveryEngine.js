@@ -283,13 +283,48 @@ async function getDocumentChunks(documentId) {
     );
   }
   if (!documentId) throw new DiscoveryEngineError('documentId is required', 400);
-  // Normalise: decode first (handles IDs that are already percent-encoded by Discovery Engine),
-  // then re-encode cleanly to avoid double-encoding (%20 → %2520).
   let encodedId;
   try { encodedId = encodeURIComponent(decodeURIComponent(documentId)); }
   catch { encodedId = encodeURIComponent(documentId); }
-  const url = `${config.dataStoreBase}/branches/0/documents/${encodedId}/chunks?pageSize=100`;
-  return _get(url);
+
+  // Try the direct chunks sub-resource (requires chunk storage enabled on the datastore).
+  try {
+    const data   = await _get(`${config.dataStoreBase}/branches/0/documents/${encodedId}/chunks?pageSize=100`);
+    const chunks = data.chunks || [];
+    if (chunks.length > 0) return data;
+  } catch (err) {
+    if (err.statusCode !== 404 && !err.message?.includes('404')) throw err;
+    // 404 = chunk storage not enabled; fall through to search-based retrieval
+  }
+
+  // Search-based fallback: retrieve chunks via :search filtered to this document.
+  const body = {
+    query:    documentId,
+    pageSize: 100,
+    contentSearchSpec: {
+      searchResultMode: 'CHUNKS',
+      chunkSpec: { numPreviousChunks: 0, numNextChunks: 0 },
+    },
+  };
+  const data    = await _post(config.searchEndpoint, body);
+  const results = data.results || [];
+
+  const chunks = results
+    .map(r => r.chunk)
+    .filter(c => {
+      if (!c) return false;
+      const parts = (c.name || '').split('/');
+      const ci    = parts.lastIndexOf('chunks');
+      return ci > 0 ? parts[ci - 1] === documentId : (c.name || '').includes(documentId);
+    })
+    .map(c => ({
+      name:             c.name || '',
+      content:          c.content || '',
+      pageIdentifier:   c.pageSpan?.pageStart ?? null,
+      relevanceScore:   null,
+    }));
+
+  return { chunks };
 }
 
 /**

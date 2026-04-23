@@ -13,6 +13,20 @@ const de         = require('../services/discoveryEngine');
 const gcs        = require('../services/gcs');
 const config     = require('../config');
 const eventsRepo = require('../repos/events');
+
+// Extract a human-readable title from a GCS URI (preferred over structData.title
+// which often contains the import folder name, e.g. "Atti Parlamentari").
+function _titleFromUri(uri) {
+  if (!uri) return null;
+  const filename = (uri.split('/').pop() || '').replace(/\.[^.]+$/, '');
+  return filename.replace(/[_-]+/g, ' ').trim() || null;
+}
+
+function _docTitle(sd, doc) {
+  const fromUri = _titleFromUri(doc?.content?.uri);
+  if (fromUri) return fromUri;
+  return sd?.title || doc?.name?.split('/').pop() || '';
+}
 const { isBigQueryEnabled } = require('../services/bigquery');
 
 const router      = Router();
@@ -36,7 +50,7 @@ router.get('/documents', async (req, res, next) => {
         const sd = doc.structData || {};
         allDocs.push({
           id:           doc.name?.split('/').pop() || '',
-          title:        sd.title        || doc.name?.split('/').pop() || '',
+          title:        _docTitle(sd, doc),
           year:         sd.year         ? Number(sd.year) : null,
           documentType: sd.documentType || null,
           institution:  sd.institution  || null,
@@ -132,10 +146,11 @@ function _extractLinkedDocs(answer) {
       const info = r.unstructuredDocumentInfo || r.chunkInfo?.documentMetadata || {};
       const name = info.document || '';
       const id   = name.split('/').pop() || '';
+      const uri  = info.uri || '';
       return {
         id,
-        title: info.title || id,
-        uri:   info.uri   || '',
+        title: _titleFromUri(uri) || info.title || id,
+        uri,
       };
     })
     .filter(d => d.id);

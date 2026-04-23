@@ -337,7 +337,7 @@ function ChunksSection({ documentId, gcsPath }) {
   if (phase === "notindexed") {
     return (
       <p className="text-[11px] text-text-secondary italic">
-        Documento non indicizzato in Discovery Engine.
+        Frammenti non disponibili per questo documento.
       </p>
     );
   }
