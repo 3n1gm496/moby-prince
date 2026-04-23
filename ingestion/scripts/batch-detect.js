@@ -238,13 +238,21 @@ async function listAllDocuments() {
 // Chunk resource names look like:
 // .../documents/{documentId}/chunks/{chunkId}
 // Extract documentId and compare with the target.
+function _normaliseId(id) {
+  try { return decodeURIComponent(id).replace(/\s/g, '_'); } catch { return id; }
+}
+
 function _chunkBelongsToDoc(chunk, docId) {
   const name  = chunk.name || '';
   const parts = name.split('/');
   const ci    = parts.lastIndexOf('chunks');
-  if (ci > 0) return parts[ci - 1] === docId;
-  // Fallback: check if name contains the docId substring
-  return name.includes(docId);
+  if (ci > 0) {
+    const chunkDocId = parts[ci - 1];
+    if (chunkDocId === docId) return true;
+    // Normalise both sides: decode %XX and unify spaces/underscores
+    return _normaliseId(chunkDocId) === _normaliseId(docId);
+  }
+  return _normaliseId(name).includes(_normaliseId(docId));
 }
 
 async function getChunksForDocument(docId, encodedDocId, title) {
@@ -282,12 +290,18 @@ async function getChunksForDocument(docId, encodedDocId, title) {
     });
 
     // Prefer chunks whose resource name encodes this document's ID.
-    const matched = results
-      .map(r => r.chunk)
-      .filter(c => c && _chunkBelongsToDoc(c, docId));
+    const allChunks = results.map(r => r.chunk).filter(Boolean);
+    const matched   = allChunks.filter(c => _chunkBelongsToDoc(c, docId));
 
     if (matched.length > 0) return matched.map(toChunk);
 
+    // Log first few chunk names so we can diagnose encoding mismatches.
+    if (allChunks.length > 0) {
+      warn(`  0/${allChunks.length} chunk corrispondono — cercato docId="${docId}"`);
+      warn(`  Esempi chunk.name: ${allChunks.slice(0, 3).map(c => c.name).join(' | ')}`);
+    } else {
+      warn(`  Nessun chunk restituito dalla ricerca per query="${title}"`);
+    }
     // No matched chunks for this document — skip rather than returning unrelated chunks.
     // Returning unrelated chunks causes claims to be attributed to the wrong document,
     // which breaks contradiction detection (pairs look related but aren't contradictory).
