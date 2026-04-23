@@ -7,7 +7,22 @@ Questo runbook traduce l'audit live del corpus in un piano esecutivo di rialline
 Report di riferimento:
 
 - [Corpus Audit Latest](../reports/corpus-audit-latest.md)
+- [Corpus Inventory Latest](../reports/corpus-inventory-latest.md)
+- [Evidence Snapshot Latest](../reports/evidence-snapshot-latest.md)
 - [Audit Matrix](../audit-matrix.md)
+
+## Avanzamento gia' eseguito
+
+Fasi completate sul corpus live il `2026-04-23`:
+
+- Fase 0: snapshot dataset creato con label `pre_reprocessing_20260423t165446`
+- Fase 1: inventory bucket completato
+
+Esito sintetico:
+
+- `245/245` documenti allineati fra GCS, BigQuery e Discovery Engine
+- `1` artefatto legacy reale: `gs://moby-prince/_timeline/events.json`
+- `8` marker di cartella GCS classificati come `supporting`, non come orfani
 
 ## Stato live rilevato
 

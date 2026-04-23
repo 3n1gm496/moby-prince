@@ -422,12 +422,17 @@ Per il controllo end-to-end del corpus e dei mismatch principali:
 ```bash
 node scripts/audit-corpus.js
 node scripts/audit-corpus.js --format=markdown --output=docs/reports/corpus-audit.md
+node scripts/inventory-corpus.js --format=markdown --output=docs/reports/corpus-inventory.md --json-output=docs/reports/corpus-inventory.json
+node scripts/snapshot-evidence.js --dry-run --format=markdown --output=docs/reports/evidence-snapshot-plan.md
+node scripts/snapshot-evidence.js --format=markdown --output=docs/reports/evidence-snapshot-latest.md
 ```
 
 La matrice critica persistita del progetto e in:
 
 - [docs/audit-matrix.md](docs/audit-matrix.md)
 - [docs/reports/corpus-audit-latest.md](docs/reports/corpus-audit-latest.md)
+- [docs/reports/corpus-inventory-latest.md](docs/reports/corpus-inventory-latest.md)
+- [docs/reports/evidence-snapshot-latest.md](docs/reports/evidence-snapshot-latest.md)
 - [docs/runbooks/reprocessing-corpus.md](docs/runbooks/reprocessing-corpus.md)
 
 ## Limiti noti
@@ -443,5 +448,7 @@ La matrice critica persistita del progetto e in:
 - [docs/evaluation.md](docs/evaluation.md)
 - [docs/audit-matrix.md](docs/audit-matrix.md)
 - [docs/reports/corpus-audit-latest.md](docs/reports/corpus-audit-latest.md)
+- [docs/reports/corpus-inventory-latest.md](docs/reports/corpus-inventory-latest.md)
+- [docs/reports/evidence-snapshot-latest.md](docs/reports/evidence-snapshot-latest.md)
 - [docs/runbooks/reprocessing-corpus.md](docs/runbooks/reprocessing-corpus.md)
 - [docs/bigquery-schema.sql](docs/bigquery-schema.sql)
