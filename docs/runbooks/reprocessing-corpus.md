@@ -192,7 +192,9 @@ Stato corrente:
 - i normalized child vengono trattati come layer probatorio, non come nuovi documenti canonici di Discovery Engine
 - `INDEX_SKIP_NORMALIZED_CHILDREN=true` evita il fallimento rumoroso sul datastore attuale e preserva `canonical_document_id` + `canonical_source_uri`
 - il purge dei claim avviene una sola volta per documento canonico durante il reprocessing a sezioni
-- blocco residuo: confermare live che il percorso `Document AI -> child HTML -> claims/page refs -> BQ` funziona end-to-end senza dipendere dal reindex dei child in Discovery Engine
+- `documents.normalized_uri`, `chunk_count` e `reprocessing_state` vengono ora materializzati sul documento canonico
+- la Natural Language API e' stata attivata e l'entity extraction sui child normalized ora gira davvero
+- blocco residuo: completare il batch corpus e poi riallineare eventi/entita' al nuovo layer claims/anchors
 
 ### Fase 3. Page map e split strutturato
 

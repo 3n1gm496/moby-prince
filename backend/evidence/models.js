@@ -39,6 +39,8 @@
  * @property {number|null} chunkCount
  * @property {number|null} wordCount
  * @property {string|null} ingestedAt          ISO timestamp
+ * @property {string|null} ingestionJobId
+ * @property {string|null} reprocessingState
  * @property {string}      createdAt
  * @property {string}      updatedAt
  */
@@ -66,6 +68,8 @@ function normalizeDocument(row) {
     chunkCount:       row.chunk_count != null ? Number(row.chunk_count) : null,
     wordCount:        row.word_count  != null ? Number(row.word_count)  : null,
     ingestedAt:       row.ingested_at ? _toIso(row.ingested_at) : null,
+    ingestionJobId:   row.ingestion_job_id ?? null,
+    reprocessingState: row.reprocessing_state ?? null,
     createdAt:        _toIso(row.created_at),
     updatedAt:        _toIso(row.updated_at),
   };

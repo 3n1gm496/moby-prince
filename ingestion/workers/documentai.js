@@ -31,6 +31,7 @@ const path = require('path');
 const { BaseWorker } = require('./base');
 const { createJob } = require('../state/job');
 const { toDocumentId } = require('../lib/documentId');
+const documentRegistry = require('../services/documentRegistry');
 
 const DOCAI_LOCATION = process.env.DOCAI_LOCATION || 'eu';
 // Headings: short all-caps or Title Case lines (< 120 chars), possibly ending without a period
@@ -211,8 +212,36 @@ class DocumentAIWorker extends BaseWorker {
         normalizedUris.push(`gs://${normalizedBucket}/${partName}`);
       }
 
+      const manifestName = `moby-prince/${stem}.normalized-manifest.json`;
+      const manifestUri = `gs://${normalizedBucket}/${manifestName}`;
+      const canonicalDocumentId = toDocumentId(job.originalFilename);
+      const manifest = {
+        sourceUri: job.sourceUri,
+        canonicalDocumentId,
+        generatedAt: new Date().toISOString(),
+        partsCount: sections.length,
+        ocrQuality,
+        layoutType,
+        partUris: normalizedUris,
+        sections: sections.map((section, index) => ({
+          uri: normalizedUris[index],
+          heading: section.heading || null,
+          pageStart: section.pageStart ?? null,
+          pageEnd: section.pageEnd ?? null,
+        })),
+      };
+
+      await storage.bucket(normalizedBucket).file(manifestName).save(JSON.stringify(manifest, null, 2), {
+        contentType: 'application/json; charset=utf-8',
+        metadata: {
+          jobId: job.jobId,
+          sourceUri: job.sourceUri,
+          partsCount: String(sections.length),
+        },
+      });
+
       this.logger.info(
-        { jobId: job.jobId, partsCount: sections.length, partUris: normalizedUris },
+        { jobId: job.jobId, partsCount: sections.length, partUris: normalizedUris, manifestUri },
         `Split into ${sections.length} sections via Document AI`
       );
 
@@ -225,8 +254,9 @@ class DocumentAIWorker extends BaseWorker {
         if (sec.pageStart != null) extraMeta.page_start  = sec.pageStart;
         if (sec.pageEnd   != null) extraMeta.page_end    = sec.pageEnd;
         extraMeta.skip_indexing = true;
-        extraMeta.canonical_document_id = toDocumentId(job.originalFilename);
+        extraMeta.canonical_document_id = canonicalDocumentId;
         extraMeta.canonical_source_uri = job.sourceUri;
+        extraMeta.canonical_normalized_uri = manifestUri;
         extraMeta.purge_claims = i === 0;
         return createJob(uri, {
           originalFilename: `${stem}_part_${String(i + 1).padStart(3, '0')}.html`,
@@ -235,6 +265,26 @@ class DocumentAIWorker extends BaseWorker {
           ...extraMeta,
         }, this._config.retry.maxAttempts);
       });
+
+      if (documentRegistry.isEnabled()) {
+        try {
+          await documentRegistry.upsertReprocessingMetadata({
+            documentId: canonicalDocumentId,
+            sourceUri: job.sourceUri,
+            normalizedUri: manifestUri,
+            title: path.basename(job.originalFilename, path.extname(job.originalFilename)),
+            ocrQuality,
+            chunkCount: sections.length,
+            ingestionJobId: job.jobId,
+            reprocessingState: 'normalized_children_ready',
+          });
+        } catch (registryErr) {
+          this.logger.warn(
+            { jobId: job.jobId, error: registryErr.message },
+            'Could not persist document reprocessing metadata to BigQuery',
+          );
+        }
+      }
 
       const completed = splitting.completeSplit(normalizedUris);
       return this.ok(completed, { childJobs, partsCount: sections.length, partUris: normalizedUris });

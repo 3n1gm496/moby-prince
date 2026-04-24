@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS `{project}.evidence.documents` (
   word_count          INT64,
   ingested_at         TIMESTAMP,
   ingestion_job_id    STRING,
+  reprocessing_state  STRING              OPTIONS(description='pending|normalized_children_ready|reprocessed|failed'),
   created_at          TIMESTAMP NOT NULL,
   updated_at          TIMESTAMP NOT NULL
 )

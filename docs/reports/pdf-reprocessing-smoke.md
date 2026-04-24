@@ -27,15 +27,20 @@ Documento testato:
 - output normalized convertito in `.html`
 - i child normalized vengono ora ricondotti al documento canonico `archiviazione-2010-2380025c`
 - il reindex Discovery Engine dei child viene saltato intenzionalmente con `INDEX_SKIP_NORMALIZED_CHILDREN=true`
-- il reprocessing live ha scritto `60` claim sul documento canonico, tutti con `page_reference`
-- dopo rebuild anchors, il documento di smoke ha `60` anchor `page` e `60` anchor `text_span`
+- il documento canonico viene aggiornato in `evidence.documents` con:
+  - `normalized_uri = gs://moby-prince-normalized/moby-prince/Archiviazione-2010.normalized-manifest.json`
+  - `chunk_count = 25`
+  - `reprocessing_state = normalized_children_ready`
+- l'entity extraction gira davvero sui child normalized dopo attivazione della Natural Language API
+- il reprocessing live ha scritto `58` claim sul documento canonico, tutti con `page_reference`
+- dopo rebuild anchors, il documento di smoke ha `58` anchor `page` e `58` anchor `text_span`
 
 ### Gap residui
 
 - il datastore Discovery Engine corrente non accetta i child `text/html` come documenti canonici; il problema e' mitigato saltando il loro indexing
-- l'estrazione entita' durante lo smoke falliva localmente con `Natural Language API 403` per mancanza di quota project ADC
-- il worker NL e' stato corretto aggiungendo `X-Goog-User-Project`, ma questo fix non e' ancora stato ri-verificato con un nuovo smoke completo
+- l'estrazione entita' non e' ancora AI-first: oggi usa ancora la Natural Language API e non il layer canonico finale che vogliamo
 - il documento padre resta in stato finale `SPLITTING`, mentre il valore archivisticamente corretto del progresso e' ormai "reprocessed with child evidence"; serve una materializzazione/stato esplicito nella pipeline o nel dataset
+- `ocr_quality` resta `NULL` nel documento di smoke: il Layout Parser usato qui non ha restituito confidenze token spendibili
 
 ## Bug corretti durante lo smoke
 
@@ -63,6 +68,12 @@ Documento testato:
 8. `EntityExtractionWorker` non inviava il quota project alla Natural Language API.
    Corretto aggiungendo `X-Goog-User-Project`.
 
+9. La Natural Language API non era abilitata nel progetto Google Cloud.
+   Corretta l'infrastruttura attivando `language.googleapis.com`.
+
+10. Il `MERGE` su `evidence.documents` non tipizzava esplicitamente le costanti e falliva su BigQuery.
+    Corretto con `CAST(... AS STRING|INT64)` nel `documentRegistry`.
+
 ## Diagnosi tecnica
 
 La Fase 2 e l'inizio della Fase 4 sono oggi realmente riuscite sul documento di smoke:
@@ -71,18 +82,21 @@ La Fase 2 e l'inizio della Fase 4 sono oggi realmente riuscite sul documento di 
 - provisioning processor: riuscito
 - OCR/sectioning PDF-first: riuscito
 - normalized outputs persistiti: riuscito
+- manifest normalized persistito: riuscito
+- metadata documento padre in `documents`: riusciti
 - claims con `page_reference`: riusciti
 - page anchors strutturati: riusciti dopo rebuild `source_anchors`
 - reindex Discovery Engine dei normalized children: non piu' necessario per il layer probatorio corrente
+- entity extraction sui child normalized: riuscita, ma ancora su stack NL API legacy
 
 ## Prossimo blocco da risolvere
 
 Serve chiudere questi punti:
 
-1. popolare `documents.normalized_uri`, `ocr_quality`, `chunk_count` e lo stato di reprocessing del documento padre
-2. verificare di nuovo l'entity extraction dopo il fix `X-Goog-User-Project`
-3. portare lo stesso percorso sul batch corpus completo
-4. rigenerare eventi ed entita' dal nuovo layer claims/anchors, non da quello storico
+1. portare lo stesso percorso sul batch corpus completo
+2. rigenerare eventi ed entita' dal nuovo layer claims/anchors, non da quello storico
+3. sostituire l'entity extraction NL API con il percorso AI-first/canonico finale
+4. decidere se introdurre uno stato terminale esplicito per il parent job oltre a `reprocessing_state`
 
 ## Impatto sul piano
 

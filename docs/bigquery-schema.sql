@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS `evidence.documents` (
   chunk_count INT64,
   word_count INT64,
   ingested_at TIMESTAMP,
+  ingestion_job_id STRING,
+  reprocessing_state STRING,
   created_at TIMESTAMP NOT NULL,
   updated_at TIMESTAMP NOT NULL
 );
