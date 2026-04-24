@@ -1,6 +1,6 @@
 # Corpus Audit
 
-Generato: 2026-04-24T06:42:24.846Z
+Generato: 2026-04-24T06:55:08.829Z
 
 ## Counts
 
@@ -25,6 +25,8 @@ Generato: 2026-04-24T06:42:24.846Z
 | invalidEventEntityIds | 0 |
 | claimsWithoutDocuments | 0 |
 | anchorsWithoutDocuments | 0 |
+| anchorsWithoutClaims | 160 |
+| duplicateDocumentSourceUris | 1 |
 | pageAnchors | 160 |
 | nullDateWithItalianDay | 0 |
 | documentsWithoutSourceUri | 0 |
@@ -38,6 +40,7 @@ Generato: 2026-04-24T06:42:24.846Z
 | documents_without_chunk_count | 243 |
 | documents_without_ocr_quality | 246 |
 | documents_with_split_parent | 0 |
+| documents_with_normalized_uri | 3 |
 | claims_with_page_reference | 160 |
 | claims_without_page_reference | 6346 |
 
@@ -47,41 +50,6 @@ Generato: 2026-04-24T06:42:24.846Z
 {
   "eventsWithoutSources": [
     {
-      "id": "event-22-20-witness-sees-agip-abruzzo-and-other-ships-5fe02ee5",
-      "title": "Witness sees Agip Abruzzo and other ships",
-      "date_text": "22:20"
-    },
-    {
-      "id": "event-1991-04-10-operazioni-di-trasbordo-di-armamenti-c29b1d11",
-      "title": "Operazioni di trasbordo di armamenti",
-      "date_text": "10 aprile 1991"
-    },
-    {
-      "id": "event-1991-04-10-partenza-della-margareth-lykes-523ec5f1",
-      "title": "Partenza della Margareth Lykes",
-      "date_text": "sera dei fatti (10 aprile 1991)"
-    },
-    {
-      "id": "event-22-14-visibility-described-as-discrete-1bf63b41",
-      "title": "Visibility described as discrete",
-      "date_text": "22:14"
-    },
-    {
-      "id": "event-1991-04-10-passeggeri-trovati-nella-sala-de-luxe-543559e1",
-      "title": "Passeggeri trovati nella sala De Luxe",
-      "date_text": "dopo la collisione del 10 aprile 1991"
-    },
-    {
-      "id": "event-04-10-first-tugboat-connects-to-moby-prince-d48bef76",
-      "title": "First tugboat connects to Moby Prince",
-      "date_text": "04:10"
-    },
-    {
-      "id": "event-1995-03-31-rapporto-questura-di-livorno-digos-ebfc46c5",
-      "title": "Rapporto Questura di Livorno – Digos",
-      "date_text": "31 marzo 1995"
-    },
-    {
       "id": "event-2002-05-24-dichiarazione-di-john-t-oliver-sul-ru-f66c684b",
       "title": "Dichiarazione di John T. Oliver sul ruolo delle navi americane",
       "date_text": "24 maggio 2002"
@@ -90,6 +58,41 @@ Generato: 2026-04-24T06:42:24.846Z
       "id": "event-2002-05-24-risposta-del-capitano-di-vascello-joh-f25716c0",
       "title": "Risposta del Capitano di Vascello John T. Oliver",
       "date_text": "24 maggio 2002"
+    },
+    {
+      "id": "event-1991-03-19-richiesta-acquisizione-atti-ministeri-69e7dcd8",
+      "title": "Richiesta acquisizione atti ministeriali",
+      "date_text": "19 marzo 1991"
+    },
+    {
+      "id": "event-1991-04-10-passeggeri-trovati-nella-sala-de-luxe-543559e1",
+      "title": "Passeggeri trovati nella sala De Luxe",
+      "date_text": "dopo la collisione del 10 aprile 1991"
+    },
+    {
+      "id": "event-22-14-visibility-described-as-discrete-1bf63b41",
+      "title": "Visibility described as discrete",
+      "date_text": "22:14"
+    },
+    {
+      "id": "event-1991-04-10-dichiarazione-di-marcella-bini-6331a2b8",
+      "title": "Dichiarazione di Marcella Bini",
+      "date_text": "intorno alle 22:25 del 10 aprile 1991"
+    },
+    {
+      "id": "event-22-20-witness-sees-agip-abruzzo-and-other-ships-5fe02ee5",
+      "title": "Witness sees Agip Abruzzo and other ships",
+      "date_text": "22:20"
+    },
+    {
+      "id": "event-1991-04-10-comunicazione-punto-di-fonda-dell-agi-aef294ec",
+      "title": "Comunicazione punto di fonda dell'Agip Abruzzo",
+      "date_text": "dopo la collisione del 10 aprile 1991"
+    },
+    {
+      "id": "event-1991-04-10-radar-delle-imbarcazioni-di-soccorso--8c40be74",
+      "title": "Radar delle imbarcazioni di soccorso impazziscono",
+      "date_text": "dopo la collisione del 10 aprile 1991"
     },
     {
       "id": "event-ore-20-22-20-moby-prince-communication-with-livo-0d876db6",
@@ -147,6 +150,16 @@ Generato: 2026-04-24T06:42:24.846Z
       "id": "person-leonardo-chiesa-71494e1e",
       "canonical_name": "Leonardo Chiesa",
       "entity_type": "PERSON"
+    }
+  ],
+  "duplicateDocumentSourceUris": [
+    {
+      "source_uri": "gs://moby-prince/Fonti Giudiziarie/Archiviazione-2010.pdf",
+      "row_count": 2,
+      "document_ids": [
+        "01b1b75b253a3cd8351cc962c253ba44",
+        "archiviazione-2010-2380025c"
+      ]
     }
   ]
 }

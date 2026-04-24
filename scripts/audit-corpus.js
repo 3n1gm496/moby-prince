@@ -113,6 +113,22 @@ async function collectMismatches() {
       LEFT JOIN \`${PROJECT}.${DATASET}.documents\` d ON d.id = a.document_id
       WHERE d.id IS NULL
     `),
+    safeQuerySingleValue(['source_anchors', 'claims'], `
+      SELECT COUNT(*) AS cnt
+      FROM \`${PROJECT}.${DATASET}.source_anchors\` a
+      LEFT JOIN \`${PROJECT}.${DATASET}.claims\` c ON c.id = a.claim_id
+      WHERE a.claim_id IS NOT NULL AND c.id IS NULL
+    `),
+    safeQuerySingleValue(['documents'], `
+      SELECT COUNT(*) AS cnt
+      FROM (
+        SELECT source_uri
+        FROM \`${PROJECT}.${DATASET}.documents\`
+        WHERE source_uri IS NOT NULL AND TRIM(source_uri) != ''
+        GROUP BY source_uri
+        HAVING COUNT(*) > 1
+      )
+    `),
     safeQuerySingleValue(['source_anchors'], `
       SELECT COUNT(*) AS cnt
       FROM \`${PROJECT}.${DATASET}.source_anchors\`
@@ -140,7 +156,8 @@ async function collectMismatches() {
   ]);
 
   const [eventsWithoutRealSources, invalidEventEntityIds, claimsWithoutDocuments, anchorsWithoutDocuments,
-    pageAnchors, nullDateWithItalianDay, documentsWithoutSourceUri, emptyEntityProfiles] = rows;
+    anchorsWithoutClaims, duplicateDocumentSourceUris, pageAnchors, nullDateWithItalianDay,
+    documentsWithoutSourceUri, emptyEntityProfiles] = rows;
 
   const samples = await Promise.all([
     safeQueryRows(['events', 'claims'], `
@@ -158,6 +175,14 @@ async function collectMismatches() {
       ORDER BY updated_at DESC
       LIMIT 10
     `),
+    safeQueryRows(['documents'], `
+      SELECT source_uri, COUNT(*) AS row_count, ARRAY_AGG(id ORDER BY created_at ASC LIMIT 5) AS document_ids
+      FROM \`${PROJECT}.${DATASET}.documents\`
+      WHERE source_uri IS NOT NULL AND TRIM(source_uri) != ''
+      GROUP BY source_uri
+      HAVING COUNT(*) > 1
+      LIMIT 10
+    `),
   ]);
 
   return {
@@ -165,6 +190,8 @@ async function collectMismatches() {
     invalidEventEntityIds,
     claimsWithoutDocuments,
     anchorsWithoutDocuments,
+    anchorsWithoutClaims,
+    duplicateDocumentSourceUris,
     pageAnchors,
     nullDateWithItalianDay,
     documentsWithoutSourceUri,
@@ -172,6 +199,7 @@ async function collectMismatches() {
     samples: {
       eventsWithoutSources: samples[0],
       entities: samples[1],
+      duplicateDocumentSourceUris: samples[2],
     },
   };
 }
@@ -183,7 +211,8 @@ async function collectQuality() {
         COUNTIF(normalized_uri IS NULL OR TRIM(normalized_uri) = '') AS documents_without_normalized_uri,
         COUNTIF(chunk_count IS NULL) AS documents_without_chunk_count,
         COUNTIF(ocr_quality IS NULL OR TRIM(ocr_quality) = '') AS documents_without_ocr_quality,
-        COUNTIF(parent_document_id IS NOT NULL) AS documents_with_split_parent
+        COUNTIF(parent_document_id IS NOT NULL) AS documents_with_split_parent,
+        COUNTIF(normalized_uri IS NOT NULL AND TRIM(normalized_uri) != '') AS documents_with_normalized_uri
       FROM \`${PROJECT}.${DATASET}.documents\`
     `),
     safeQuerySingleRow(['claims'], `
