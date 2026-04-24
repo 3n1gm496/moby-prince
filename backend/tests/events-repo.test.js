@@ -18,4 +18,10 @@ describe('events repo timeline contract', () => {
     expect(src).toContain("async function listByEntity");
     expect(src).toContain("_listTimelineInternal({ entityId, limit })");
   });
+
+  it('does not expose timeline events without resolved evidence sources', () => {
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const src = fs.readFileSync(path.join(__dirname, '../repos/events.js'), 'utf8');
+    expect(src).toContain(".filter((event) => event.sources.length > 0)");
+  });
 });

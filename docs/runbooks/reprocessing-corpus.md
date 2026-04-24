@@ -194,7 +194,16 @@ Stato corrente:
 - il purge dei claim avviene una sola volta per documento canonico durante il reprocessing a sezioni
 - `documents.normalized_uri`, `chunk_count` e `reprocessing_state` vengono ora materializzati sul documento canonico
 - la Natural Language API e' stata attivata e l'entity extraction sui child normalized ora gira davvero
+- batch controllato del 2026-04-24 completato su 2 PDF reali:
+  - `Moby Prince - Istanza Riapertura - 11-10-2006.pdf`
+  - `Moby-Prince-Sentenza-1_(31.10.1998).pdf`
+- i due PDF sono stati materializzati con `reprocessing_state = normalized_children_ready`
+- i claim dei due PDF hanno `page_reference` e `document_uri` popolati
+- il batch runner ora salta i documenti gia' riprocessati per `source_uri`, evitando duplicati quando esistono piu' righe storiche per lo stesso asset
+- il batch runner archivia i report delle esecuzioni reali oltre al report `latest`
 - blocco residuo: completare il batch corpus e poi riallineare eventi/entita' al nuovo layer claims/anchors
+- debito dati misurato: `source_anchors` contiene anchor orfani storici per alcuni documenti gia' riprocessati; la bonifica distruttiva va eseguita solo fuori streaming buffer BigQuery
+- debito timeline misurato: il reprocessing claim ha reso orfani `27` eventi storici rispetto ai loro `source_claim_ids`; la UI timeline ora filtra eventi senza fonti risolte, ma il dataset eventi va rigenerato dal nuovo layer claims/anchors prima del batch completo
 
 ### Fase 3. Page map e split strutturato
 

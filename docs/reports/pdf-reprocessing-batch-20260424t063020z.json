@@ -1,0 +1,32 @@
+{
+  "generatedAt": "2026-04-24T06:30:20.013Z",
+  "mode": "execute",
+  "project": "project-fae202f2-19be-4d87-8cd",
+  "dataset": "evidence",
+  "totalCorpusPdfs": 244,
+  "candidatesAfterFiltering": 243,
+  "selectedCount": 2,
+  "completed": 2,
+  "failed": 0,
+  "results": [
+    {
+      "index": 0,
+      "uri": "gs://moby-prince/Fonti Giudiziarie/Moby Prince - Istanza Riapertura - 11-10-2006.pdf",
+      "documentId": "e4083994014c2f67e0e02937c8b5cb81",
+      "title": "Moby Prince Istanza Riapertura 11 10 2006",
+      "status": "completed"
+    },
+    {
+      "index": 1,
+      "uri": "gs://moby-prince/Fonti Giudiziarie/Moby-Prince-Sentenza-1_(31.10.1998).pdf",
+      "documentId": "2fb11784e62779c325737ec95528816c",
+      "title": "Moby Prince Sentenza 1 (31.10.1998)",
+      "status": "completed"
+    }
+  ],
+  "postRunVerification": {
+    "candidatesAfterDryRun": 241,
+    "sourceAnchorsInsertedIncrementally": 204,
+    "knownIssue": "source_anchors contains historical orphan anchors for these documents; destructive cleanup is blocked while BigQuery streaming buffers are active."
+  }
+}

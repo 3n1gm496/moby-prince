@@ -223,10 +223,12 @@ function _aggregateTimelineRows(rows) {
     }
   }
 
-  return Array.from(events.values()).map(({ event, sourcesByKey }) => {
-    event.sources = Array.from(sourcesByKey.values());
-    return _buildTimelineEvent(event);
-  });
+  return Array.from(events.values())
+    .map(({ event, sourcesByKey }) => {
+      event.sources = Array.from(sourcesByKey.values());
+      return _buildTimelineEvent(event);
+    })
+    .filter((event) => event.sources.length > 0);
 }
 
 async function list({ from, to, eventType, limit = 200 } = {}) {

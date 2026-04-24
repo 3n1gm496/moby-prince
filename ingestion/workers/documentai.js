@@ -214,7 +214,10 @@ class DocumentAIWorker extends BaseWorker {
 
       const manifestName = `moby-prince/${stem}.normalized-manifest.json`;
       const manifestUri = `gs://${normalizedBucket}/${manifestName}`;
-      const canonicalDocumentId = toDocumentId(job.originalFilename);
+      const canonicalDocumentId = await documentRegistry.resolveCanonicalDocumentId({
+        sourceUri: job.sourceUri,
+        originalFilename: job.originalFilename,
+      });
       const manifest = {
         sourceUri: job.sourceUri,
         canonicalDocumentId,

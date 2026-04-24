@@ -8,6 +8,10 @@ const PROJECT = process.env.GOOGLE_CLOUD_PROJECT;
 const DATASET = process.env.BQ_DATASET_ID || 'evidence';
 const LOCATION = process.env.BQ_LOCATION || 'EU';
 const REPLACE = process.argv.includes('--replace');
+const DOCUMENT_IDS = process.argv
+  .filter((arg) => arg.startsWith('--document-id='))
+  .map((arg) => arg.slice('--document-id='.length).trim())
+  .filter(Boolean);
 
 if (!PROJECT) {
   console.error('GOOGLE_CLOUD_PROJECT non impostato.');
@@ -49,16 +53,32 @@ function inferMimeType(uri) {
   return null;
 }
 
+function sqlString(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
 async function main() {
   if (REPLACE) {
     await dml(`DELETE FROM \`${DATASET}.source_anchors\` WHERE TRUE`);
   }
 
+  const documentFilter = DOCUMENT_IDS.length
+    ? `WHERE document_id IN (${DOCUMENT_IDS.map(sqlString).join(', ')})`
+    : '';
+
   const rows = await query(`
     SELECT id, document_id, document_uri, text, page_reference, created_at, updated_at
     FROM \`${PROJECT}.${DATASET}.claims\`
+    ${documentFilter}
     ORDER BY created_at ASC
   `);
+
+  const existingRows = await query(`
+    SELECT id
+    FROM \`${PROJECT}.${DATASET}.source_anchors\`
+    ${DOCUMENT_IDS.length ? `WHERE document_id IN (${DOCUMENT_IDS.map(sqlString).join(', ')})` : ''}
+  `);
+  const existingIds = new Set(existingRows.map((row) => row.id));
 
   const anchors = [];
   for (const row of rows) {
@@ -66,8 +86,9 @@ async function main() {
     const pageMatch = String(row.page_reference || '').match(/(\d{1,4})/);
     const pageNumber = pageMatch ? Number(pageMatch[1]) : null;
     if (pageNumber != null) {
-      anchors.push({
-        id: `${row.id}-page`,
+      const id = `${row.id}-page`;
+      if (!existingIds.has(id)) anchors.push({
+        id,
         document_id: row.document_id,
         claim_id: row.id,
         event_id: null,
@@ -87,8 +108,9 @@ async function main() {
       });
     }
     if (snippet) {
-      anchors.push({
-        id: `${row.id}-text`,
+      const id = `${row.id}-text`;
+      if (!existingIds.has(id)) anchors.push({
+        id,
         document_id: row.document_id,
         claim_id: row.id,
         event_id: null,

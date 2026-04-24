@@ -3,6 +3,8 @@
 const path = require('path');
 
 const bq = require('./bigquery');
+const { getAccessToken } = require('./auth');
+const { toDocumentId } = require('../lib/documentId');
 
 const PROJECT = process.env.BQ_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || null;
 const DATASET = process.env.BQ_DATASET_ID || 'evidence';
@@ -22,6 +24,48 @@ function sqlTimestamp(value) {
 
 function sqlNumber(value) {
   return Number.isFinite(value) ? String(value) : 'NULL';
+}
+
+async function resolveCanonicalDocumentId({ sourceUri, originalFilename }) {
+  if (!isEnabled() || !sourceUri) return toDocumentId(originalFilename || sourceUri);
+
+  const token = await getAccessToken();
+  const res = await fetch(`https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT}/queries`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      query: `
+        SELECT id
+        FROM \`${PROJECT}.${DATASET}.documents\`
+        WHERE source_uri = @sourceUri
+        ORDER BY
+          CASE
+            WHEN vertex_document_id IS NOT NULL THEN 0
+            WHEN normalized_uri IS NULL THEN 1
+            ELSE 2
+          END,
+          created_at ASC
+        LIMIT 1
+      `,
+      location: process.env.BQ_LOCATION || 'EU',
+      timeoutMs: 30_000,
+      useLegacySql: false,
+      parameterMode: 'NAMED',
+      queryParameters: [{
+        name: 'sourceUri',
+        parameterType: { type: 'STRING' },
+        parameterValue: { value: sourceUri },
+      }],
+    }),
+  });
+
+  if (!res.ok) return toDocumentId(originalFilename || sourceUri);
+  const data = await res.json();
+  const id = data.rows?.[0]?.f?.[0]?.v;
+  return id || toDocumentId(originalFilename || sourceUri);
 }
 
 async function upsertReprocessingMetadata({
@@ -115,4 +159,4 @@ async function upsertReprocessingMetadata({
   return true;
 }
 
-module.exports = { isEnabled, upsertReprocessingMetadata };
+module.exports = { isEnabled, resolveCanonicalDocumentId, upsertReprocessingMetadata };
