@@ -32,6 +32,7 @@ const RAW_BUCKET = process.env.BUCKET_RAW || process.env.GCS_BUCKET || null;
 const NORMALIZED_BUCKET = process.env.BUCKET_NORMALIZED || null;
 const FORMAT = valueOf('--format', 'text');
 const OUTPUT = valueOf('--output', '');
+const warnings = [];
 
 if (!PROJECT) {
   console.error('GOOGLE_CLOUD_PROJECT/BQ_PROJECT_ID non impostato.');
@@ -51,6 +52,7 @@ async function main() {
     counts: await collectCounts(),
     mismatches: await collectMismatches(),
     quality: await collectQuality(),
+    warnings,
   };
 
   const rendered = render(report, FORMAT);
@@ -334,23 +336,45 @@ async function queryRows(sql) {
 
 async function safeQuerySingleRow(requiredTables, sql) {
   if (!(await allTablesExist(requiredTables))) return null;
-  const rows = await queryRows(sql);
-  return rows[0] || null;
+  try {
+    const rows = await queryRows(sql);
+    return rows[0] || null;
+  } catch (err) {
+    warnings.push(queryWarning(requiredTables, err));
+    return null;
+  }
 }
 
 async function safeQuerySingleValue(requiredTables, sql) {
   if (!(await allTablesExist(requiredTables))) return null;
-  return querySingleValue(sql);
+  try {
+    return querySingleValue(sql);
+  } catch (err) {
+    warnings.push(queryWarning(requiredTables, err));
+    return null;
+  }
 }
 
 async function safeQueryRows(requiredTables, sql) {
   if (!(await allTablesExist(requiredTables))) return [];
-  return queryRows(sql);
+  try {
+    return queryRows(sql);
+  } catch (err) {
+    warnings.push(queryWarning(requiredTables, err));
+    return [];
+  }
 }
 
 async function allTablesExist(tables) {
   const checks = await Promise.all(tables.map((table) => bq.tableExists(table).catch(() => false)));
   return checks.every(Boolean);
+}
+
+function queryWarning(requiredTables, err) {
+  return {
+    tables: requiredTables,
+    message: String(err?.message || err).slice(0, 500),
+  };
 }
 
 function render(report, format) {
@@ -373,6 +397,13 @@ function renderText(report) {
     lines.push(`- BQ ${key}: ${value}`);
   }
   lines.push('');
+  if (report.warnings?.length) {
+    lines.push('Warnings');
+    for (const warning of report.warnings) {
+      lines.push(`- ${warning.tables.join(', ')}: ${warning.message}`);
+    }
+    lines.push('');
+  }
   lines.push('Mismatches');
   for (const [key, value] of Object.entries(report.mismatches)) {
     if (key === 'samples') continue;
@@ -412,6 +443,14 @@ function renderMarkdown(report) {
     `| Discovery Engine documents | ${report.counts.discoveryEngine.documents} |`,
     ...Object.entries(report.counts.bigQuery).map(([key, value]) => `| BigQuery ${key} | ${value} |`),
     '',
+    ...(report.warnings?.length ? [
+      `## Warnings`,
+      '',
+      '```json',
+      JSON.stringify(report.warnings, null, 2),
+      '```',
+      '',
+    ] : []),
     `## Mismatches`,
     '',
     `| Check | Value |`,

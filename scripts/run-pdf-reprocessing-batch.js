@@ -18,8 +18,10 @@ const EXECUTE = process.argv.includes('--execute');
 const ONLY_MISSING = !process.argv.includes('--include-reprocessed');
 const STOP_ON_ERROR = process.argv.includes('--stop-on-error');
 const BACKFILL_ANCHORS = process.argv.includes('--backfill-anchors');
-const REPORT_JSON = valueOf('--json-output', path.join(__dirname, '../docs/reports/pdf-reprocessing-batch-latest.json'));
-const REPORT_MD = valueOf('--output', path.join(__dirname, '../docs/reports/pdf-reprocessing-batch-latest.md'));
+const DEFAULT_REPORT_JSON = path.join(__dirname, '../docs/reports/pdf-reprocessing-batch-latest.json');
+const DEFAULT_REPORT_MD = path.join(__dirname, '../docs/reports/pdf-reprocessing-batch-latest.md');
+const REPORT_JSON = valueOf('--json-output', EXECUTE ? DEFAULT_REPORT_JSON : null);
+const REPORT_MD = valueOf('--output', EXECUTE ? DEFAULT_REPORT_MD : null);
 const ARCHIVE_REPORTS = EXECUTE && !process.argv.includes('--no-archive-report');
 
 if (!PROJECT) {
@@ -242,7 +244,9 @@ function escapePipes(value) {
 
 function valueOf(flag, fallback) {
   const arg = process.argv.slice(2).find((item) => item.startsWith(`${flag}=`));
-  return arg ? arg.slice(flag.length + 1) : fallback;
+  if (!arg) return fallback;
+  const value = arg.slice(flag.length + 1);
+  return value || fallback;
 }
 
 function loadEnv(envPath) {

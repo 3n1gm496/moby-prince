@@ -1,19 +1,19 @@
 # Corpus Audit
 
-Generato: 2026-04-24T07:07:15.038Z
+Generato: 2026-04-24T08:31:06.594Z
 
 ## Counts
 
 | Area | Count |
 |---|---:|
 | GCS raw | 254 |
-| GCS normalized | 121 |
+| GCS normalized | 288 |
 | Discovery Engine documents | 245 |
 | BigQuery documents | 246 |
-| BigQuery claims | 6522 |
+| BigQuery claims | 6887 |
 | BigQuery events | 647 |
 | BigQuery entities | 133 |
-| BigQuery source_anchors | 6910 |
+| BigQuery source_anchors | 7716 |
 | BigQuery entity_profiles | 133 |
 | BigQuery evidence_links | 0 |
 
@@ -21,13 +21,13 @@ Generato: 2026-04-24T07:07:15.038Z
 
 | Check | Value |
 |---|---:|
-| eventsWithoutRealSources | 33 |
+| eventsWithoutRealSources | 50 |
 | invalidEventEntityIds | 0 |
 | claimsWithoutDocuments | 0 |
 | anchorsWithoutDocuments | 0 |
-| anchorsWithoutClaims | 186 |
+| anchorsWithoutClaims | 224 |
 | duplicateDocumentSourceUris | 1 |
-| pageAnchors | 202 |
+| pageAnchors | 605 |
 | nullDateWithItalianDay | 0 |
 | documentsWithoutSourceUri | 0 |
 | emptyEntityProfiles | 0 |
@@ -36,13 +36,13 @@ Generato: 2026-04-24T07:07:15.038Z
 
 | Check | Value |
 |---|---:|
-| documents_without_normalized_uri | 240 |
-| documents_without_chunk_count | 240 |
+| documents_without_normalized_uri | 230 |
+| documents_without_chunk_count | 230 |
 | documents_without_ocr_quality | 246 |
 | documents_with_split_parent | 0 |
-| documents_with_normalized_uri | 6 |
-| claims_with_page_reference | 202 |
-| claims_without_page_reference | 6320 |
+| documents_with_normalized_uri | 16 |
+| claims_with_page_reference | 605 |
+| claims_without_page_reference | 6282 |
 
 ## Samples
 
@@ -50,54 +50,54 @@ Generato: 2026-04-24T07:07:15.038Z
 {
   "eventsWithoutSources": [
     {
+      "id": "event-2016-02-16-audizione-del-dottor-piero-mannironi--6cd4e247",
+      "title": "Audizione del dottor Piero Mannironi e del dottor Alberto Testa",
+      "date_text": "16 febbraio 2016"
+    },
+    {
       "id": "event-23-45-33-moby-prince-on-fire-18d5134c",
       "title": "Moby Prince on fire",
       "date_text": "23.45.33"
     },
     {
-      "id": "event-ore-20-23-20-ipl-communication-with-moby-prince-1dc9f639",
-      "title": "IPL communication with Moby Prince",
-      "date_text": "Ore 20.23.20"
+      "id": "event-22-20-witness-sees-agip-abruzzo-and-other-ships-5fe02ee5",
+      "title": "Witness sees Agip Abruzzo and other ships",
+      "date_text": "22:20"
     },
     {
-      "id": "event-1991-04-10-oscuramento-della-petroliera-agip-abr-3fae7556",
-      "title": "Oscuramento della petroliera Agip Abruzzo",
-      "date_text": "prima della collisione del 10 aprile 1991"
+      "id": "event-1998-10-31-tribunale-penale-di-livorno-sentence--b29b5eba",
+      "title": "Tribunale Penale di Livorno sentence pronounced",
+      "date_text": "31.10.1998"
     },
     {
-      "id": "event-22-14-visibility-described-as-discrete-1bf63b41",
-      "title": "Visibility described as discrete",
-      "date_text": "22:14"
-    },
-    {
-      "id": "event-1991-04-10-passeggeri-trovati-nella-sala-de-luxe-543559e1",
-      "title": "Passeggeri trovati nella sala De Luxe",
-      "date_text": "dopo la collisione del 10 aprile 1991"
-    },
-    {
-      "id": "event-1991-03-19-richiesta-acquisizione-atti-ministeri-69e7dcd8",
-      "title": "Richiesta acquisizione atti ministeriali",
-      "date_text": "19 marzo 1991"
-    },
-    {
-      "id": "event-2015-07-22-istituzione-commissione-parlamentare--144f709b",
-      "title": "Istituzione Commissione Parlamentare d'Inchiesta Moby Prince",
-      "date_text": "22 luglio 2015"
-    },
-    {
-      "id": "event-2002-05-24-dichiarazione-di-john-t-oliver-sul-ru-f66c684b",
-      "title": "Dichiarazione di John T. Oliver sul ruolo delle navi americane",
-      "date_text": "24 maggio 2002"
-    },
-    {
-      "id": "event-2002-05-24-risposta-del-capitano-di-vascello-joh-f25716c0",
-      "title": "Risposta del Capitano di Vascello John T. Oliver",
-      "date_text": "24 maggio 2002"
+      "id": "event-1991-04-10-operazioni-di-trasbordo-di-armamenti-c29b1d11",
+      "title": "Operazioni di trasbordo di armamenti",
+      "date_text": "10 aprile 1991"
     },
     {
       "id": "event-04-10-first-tugboat-connects-to-moby-prince-d48bef76",
       "title": "First tugboat connects to Moby Prince",
       "date_text": "04:10"
+    },
+    {
+      "id": "event-2007-12-24-legge-finanziaria-2007-769af21b",
+      "title": "Legge finanziaria 2007",
+      "date_text": "24 dicembre 2007"
+    },
+    {
+      "id": "event-1999-01-01-critica-alla-gestione-delle-emergenze-f1cc5526",
+      "title": "Critica alla gestione delle emergenze",
+      "date_text": "1999"
+    },
+    {
+      "id": "event-2016-02-09-audizione-legale-di-parte-civile-9bd5f19b",
+      "title": "Audizione legale di parte civile",
+      "date_text": "9 febbraio 2016"
+    },
+    {
+      "id": "event-2016-02-02-6-seduta-della-commissione-parlamenta-c44bdb96",
+      "title": "6ª seduta della Commissione Parlamentare d'Inchiesta",
+      "date_text": "martedì 2 febbraio 2016"
     }
   ],
   "entities": [
@@ -219,7 +219,7 @@ Generato: 2026-04-24T07:07:15.038Z
 [
   {
     "extraction_method": "llm_extracted",
-    "claims": 6522
+    "claims": 6887
   }
 ]
 ```
@@ -230,11 +230,11 @@ Generato: 2026-04-24T07:07:15.038Z
 [
   {
     "anchor_type": "text_span",
-    "anchors": 6708
+    "anchors": 7111
   },
   {
     "anchor_type": "page",
-    "anchors": 202
+    "anchors": 605
   }
 ]
 ```
