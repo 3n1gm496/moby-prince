@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 
 const { createJob } = require('../../ingestion/state/job.js');
 const { IndexerWorker } = require('../../ingestion/workers/indexer.js');
+const { _claimId } = require('../../ingestion/workers/claimExtractor.js');
 const { toDocumentId } = require('../../ingestion/lib/documentId.js');
 
 function makeLogger() {
@@ -54,5 +55,27 @@ describe('ingestion reprocessing hardening', () => {
     });
     expect(result.job.status).toBe('INDEXED');
     expect(result.job.documentId).toBe('archiviazione-2010-7c1b4cb8');
+  });
+
+  it('generates stable claim ids from document, page and normalized text', () => {
+    const first = _claimId({
+      documentId: 'doc-1',
+      pageReference: 7,
+      text: 'La nave Moby Prince entrò in collisione.',
+    });
+    const second = _claimId({
+      documentId: 'doc-1',
+      pageReference: 7,
+      text: ' la nave moby prince entrò in collisione. ',
+    });
+    const differentPage = _claimId({
+      documentId: 'doc-1',
+      pageReference: 8,
+      text: 'La nave Moby Prince entrò in collisione.',
+    });
+
+    expect(first).toMatch(/^claim-[a-f0-9]{24}$/);
+    expect(second).toBe(first);
+    expect(differentPage).not.toBe(first);
   });
 });

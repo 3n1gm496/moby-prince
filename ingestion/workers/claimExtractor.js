@@ -27,6 +27,7 @@
 const { BaseWorker }  = require('./base');
 const bq              = require('../services/bigquery');
 const gemini          = require('../services/gemini');
+const crypto          = require('crypto');
 
 // Text MIME types this worker processes
 const TEXT_MIMES = new Set(['text/plain', 'text/html', 'text/xml', 'text/markdown']);
@@ -118,7 +119,11 @@ class ClaimExtractorWorker extends BaseWorker {
       .filter(c => c && typeof c.text === 'string' && c.text.trim().length >= 10)
       .slice(0, MAX_CLAIMS)
       .map(c => ({
-        id:                _newId(),
+        id:                _claimId({
+          documentId: canonicalDocumentId,
+          pageReference: job.meta?.page_start,
+          text: c.text,
+        }),
         text:              c.text.trim().slice(0, 500),
         claim_type:        _sanitizeClaimType(c.claimType),
         document_id:       canonicalDocumentId,
@@ -206,12 +211,19 @@ function _sanitizeClaimType(raw) {
   return VALID_CLAIM_TYPES.has(s) ? s : 'fact';
 }
 
-function _newId() {
-  try {
-    return require('crypto').randomUUID();
-  } catch {
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  }
+function _claimId({ documentId, pageReference, text }) {
+  const normalizedText = String(text || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const input = [
+    documentId || 'document',
+    pageReference == null ? 'page-unknown' : `page-${pageReference}`,
+    normalizedText,
+  ].join('|');
+  return `claim-${crypto.createHash('sha1').update(input).digest('hex').slice(0, 24)}`;
 }
 
-module.exports = { ClaimExtractorWorker };
+module.exports = { ClaimExtractorWorker, _claimId };

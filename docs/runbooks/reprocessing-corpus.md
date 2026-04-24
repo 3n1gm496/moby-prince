@@ -204,6 +204,7 @@ Stato corrente:
 - blocco residuo: completare il batch corpus e poi riallineare eventi/entita' al nuovo layer claims/anchors
 - debito dati misurato: `source_anchors` contiene anchor orfani storici per alcuni documenti gia' riprocessati; la bonifica distruttiva va eseguita solo fuori streaming buffer BigQuery
 - debito timeline misurato: il reprocessing claim ha reso orfani `27` eventi storici rispetto ai loro `source_claim_ids`; la UI timeline ora filtra eventi senza fonti risolte, ma il dataset eventi va rigenerato dal nuovo layer claims/anchors prima del batch completo
+- correzione strutturale: i nuovi claim ID sono deterministici su `document_id + page_reference + testo normalizzato`; i futuri reprocessing non devono piu' generare claim ID casuali
 
 ### Fase 3. Page map e split strutturato
 
