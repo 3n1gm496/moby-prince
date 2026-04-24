@@ -210,6 +210,7 @@ Stato corrente:
   - `delibera_istitutiva.pdf`
   - `Regolamento_definitivo.pdf`
 - copertura dopo il batch: `6` documenti con `normalized_uri`, `202` claim con `page_reference`, `202` page anchor, `238` PDF ancora candidati
+- il batch runner supporta `--backfill-anchors` per materializzare automaticamente `source_anchors` sui documenti completati
 
 ### Fase 3. Page map e split strutturato
 

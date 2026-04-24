@@ -17,6 +17,7 @@ const OFFSET = parseInt(valueOf('--offset', '0'), 10) || 0;
 const EXECUTE = process.argv.includes('--execute');
 const ONLY_MISSING = !process.argv.includes('--include-reprocessed');
 const STOP_ON_ERROR = process.argv.includes('--stop-on-error');
+const BACKFILL_ANCHORS = process.argv.includes('--backfill-anchors');
 const REPORT_JSON = valueOf('--json-output', path.join(__dirname, '../docs/reports/pdf-reprocessing-batch-latest.json'));
 const REPORT_MD = valueOf('--output', path.join(__dirname, '../docs/reports/pdf-reprocessing-batch-latest.md'));
 const ARCHIVE_REPORTS = EXECUTE && !process.argv.includes('--no-archive-report');
@@ -60,6 +61,8 @@ async function main() {
     selectedCount: selected.length,
     onlyMissing: ONLY_MISSING,
     stopOnError: STOP_ON_ERROR,
+    backfillAnchors: BACKFILL_ANCHORS,
+    anchorBackfill: null,
     results: [],
   };
 
@@ -86,6 +89,13 @@ async function main() {
 
     writeReports(report);
     if (exitCode !== 0 && STOP_ON_ERROR) break;
+  }
+
+  if (EXECUTE && BACKFILL_ANCHORS) {
+    const completedDocumentIds = report.results
+      .filter((row) => row.status === 'completed' && row.documentId)
+      .map((row) => row.documentId);
+    report.anchorBackfill = await runAnchorBackfill(completedDocumentIds);
   }
 
   writeReports(report);
@@ -131,6 +141,39 @@ function runIngest(uri) {
   });
 }
 
+function runAnchorBackfill(documentIds) {
+  return new Promise((resolve) => {
+    const uniqueIds = [...new Set(documentIds.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      resolve({ status: 'skipped', documentIds: [], exitCode: 0 });
+      return;
+    }
+    const child = spawn(
+      process.execPath,
+      [
+        'ingestion/scripts/backfill-source-anchors.js',
+        ...uniqueIds.map((id) => `--document-id=${id}`),
+      ],
+      {
+        cwd: path.join(__dirname, '..'),
+        env: process.env,
+        stdio: 'inherit',
+      },
+    );
+    child.on('close', (code) => resolve({
+      status: code === 0 ? 'completed' : 'failed',
+      documentIds: uniqueIds,
+      exitCode: code ?? 1,
+    }));
+    child.on('error', (err) => resolve({
+      status: 'failed',
+      documentIds: uniqueIds,
+      exitCode: 1,
+      error: err.message,
+    }));
+  });
+}
+
 function writeReports(report) {
   if (REPORT_JSON) {
     fs.mkdirSync(path.dirname(path.resolve(REPORT_JSON)), { recursive: true });
@@ -159,6 +202,7 @@ function renderText(report) {
     `selectedCount: ${report.selectedCount}`,
     `completed: ${completed}`,
     `failed: ${failed}`,
+    `anchorBackfill: ${report.anchorBackfill?.status || 'not-run'}`,
     `reportJson: ${REPORT_JSON}`,
     `reportMarkdown: ${REPORT_MD}`,
     '',
@@ -181,6 +225,7 @@ function renderMarkdown(report) {
     `| selectedCount | ${report.selectedCount} |`,
     `| completed | ${completed} |`,
     `| failed | ${failed} |`,
+    `| anchorBackfill | ${report.anchorBackfill?.status || 'not-run'} |`,
     '',
     '## Results',
     '',
