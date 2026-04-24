@@ -1,19 +1,19 @@
 # Corpus Audit
 
-Generato: 2026-04-24T08:31:06.594Z
+Generato: 2026-04-24T09:01:07.258Z
 
 ## Counts
 
 | Area | Count |
 |---|---:|
 | GCS raw | 254 |
-| GCS normalized | 288 |
+| GCS normalized | 363 |
 | Discovery Engine documents | 245 |
 | BigQuery documents | 246 |
-| BigQuery claims | 6887 |
+| BigQuery claims | 6888 |
 | BigQuery events | 647 |
 | BigQuery entities | 133 |
-| BigQuery source_anchors | 7716 |
+| BigQuery source_anchors | 7896 |
 | BigQuery entity_profiles | 133 |
 | BigQuery evidence_links | 0 |
 
@@ -21,13 +21,13 @@ Generato: 2026-04-24T08:31:06.594Z
 
 | Check | Value |
 |---|---:|
-| eventsWithoutRealSources | 50 |
+| eventsWithoutRealSources | 70 |
 | invalidEventEntityIds | 0 |
 | claimsWithoutDocuments | 0 |
 | anchorsWithoutDocuments | 0 |
-| anchorsWithoutClaims | 224 |
+| anchorsWithoutClaims | 313 |
 | duplicateDocumentSourceUris | 1 |
-| pageAnchors | 605 |
+| pageAnchors | 695 |
 | nullDateWithItalianDay | 0 |
 | documentsWithoutSourceUri | 0 |
 | emptyEntityProfiles | 0 |
@@ -36,13 +36,13 @@ Generato: 2026-04-24T08:31:06.594Z
 
 | Check | Value |
 |---|---:|
-| documents_without_normalized_uri | 230 |
-| documents_without_chunk_count | 230 |
+| documents_without_normalized_uri | 210 |
+| documents_without_chunk_count | 210 |
 | documents_without_ocr_quality | 246 |
 | documents_with_split_parent | 0 |
-| documents_with_normalized_uri | 16 |
-| claims_with_page_reference | 605 |
-| claims_without_page_reference | 6282 |
+| documents_with_normalized_uri | 36 |
+| claims_with_page_reference | 695 |
+| claims_without_page_reference | 6193 |
 
 ## Samples
 
@@ -50,54 +50,54 @@ Generato: 2026-04-24T08:31:06.594Z
 {
   "eventsWithoutSources": [
     {
-      "id": "event-2016-02-16-audizione-del-dottor-piero-mannironi--6cd4e247",
-      "title": "Audizione del dottor Piero Mannironi e del dottor Alberto Testa",
-      "date_text": "16 febbraio 2016"
+      "id": "event-2016-03-15-14-seduta-della-commissione-parlament-62390d41",
+      "title": "14ª Seduta della Commissione Parlamentare d’Inchiesta",
+      "date_text": "martedì 15 marzo 2016"
     },
     {
-      "id": "event-23-45-33-moby-prince-on-fire-18d5134c",
-      "title": "Moby Prince on fire",
-      "date_text": "23.45.33"
+      "id": "event-22-14-visibility-described-as-discrete-1bf63b41",
+      "title": "Visibility described as discrete",
+      "date_text": "22:14"
     },
     {
-      "id": "event-22-20-witness-sees-agip-abruzzo-and-other-ships-5fe02ee5",
-      "title": "Witness sees Agip Abruzzo and other ships",
-      "date_text": "22:20"
+      "id": "event-1991-04-10-dichiarazione-di-marcella-bini-6331a2b8",
+      "title": "Dichiarazione di Marcella Bini",
+      "date_text": "intorno alle 22:25 del 10 aprile 1991"
     },
     {
-      "id": "event-1998-10-31-tribunale-penale-di-livorno-sentence--b29b5eba",
-      "title": "Tribunale Penale di Livorno sentence pronounced",
-      "date_text": "31.10.1998"
+      "id": "event-2016-05-17-23-seduta-commissione-parlamentare-d--ea82d9fd",
+      "title": "23ª Seduta Commissione Parlamentare d’Inchiesta Moby Prince",
+      "date_text": "martedì 17 maggio 2016"
     },
     {
-      "id": "event-1991-04-10-operazioni-di-trasbordo-di-armamenti-c29b1d11",
-      "title": "Operazioni di trasbordo di armamenti",
-      "date_text": "10 aprile 1991"
+      "id": "event-2016-05-25-24-seduta-della-commissione-parlament-fcb829dc",
+      "title": "24ª seduta della Commissione Parlamentare d’Inchiesta",
+      "date_text": "mercoledì 25 maggio 2016"
     },
     {
-      "id": "event-04-10-first-tugboat-connects-to-moby-prince-d48bef76",
-      "title": "First tugboat connects to Moby Prince",
-      "date_text": "04:10"
+      "id": "event-2017-05-18-approvazione-e-comunicazione-della-re-7cae70f7",
+      "title": "Approvazione e comunicazione della relazione della Commissione",
+      "date_text": "18 maggio 2017"
     },
     {
-      "id": "event-2007-12-24-legge-finanziaria-2007-769af21b",
-      "title": "Legge finanziaria 2007",
-      "date_text": "24 dicembre 2007"
+      "id": "event-2016-04-19-seduta-della-commissione-d-inchiesta--0c2937e0",
+      "title": "Seduta della Commissione d'inchiesta Moby Prince",
+      "date_text": "19 aprile 2016"
     },
     {
-      "id": "event-1999-01-01-critica-alla-gestione-delle-emergenze-f1cc5526",
-      "title": "Critica alla gestione delle emergenze",
-      "date_text": "1999"
+      "id": "event-1991-04-10-savelli-giancarlo-and-losoni-paolo-mo-eadf0960",
+      "title": "Savelli Giancarlo and Losoni Paolo monitoring VHF channel 16",
+      "date_text": "10/04/1991"
     },
     {
-      "id": "event-2016-02-09-audizione-legale-di-parte-civile-9bd5f19b",
-      "title": "Audizione legale di parte civile",
-      "date_text": "9 febbraio 2016"
+      "id": "event-1991-04-10-passeggeri-trovati-nella-sala-de-luxe-543559e1",
+      "title": "Passeggeri trovati nella sala De Luxe",
+      "date_text": "dopo la collisione del 10 aprile 1991"
     },
     {
-      "id": "event-2016-02-02-6-seduta-della-commissione-parlamenta-c44bdb96",
-      "title": "6ª seduta della Commissione Parlamentare d'Inchiesta",
-      "date_text": "martedì 2 febbraio 2016"
+      "id": "event-2016-03-22-data-del-disastro-9c89d1cd",
+      "title": "Data del disastro",
+      "date_text": "martedì 22 marzo 2016"
     }
   ],
   "entities": [
@@ -219,7 +219,7 @@ Generato: 2026-04-24T08:31:06.594Z
 [
   {
     "extraction_method": "llm_extracted",
-    "claims": 6887
+    "claims": 6888
   }
 ]
 ```
@@ -230,11 +230,11 @@ Generato: 2026-04-24T08:31:06.594Z
 [
   {
     "anchor_type": "text_span",
-    "anchors": 7111
+    "anchors": 7201
   },
   {
     "anchor_type": "page",
-    "anchors": 605
+    "anchors": 695
   }
 ]
 ```
