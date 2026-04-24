@@ -1,12 +1,12 @@
 # PDF Reprocessing Batch
 
-Generato: 2026-04-24T06:40:11.490Z
+Generato: 2026-04-24T07:07:41.673Z
 
 | Campo | Valore |
 |---|---:|
 | mode | dry-run |
 | totalCorpusPdfs | 244 |
-| candidatesAfterFiltering | 241 |
+| candidatesAfterFiltering | 238 |
 | selectedCount | 3 |
 | completed | 0 |
 | failed | 0 |
@@ -15,6 +15,6 @@ Generato: 2026-04-24T06:40:11.490Z
 
 | # | Status | Document ID | Title |
 |---:|---|---|---|
-| 0 | planned | e3a28ed75e77c700716e8901b64a631c | Sentenza Appello Firenze 1999 |
-| 1 | planned | 374074a0150a71499f2f598780b646b2 | delibera istitutiva |
-| 2 | planned | fa0ac4811b0fccd27582228075c1734c | Regolamento definitivo |
+| 0 | planned | e4ff306b6c29152a1c07d9ec489a556e | Fonti Parlamentari Commissione Inchiesta 17^ leg Relazione 22 bis n6 330368 |
+| 1 | planned | 4a9f96c1ac5bf494a5a0f5e222c71017 | Fonti Parlamentari Commissione Inchiesta 17^ leg Relazione finale |
+| 2 | planned | 8667f04378b9a662ce5d070f3dc22790 | Fonti Parlamentari Commissione Inchiesta 17^ leg Resoconti moby prince 01 335801 |

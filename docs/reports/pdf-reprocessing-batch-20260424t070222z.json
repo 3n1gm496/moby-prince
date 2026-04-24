@@ -1,0 +1,46 @@
+{
+  "generatedAt": "2026-04-24T07:02:22.435Z",
+  "mode": "execute",
+  "project": "project-fae202f2-19be-4d87-8cd",
+  "dataset": "evidence",
+  "inventoryPath": "/home/administrator/tools/moby-prince/docs/reports/corpus-inventory-latest.json",
+  "totalCorpusPdfs": 244,
+  "candidatesAfterFiltering": 241,
+  "offset": 0,
+  "limit": 3,
+  "selectedCount": 3,
+  "onlyMissing": true,
+  "stopOnError": true,
+  "results": [
+    {
+      "index": 0,
+      "uri": "gs://moby-prince/Fonti Giudiziarie/Sentenza-Appello-Firenze-1999.pdf",
+      "documentId": "e3a28ed75e77c700716e8901b64a631c",
+      "title": "Sentenza Appello Firenze 1999",
+      "status": "completed",
+      "startedAt": "2026-04-24T07:02:22.435Z",
+      "finishedAt": "2026-04-24T07:03:36.986Z",
+      "exitCode": 0
+    },
+    {
+      "index": 1,
+      "uri": "gs://moby-prince/Fonti Parlamentari/Commissione d'Inchiesta/leg_17/delibera_istitutiva.pdf",
+      "documentId": "374074a0150a71499f2f598780b646b2",
+      "title": "delibera istitutiva",
+      "status": "completed",
+      "startedAt": "2026-04-24T07:03:36.989Z",
+      "finishedAt": "2026-04-24T07:04:12.378Z",
+      "exitCode": 0
+    },
+    {
+      "index": 2,
+      "uri": "gs://moby-prince/Fonti Parlamentari/Commissione d'Inchiesta/leg_17/Regolamento_definitivo.pdf",
+      "documentId": "fa0ac4811b0fccd27582228075c1734c",
+      "title": "Regolamento definitivo",
+      "status": "completed",
+      "startedAt": "2026-04-24T07:04:12.379Z",
+      "finishedAt": "2026-04-24T07:05:24.640Z",
+      "exitCode": 0
+    }
+  ]
+}

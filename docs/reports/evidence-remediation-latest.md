@@ -1,16 +1,16 @@
 # Evidence Remediation Plan
 
-Generato: 2026-04-24T07:00:31.477Z
+Generato: 2026-04-24T07:07:56.263Z
 
 ## Summary
 
 | Check | Value |
 |---|---:|
-| orphanEvents | 27 |
-| orphanAnchorDocuments | 2 |
-| orphanAnchors | 160 |
+| orphanEvents | 33 |
+| orphanAnchorDocuments | 5 |
+| orphanAnchors | 186 |
 | duplicateSourceUris | 1 |
-| normalizedDocuments | 3 |
+| normalizedDocuments | 6 |
 
 ## Recommended Order
 
@@ -32,6 +32,7 @@ Generato: 2026-04-24T07:00:31.477Z
 | event-1991-04-10-dichiarazione-di-marcella-bini-6331a2b8 | intorno alle 22:25 del 10 aprile 1991 | Dichiarazione di Marcella Bini |
 | event-1991-04-10-dichiarazione-di-massimo-vernace-a3b23700 | circa mezz'ora dopo la collisione del 10 aprile 1991 | Dichiarazione di Massimo Vernace |
 | event-1991-04-10-dichiarazione-di-roberto-del-seppia-7df96090 | sera del 10 aprile 1991 | Dichiarazione di Roberto Del Seppia |
+| event-1991-04-10-mancata-comunicazione-tra-navi-e-auto-a55eb1d8 | 10 aprile 1991 | Mancata comunicazione tra navi e autorità portuali |
 | event-1991-04-10-operazioni-di-trasbordo-di-armamenti-c29b1d11 | 10 aprile 1991 | Operazioni di trasbordo di armamenti |
 | event-1991-04-10-oscuramento-della-petroliera-agip-abr-3fae7556 | prima della collisione del 10 aprile 1991 | Oscuramento della petroliera Agip Abruzzo |
 | event-1991-04-10-partenza-della-margareth-lykes-523ec5f1 | sera dei fatti (10 aprile 1991) | Partenza della Margareth Lykes |
@@ -43,8 +44,13 @@ Generato: 2026-04-24T07:00:31.477Z
 | event-1991-04-10-situazione-di-preallarme-militare-nel-cd04fe62 | sera dei fatti (10 aprile 1991) | Situazione di preallarme militare nel porto di Livorno |
 | event-1995-03-31-rapporto-questura-di-livorno-digos-ebfc46c5 | 31 marzo 1995 | Rapporto Questura di Livorno – Digos |
 | event-1998-10-31-tribunale-penale-di-livorno-sentence--b29b5eba | 31.10.1998 | Tribunale Penale di Livorno sentence pronounced |
+| event-1999-01-01-conferma-responsabilita-snav-8bc61831 | 1999 | Conferma responsabilità SNAV |
+| event-1999-01-01-critica-alla-gestione-delle-emergenze-f1cc5526 | 1999 | Critica alla gestione delle emergenze |
 | event-2002-05-24-dichiarazione-di-john-t-oliver-sul-ru-f66c684b | 24 maggio 2002 | Dichiarazione di John T. Oliver sul ruolo delle navi americane |
 | event-2002-05-24-risposta-del-capitano-di-vascello-joh-f25716c0 | 24 maggio 2002 | Risposta del Capitano di Vascello John T. Oliver |
+| event-2007-12-24-legge-finanziaria-2007-769af21b | 24 dicembre 2007 | Legge finanziaria 2007 |
+| event-2012-11-26-citazione-direttiva-2012-34-ue-450911ae | 2012 | Citazione direttiva 2012/34/UE |
+| event-2015-07-22-istituzione-commissione-parlamentare--144f709b | 22 luglio 2015 | Istituzione Commissione Parlamentare d'Inchiesta Moby Prince |
 | event-04-10-first-tugboat-connects-to-moby-prince-d48bef76 | 04:10 | First tugboat connects to Moby Prince |
 | event-ore-20-23-20-ipl-communication-with-moby-prince-1dc9f639 | Ore 20.23.20 | IPL communication with Moby Prince |
 | event-ore-20-22-20-moby-prince-communication-with-livo-0d876db6 | Ore 20.22.20 | Moby Prince communication with Livorno Radio |
@@ -59,6 +65,9 @@ Generato: 2026-04-24T07:00:31.477Z
 |---|---:|---:|
 | e4083994014c2f67e0e02937c8b5cb81 | 123 | 123 |
 | 2fb11784e62779c325737ec95528816c | 37 | 37 |
+| fa0ac4811b0fccd27582228075c1734c | 13 | 13 |
+| e3a28ed75e77c700716e8901b64a631c | 10 | 10 |
+| 374074a0150a71499f2f598780b646b2 | 3 | 3 |
 
 ## Duplicate Documents
 
@@ -79,6 +88,9 @@ Generato: 2026-04-24T07:00:31.477Z
 
 | Document ID | Chunks | State | Title |
 |---|---:|---|---|
+| fa0ac4811b0fccd27582228075c1734c | 6 | normalized_children_ready | Regolamento definitivo |
+| 374074a0150a71499f2f598780b646b2 | 1 | normalized_children_ready | delibera istitutiva |
+| e3a28ed75e77c700716e8901b64a631c | 5 | normalized_children_ready | Sentenza Appello Firenze 1999 |
 | 2fb11784e62779c325737ec95528816c | 25 | normalized_children_ready | Moby Prince Sentenza 1 (31.10.1998) |
 | e4083994014c2f67e0e02937c8b5cb81 | 18 | normalized_children_ready | Moby Prince Istanza Riapertura 11 10 2006 |
 | archiviazione-2010-2380025c | 25 | normalized_children_ready | Archiviazione-2010 |
